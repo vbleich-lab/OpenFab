@@ -5307,7 +5307,9 @@ function propsOp(b, op) {
         op.ctrlCycle ? h('p', { class: 'hint' }, r?.turnCycle ? `Kontur mit ${r.turnCycle.pts.length} Punkten – Okuma: G85 (LAP) mit Kontur G81…G80, Fanuc: G71 P…Q…. Die Steuerung schruppt mit ihrer eigenen Aufteilung; die Simulation hier ist die OpenFab-Bahn.` : r?.turnCycleWhy ? `⚠ ${r.turnCycleWhy} – wird als Bahn ausgegeben.` : 'Außenkonturen, die zur Futterseite stetig ansteigen, gehen als Schruppzyklus der Steuerung (Okuma G85, Fanuc G71).') : null);
       break;
     case 'tfinish':
-      put('passes', N('Ende Z', 'zEnd', { allowEmpty: true, ph: 'Teilunterkante' }), N('Aufmaß', 'stockToLeave'));
+      put('passes', N('Ende Z', 'zEnd', { allowEmpty: true, ph: 'Teilunterkante' }), N('Aufmaß', 'stockToLeave'),
+        C('Als Steuerungszyklus ausgeben', 'ctrlCycle'),
+        op.ctrlCycle ? h('p', { class: 'hint' }, 'Schlichtet entlang der Kontur des Schruppzyklus davor – Okuma: G87 (LAP), Fanuc: G70 P…Q…. Voraussetzung: Längsschruppen davor als Steuerungszyklus, gleiche Schneide (Schneidenradius) und gleiches Ende Z; sonst wird die Bahn ausgegeben. Vorschub: F im ersten Konturblock.') : null);
       break;
     case 'tgroove':
       put('passes', N('Position Z (Mitte)', 'z'), N('Breite', 'width', { min: 0.1 }), N('Grund-Ø', 'dia', { allowEmpty: true, ph: 'aus Kontur' }));
@@ -10387,23 +10389,34 @@ function parseNcLathe(code) {
     const up = ups[i];
     if (skip.has(i)) { out.push(null); continue; }
     // roughing cycles: Okuma G85 N<label> D… (contour N<label> G81 … G80), Fanuc G71 U… R… / G71 P… Q…
-    const okR = up.match(/G85\s*N(\d+)/);
+    const okR = up.match(/G85\s*N(\d+)/), okF = up.match(/G87\s*N(\d+)/);
+    const faF = /G70(?![\d.])/.test(up) && wv(up, 'P') != null && wv(up, 'Q') != null;
     const faR = /G71/.test(up) && wv(up, 'P') != null && wv(up, 'Q') != null && wv(up, 'X') == null;
     if (/G71/.test(up) && wv(up, 'U') != null && wv(up, 'P') == null && wv(up, 'X') == null) fanucU = wv(up, 'U');
-    if ((okR || faR) && known) {
+    if ((okR || faR || okF || faF) && known) {
+      // the contour: Okuma N<label> G81 … G80, Fanuc blocks N<P> … N<Q> (for finishing: those of the roughing before)
       let i0 = -1, i1 = -1;
-      if (okR) {
-        i0 = ups.findIndex((u, j) => j > i && new RegExp(`^\\s*N${okR[1]}\\s*G81`).test(u));
+      const lab = okR || okF;
+      if (lab) {
+        i0 = ups.findIndex(u => new RegExp(`^\\s*N${lab[1]}\\s*G81`).test(u));
         if (i0 >= 0) i1 = ups.findIndex((u, j) => j > i0 && /G80/.test(u));
       } else {
         const ns = Math.round(wv(up, 'P')), nf = Math.round(wv(up, 'Q'));
-        i0 = ups.findIndex((u, j) => j > i && new RegExp(`^\\s*N0*${ns}(?!\\d)`).test(u));
+        i0 = ups.findIndex((u, j) => (faR ? j > i : j !== i) && new RegExp(`^\\s*N0*${ns}(?!\\d)`).test(u));
         if (i0 >= 0) i1 = ups.findIndex((u, j) => j >= i0 && new RegExp(`^\\s*N0*${nf}(?!\\d)`).test(u));
       }
       if (i0 >= 0 && i1 >= i0) {
-        const cp = contourOf(okR ? i0 + 1 : i0, okR ? i1 - 1 : i1);
-        for (let j = i0; j <= i1; j++) skip.add(j);
-        out.push({ x: pos.x, y: 0, z: pos.z, rapid: false, tool, cycle: true, arc: latheRoughChain(pos, cp, okR ? wv(up, 'D') : fanucU) });
+        const cp = contourOf(lab ? i0 + 1 : i0, lab ? i1 - 1 : i1);
+        if (okR || faR) {
+          for (let j = i0; j <= i1; j++) skip.add(j);
+          // finishing allowance U (diameter): the roughing stays that far outside the contour
+          const u = (wv(up.replace(/G71\s*U[^A-Z]*R[\d.]*/, ''), 'U') || 0) / (diam ? 2 : 1);
+          out.push({ x: pos.x, y: 0, z: pos.z, rapid: false, tool, cycle: true, arc: latheRoughChain(pos, cp.map(q => ({ x: q.x + u, z: q.z })), okR ? wv(up, 'D') : fanucU) });
+        } else if (cp.length) {
+          // finishing: once along the contour, out and back to the start point
+          const e = cp[cp.length - 1];
+          out.push({ x: pos.x, y: 0, z: pos.z, rapid: false, tool, cycle: true, arc: [...cp.map(q => ({ x: q.x, y: 0, z: q.z })), { x: Math.max(pos.x, e.x), y: 0, z: e.z }, { x: pos.x, y: 0, z: pos.z }] });
+        }
         continue;
       }
     }

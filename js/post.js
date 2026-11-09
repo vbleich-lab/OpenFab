@@ -40,7 +40,7 @@ export const SECTIONS = [
   ['cycleTap', 'Zyklus Gewindebohren rechts'], ['cycleTapLeft', 'Zyklus Gewindebohren links'], ['cycleReam', 'Zyklus Reiben'], ['cycleBore', 'Zyklus Ausdrehen'],
   ['cyclePoint', 'Zyklus: weitere Bohrposition'], ['cyclePatternCircle', 'Bohrbild Lochkreis (statt einzelner Positionen)'], ['cyclePatternGrid', 'Bohrbild Raster / Lochreihe'], ['cycleEnd', 'Zyklus beenden'],
   ['threadMove', 'Drehen: Gewindeschnitt'],
-  ['cycleTurnRough', 'Drehen: Schruppzyklus ({contour} = Konturzeilen)'], ['contourFirst', 'Drehen: Vorsatz erste Konturzeile'], ['contourLast', 'Drehen: Vorsatz letzte Konturzeile'],
+  ['cycleTurnRough', 'Drehen: Schruppzyklus ({contour} = Konturzeilen)'], ['cycleTurnFinish', 'Drehen: Schlichtzyklus (Kontur des Schruppzyklus)'], ['contourFirst', 'Drehen: Vorsatz erste Konturzeile'], ['contourLast', 'Drehen: Vorsatz letzte Konturzeile'],
   ['cycleTurnThread', 'Drehen: Gewindezyklus'],
   ['probeZ', 'Antasten: Z-Fläche'], ['probeBore', 'Antasten: Bohrung'], ['probeBoss', 'Antasten: Zapfen'], ['probeRectOut', 'Antasten: Rechteck außen'], ['probeRectIn', 'Antasten: Rechtecktasche innen'],
 ];
@@ -196,7 +196,9 @@ BUILTIN_POSTS.push(
     toolChangeFirst: '# T{t} {toolname}\nT{tt}', toolChange: 'G0 X{safex} Z{safez}\nM5\n# T{t} {toolname}\nT{tt}',
     threadMove: 'G32{Z} F{pitch}',
     // G71 type I (contour N{ns}…N{nf}, rising steadily), G76 two-block threading (1 finishing pass, 60°)
-    cycleTurnRough: 'G0 X{sx} Z{sz}\nG71 U{ap} R0.5\nG71 P{ns} Q{nf} U0 W0 F{f}\n{contour}', contourFirst: 'N{ns} ', contourLast: 'N{nf} ',
+    // G70 finishes along the contour N{ns}…N{nf} of the G71 before it (feed: F of the first contour block)
+    cycleTurnRough: 'G0 X{sx} Z{sz}\nG71 U{ap} R0.5\nG71 P{ns} Q{nf} U{u} W0 F{f}\n{contour}', contourFirst: 'N{ns} ', contourLast: 'N{nf} ',
+    cycleTurnFinish: 'G0 X{sx} Z{sz}\nG70 P{ns} Q{nf}',
     cycleTurnThread: 'G0 X{tsx} Z{tsz}\nG76 P010060 Q{tqmin} R0\nG76 X{tx} Z{tz} P{thu} Q{tdu} F{pitch}',
     footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nM30\n%',
   },
@@ -217,7 +219,9 @@ BUILTIN_POSTS.push(
     spindleOn: 'G97 S{rpm} M3', dwell: 'G4 F{dwell}',
     threadMove: 'G33{Z} F{pitch}',
     // LAP: G85 bar turning with the contour N… G81 … G80, threading cycle G71 (straight infeed B0)
-    cycleTurnRough: 'G0 X{sx} Z{sz}\nG85 N{lap} D{ap} F{f} U0 W0\nN{lap} G81\n{contour}\nG80', contourFirst: '', contourLast: '',
+    // G87 finishes along the LAP contour N{lap} (feed: F of the first contour block)
+    cycleTurnRough: 'G0 X{sx} Z{sz}\nG85 N{lap} D{ap} F{f} U{u} W0\nN{lap} G81\n{contour}\nG80', contourFirst: '', contourLast: '',
+    cycleTurnFinish: 'G0 X{sx} Z{sz}\nG87 N{lap}',
     cycleTurnThread: 'G0 X{tsx} Z{tsz}\nG71 X{tx} Z{tz} B0 D{td} H{th} F{pitch}',
     footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nM2',
   },
@@ -671,7 +675,9 @@ export function runPost(def, project, gen, opts = {}) {
   const coolCodes = { flood: [P.coolFlood], mist: [P.coolMist], air: [P.coolAir], airThrough: [P.coolAirThrough], through: [P.coolThrough], floodAir: [P.coolFlood, P.coolAir] };
   const offCodes = mode => (mode === 'air' || mode === 'airThrough' ? [P.coolAirOff] : mode === 'floodAir' ? [...new Set([P.coolOff, P.coolAirOff])] : [P.coolOff]);
   const defaultCool = opts.coolant ? 'flood' : 'off';
-  let cool = 'off', turnLabel = 9000;
+  let cool = 'off', turnLabel = 9000, lastRough = null;
+  // cutting edge geometry: a finishing cycle may follow the roughing contour only with the same nose
+  const edgeSig = t => JSON.stringify([t.kind, +t.noseRadius || 0, +t.insertAngle || 0, +t.leadAngle || 0, +t.angle || 0, +t.edgeLen || 0, +t.width || 0, !!t.internal]);
   const setCoolant = mode => {
     if (mode === cool) return;
     if (cool !== 'off') for (const c of offCodes(cool)) if (c) W.expand(c);
@@ -907,7 +913,14 @@ export function runPost(def, project, gen, opts = {}) {
         if (tc.kind === 'rough') {
           if (tc.under) warnings.push(`${op.name}: Zyklus schruppt nur bis zur Hüllkontur – Hinterschnitt/Einstich bis ${String(+tc.under.toFixed(2)).replace('.', ',')} mm (Radius) bleibt stehen; vor dem Schlichten einstechen`);
           turnLabel += 10;
-          const v = { ...tv, sx: 2 * tc.sx, sz: zz(tc.sz), ap: tc.ap, f: String(Math.round(feedOf(tc.feed))), lap: String(turnLabel), ns: String(turnLabel), nf: String(turnLabel + 1) };
+          const v = { ...tv, sx: 2 * tc.sx, sz: zz(tc.sz), ap: tc.ap, u: String(+(2 * (tc.u || 0)).toFixed(3)), f: String(Math.round(feedOf(tc.feed))), lap: String(turnLabel), ns: String(turnLabel), nf: String(turnLabel + 1) };
+          // a finishing cycle later in the program takes its feed from the first contour block (the roughing
+          // cycle ignores F there)
+          let fin = null;
+          for (const x of ops.slice(oi + 1)) {
+            if (x.type === 'trough' && x.ctrlCycle) break;
+            if (x.type === 'tfinish' && x.ctrlCycle) { fin = x; break; }
+          }
           const [pre, post = ''] = String(def[key]).split(/\n?\{contour\}\n?/);
           W.expand(W.tag(pre, key), v);
           W.st.X = W.num(2 * tc.sx); W.st.Z = W.num(zz(tc.sz)); W.lastCode = null;
@@ -918,9 +931,11 @@ export function runPost(def, project, gen, opts = {}) {
           const fill = tpl => String(tpl || '').replace(/\{(\w+)\}/g, (_, n) => v[n] ?? '');
           if (W.out.length > n0) {
             W.out[n0].text = fill(def.contourFirst) + W.out[n0].text;
+            if (fin && def.cycleTurnFinish) W.out[n0].text += ` F${Math.round(feedOf(results.get(fin.id).tool.feed))}`;
             if (W.out.length - 1 > n0) W.out[W.out.length - 1].text = fill(def.contourLast) + W.out[W.out.length - 1].text;
           }
           if (post) W.expand(W.tag(post, key), v);
+          lastRough = { ...v, sxr: tc.sx, szr: tc.sz, sig: edgeSig(t), zEnd: op.zEnd ?? '', under: tc.under, op: op.name };
         } else {
           const v = {
             ...tv, tsx: 2 * tc.sx, tsz: zz(tc.sz), tx: 2 * tc.xEnd, tz: zz(tc.ze), th: tc.h, td: tc.d1, pitch: tc.pitch,
@@ -928,6 +943,22 @@ export function runPost(def, project, gen, opts = {}) {
           };
           W.expand(W.tag(def[key], key), v);
         }
+        W.resetModal();
+        done = true;
+      }
+    }
+    // turning: finishing as the control's cycle along the contour of the roughing cycle before it
+    if (!done && lathe && op.ctrlCycle && op.type === 'tfinish') {
+      const why = !def.cycleTurnFinish ? 'Postprozessor ohne Schlichtzyklus'
+        : !lastRough ? 'kein Schruppzyklus davor (Längsschruppen „Als Steuerungszyklus“)'
+        : lastRough.sig !== edgeSig(t) ? `Schneide anders als beim Schruppen (${lastRough.op}) – die Kontur ist für dessen Schneidenradius gerechnet`
+        : String(op.zEnd ?? '') !== String(lastRough.zEnd) ? `Ende Z anders als beim Schruppen (${lastRough.op})` : null;
+      if (why) warnings.push(`${op.name}: Schlichtzyklus nicht möglich (${why}) – als Bahn ausgegeben`);
+      else {
+        if (+op.stockToLeave) warnings.push(`${op.name}: Schlichtzyklus fährt die Fertigkontur – Aufmaß ${op.stockToLeave} mm wird nicht berücksichtigt`);
+        if (lastRough.under) warnings.push(`${op.name}: Schlichtzyklus folgt der Hüllkontur – Hinterschnitt/Einstich bleibt stehen`);
+        W.resetModal();
+        W.expand(W.tag(def.cycleTurnFinish, 'cycleTurnFinish'), { ...tv, sx: 2 * lastRough.sxr, sz: lastRough.szr - o.z, ns: lastRough.ns, nf: lastRough.nf, lap: lastRough.lap });
         W.resetModal();
         done = true;
       }

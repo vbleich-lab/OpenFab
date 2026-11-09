@@ -4,7 +4,7 @@
 
 OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über Skizzen und eine Feature-Zeitachse konstruiert. Danach lassen sich Baugruppen, Zeichnungen und Renderings erstellen und NC-Programme für Fräs- und Drehmaschinen erzeugen, simulieren und prüfen. Alles läuft lokal: kein Konto, keine Cloud, keine Telemetrie.
 
-> **Status: Release Candidate 1 (v1.0.0-rc.1).** Der Funktionsumfang ist vollständig für 1.0. Bitte NC-Programme vor dem ersten Einsatz an der Maschine immer im Probelauf prüfen (siehe [Grenzen](#bekannte-grenzen)).
+> **Status: Release Candidate 2 (v1.0.0-rc.2).** Der Funktionsumfang ist vollständig für 1.0. Bitte NC-Programme vor dem ersten Einsatz an der Maschine immer im Probelauf prüfen (siehe [Grenzen](#bekannte-grenzen)).
 
 ---
 
@@ -105,7 +105,7 @@ npm test
 | `npm run test:sketch` | Skizzenwerkzeuge (Rechtecke, Kreise, Bögen) |
 | `npm run test:solver` | Abhängigkeiten und Bemaßungen an Bögen |
 | `npm run test:kernel` | Rust-Kern (WebAssembly) |
-| `npm run test:cam` | Alle Frässtrategien an einem Prüfteil mit exakt bekannter Form: keine Verletzung von Teil und Aufmaß (Toleranz 0,04 mm); alle Postprozessoren (gültige Werte, Programmrahmen, zurückgelesene Positionen = Bahn); alle Drehoperationen und Dreh-Posts, Schneide gegen Kontur; Lochmuster und Bohrreihenfolge |
+| `npm run test:cam` | Alle Frässtrategien an einem Prüfteil mit exakt bekannter Form: keine Verletzung von Teil und Aufmaß (Toleranz Schlichten 0,02 mm, Schruppen 0,04 mm); alle Postprozessoren (gültige Werte, Programmrahmen, zurückgelesene Positionen = Bahn); alle Drehoperationen und Dreh-Posts, Schneide gegen Kontur, Schrupp-/Schlichtzyklus G71/G70 und G85/G87; Lochmuster und Bohrreihenfolge |
 
 Die Tests laufen ohne Browser in Node.js und bei jedem Push automatisch auf GitHub.
 

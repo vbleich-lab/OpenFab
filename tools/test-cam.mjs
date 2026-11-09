@@ -10,7 +10,8 @@ const { exampleTurning } = await import('../js/example.js');
 const { turnCutShape } = await import('../js/turning.js');
 
 const ok = (n, c, x = '') => { console.log((c ? 'OK   ' : 'FEHL ') + n + '  ' + x); if (!c) process.exitCode = 1; };
-const TOL = 0.04; // heightmap resolution limit on curved steep faces (grid 0.42 mm on this part)
+const TOL = 0.02; // finishing: exact triangle contacts - what is left is path sag between points and the mesh facets (dome ~0.005)
+const ROUGH_TOL = 0.04; // roughing layers: offset contours approximate arcs by chords
 const XY = z => ({ o: [0, 0, z], x: [1, 0, 0], n: [0, 0, 1] });
 const bodies = partBodies();
 
@@ -67,7 +68,8 @@ for (const c of cases) {
   // effective stock to leave: the operation's own value, 0.3 is the default of the roughing strategies
   const stl = c.stockToLeave ?? (['rough3d', 'adaptive3d', 'pocket3d'].includes(c.type) ? 0.3 : 0);
   const chk = checkMoves(r.moves, g.T, { r: t.dia / 2, ball: t.type === 'ball' });
-  const feedOk = chk.feed.pen <= TOL - stl, rapidOk = chk.rapid.pen <= TOL;
+  const tol = ['rough3d', 'adaptive3d', 'pocket3d'].includes(c.type) ? ROUGH_TOL : TOL;
+  const feedOk = chk.feed.pen <= tol - stl, rapidOk = chk.rapid.pen <= tol;
   ok(label + ' ohne Verletzung', feedOk && rapidOk,
     `${n} Bew., ${ms} ms, tiefster Punkt ${(chk.feed.pen + stl).toFixed(3)} mm ${stl ? 'ins Aufmaß' : 'ins Teil'}${feedOk ? '' : ' bei ' + JSON.stringify(chk.feed.at)}${rapidOk ? '' : `, Eilgang ${chk.rapid.pen.toFixed(3)} bei ${JSON.stringify(chk.rapid.at)}`}`);
 }
@@ -184,6 +186,39 @@ const bbox = pts => pts.reduce((b, q) => q.map((v, i) => [Math.min(b[i][0], v), 
     const zs = [...res.code.matchAll(/\bZ(-?\d*\.?\d+)/g)].map(m => +m[1]), xs = [...res.code.matchAll(/\bX(-?\d*\.?\d+)/g)].map(m => +m[1]);
     ok(`Post ${def.id}: Z und X (Durchmesser) im Bereich`, Math.abs(Math.min(...zs) - zMin) < 0.01 && Math.max(...xs) <= xMax + 0.01,
       `Z min ${Math.min(...zs)} / ${zMin.toFixed(3)}, X max ${Math.max(...xs)} / ${xMax.toFixed(3)}`);
+  }
+
+  // roughing + finishing as the control's cycles: G71 … G70 (Fanuc), G85 … G87 (Okuma) on the same contour
+  for (const o of p.cam.ops) if (o.id === 't2' || o.id === 't3') o.ctrlCycle = true;
+  const gc = cam.generateSetup(p, [{ id: 'shaft', geometry: geo.toNonIndexed() }], st, null, null);
+  gc.setup = st;
+  const tc = gc.results.get('t2').turnCycle;
+  ok('Drehzyklus: Schruppkontur vorhanden', !!tc && tc.pts.length > 2, tc ? `${tc.pts.length} Punkte, Aufmaß U ${2 * tc.u}` : gc.results.get('t2').turnCycleWhy);
+  if (tc) {
+    // the contour is what G70 / G87 finish along: the cutting edge must stay outside the part along it
+    let w = -Infinity, wat = null;
+    for (let k = 1; k < tc.pts.length; k++) {
+      const [ax, az] = tc.pts[k - 1], [bx, bz] = tc.pts[k], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.02));
+      for (let q = 0; q <= n; q++) {
+        const x = ax + ((bx - ax) * q) / n, z = az + ((bz - az) * q) / n;
+        for (let d = sh.lo; d <= Math.min(sh.hi, 3) + 1e-9; d += 0.01) {
+          const e = depth(sh.at(x, d), z + d);
+          if (e > w) { w = e; wat = [+x.toFixed(3), +z.toFixed(3)]; }
+        }
+      }
+    }
+    ok('Drehzyklus: Schlichtkontur verletzt das Teil nicht', w <= 0.01, `tiefster Punkt ${w.toFixed(3)} mm bei r/z ${JSON.stringify(wat)}`);
+  }
+  const cyc = { 'fanuc-lathe': [/G71 P(\d+) Q(\d+) U0\.6 /, /G70 P(\d+) Q(\d+)/], 'okuma-lathe': [/G85 N(\d+) .*U0\.6 /, /G87 N(\d+)/] };
+  for (const [id, [reR, reF]] of Object.entries(cyc)) {
+    const res = post.postProcess(p, gc, null, { postId: id });
+    const mr = res.code.match(reR), mf = res.code.match(reF);
+    const fail = res.warnings.find(x => /Schlichtzyklus nicht möglich/.test(x));
+    ok(`Post ${id}: Schlichtzyklus auf der Kontur des Schruppzyklus`, !!mr && !!mf && mr.slice(1).join() === mf.slice(1).join() && !fail,
+      fail || `${mr?.[0] ?? 'kein Schruppzyklus'} → ${mf?.[0] ?? 'kein Schlichtzyklus'}`);
+    // the finishing feed sits in the first contour block (only the finishing cycle uses it)
+    const first = id === 'fanuc-lathe' ? res.code.split('\n').find(l => new RegExp(`^N${mr?.[1]} `).test(l)) : res.code.split('\n')[res.code.split('\n').findIndex(l => /^N\d+ G81/.test(l)) + 1];
+    ok(`Post ${id}: Schlichtvorschub im ersten Konturblock`, / F300\b/.test(first || ''), first || '–');
   }
 }
 

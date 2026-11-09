@@ -174,10 +174,26 @@ function genTurnOp(op, t, st, prof, ctx = {}) {
   // smallest radius the programmed point may take at z without the cutting edge going below the contour
   // (+ stock to leave) anywhere along its width: nose radius compensation of the path
   const sh = turnCutShape(t), stepD = Math.max(0.002, Math.min(0.005, (sh.hi - sh.lo) / 8)); // fine: at the tip the nose rounding is almost vertical
-  const xmin = z => {
+  const xmin = (z, s = stl) => {
     let m = -Infinity;
-    for (let d = sh.lo; d <= sh.hi + 1e-9; d += stepD) m = Math.max(m, prof.at(z + d) + stl - (sh.at(0, d)));
+    for (let d = sh.lo; d <= sh.hi + 1e-9; d += stepD) m = Math.max(m, prof.at(z + d) + s - (sh.at(0, d)));
     return m;
+  };
+  // the finished path (nose compensated) from z0 to z1: samples every dz, refined where a straight move would
+  // cut a corner (the nose rounds a shoulder edge) and across steep steps (shoulders) to pin them down
+  const contour = (X, z0, z1) => {
+    const pts = [];
+    const refine = (a, b, depth) => {
+      const dx = Math.abs(b[0] - a[0]), dz = Math.abs(b[1] - a[1]);
+      if (depth > 8 || dx <= 0.005 || dz < 1e-4) return;
+      const zm = (a[1] + b[1]) / 2, m = [X(zm), zm];
+      if (m[0] <= (a[0] + b[0]) / 2 + 0.002 && !(dx > 0.05 && dx > 3 * dz)) return;
+      refine(a, m, depth + 1); pts.push(m); refine(m, b, depth + 1);
+    };
+    const add = q => { if (pts.length) refine(pts[pts.length - 1], q, 0); pts.push(q); };
+    for (let z = z0; z >= z1 - 1e-9; z -= prof.dz) add([X(z), z]);
+    if (pts.length && pts[pts.length - 1][1] > z1 + 1e-6) add([X(z1), z1]);
+    return pts;
   };
   // internal tools: the radius they travel at inside the bore down to z (0.5 mm from the narrowest bore wall)
   const inside = sh.side === 'in' && op.type !== 'tbore';
@@ -244,13 +260,14 @@ function genTurnOp(op, t, st, prof, ctx = {}) {
         if (rl <= minR + 1e-6) break;
       }
       // the same roughing as the control's cycle (Okuma LAP G85, Fanuc G71 type I): the finished contour
-      // (+ allowance, nose compensated) from the face to the chuck side; only for contours that rise steadily
+      // (nose compensated) from the face to the chuck side; only for contours that rise steadily
       if (sh.side !== 'out') ctx.cycleWhy = 'Nur für Außen-Drehmeißel';
       else {
-        const cp = [];
-        // from the (faced) front face on: in front of it there is nothing for the cycle to cut
-        for (let z = zTop; z >= zEnd - 1e-9; z -= dz) if (z <= st.modelTop + stl + 1e-9) cp.push([Math.max(0, need(z)), z]);
-        if (cp.length && cp[cp.length - 1][1] > zEnd + 1e-6) cp.push([Math.max(0, need(zEnd)), zEnd]);
+        // the finished contour (the allowance goes to the control as U), from the (faced) front face on: in
+        // front of it there is nothing for the cycle to cut. A finishing cycle (G70 / G87) follows it as it is.
+        let z0 = zTop;
+        while (z0 > st.modelTop + 1e-9) z0 -= dz;
+        const cp = z0 >= zEnd - 1e-9 ? contour(z => Math.max(0, xmin(z, 0)), z0, zEnd) : [];
         // undercuts (grooves): the cycle (type I) only follows the hull that rises steadily towards the chuck;
         // what lies below it stays for grooving / finishing
         if (!cp.length) cp.push([st.r, zEnd]);
@@ -260,30 +277,14 @@ function genTurnOp(op, t, st, prof, ctx = {}) {
         if (!(sp[0][0] < st.r - 1e-3)) ctx.cycleWhy = 'Nichts zu schruppen';
         else {
           if (sp[sp.length - 1][0] < st.r) sp.push([st.r, sp[sp.length - 1][1]]);
-          ctx.cycle = { kind: 'rough', pts: sp, ap, sx: st.r + 1, sz: zTop + 1, feed: t.feed, under: under > 0.01 ? under : 0 };
+          ctx.cycle = { kind: 'rough', pts: sp, ap, u: stl, sx: st.r + 1, sz: zTop + 1, feed: t.feed, under: under > 0.01 ? under : 0 };
         }
       }
       break;
     }
     case 'tfinish': {
       const zTop = st.modelTop + 0.5;
-      const pts = [];
-      const X = z => Math.max(0, xmin(z));
-      // a corner between two samples: the straight move would cut it (the nose rounds a shoulder edge). Bisect
-      // while the contour lies outside the line, and always across steep steps (shoulders) to pin them down.
-      const refine = (a, b, depth) => {
-        const dx = Math.abs(b[0] - a[0]), dz = Math.abs(b[1] - a[1]);
-        if (depth > 8 || dx <= 0.005 || dz < 1e-4) return;
-        const zm = (a[1] + b[1]) / 2, m = [X(zm), zm];
-        if (m[0] <= (a[0] + b[0]) / 2 + 0.002 && !(dx > 0.05 && dx > 3 * dz)) return;
-        refine(a, m, depth + 1); pts.push(m); refine(m, b, depth + 1);
-      };
-      for (let z = zTop; z >= zEnd - 1e-9; z -= prof.dz) {
-        const q = [X(z), z];
-        if (pts.length) refine(pts[pts.length - 1], q, 0);
-        pts.push(q);
-      }
-      const sp = simplify(pts);
+      const sp = simplify(contour(z => Math.max(0, xmin(z)), zTop, zEnd));
       P.rapid(clearX, zTop + 1); P.rapid(sp[0][0] + 0.5, zTop + 1);
       P.feed(sp[0][0], sp[0][1], t.plunge);
       for (const [x, z] of sp.slice(1)) P.feed(x, z, t.feed);
