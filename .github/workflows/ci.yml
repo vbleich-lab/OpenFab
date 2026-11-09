@@ -22,5 +22,7 @@ jobs:
         run: npm run test:solver
       - name: Rust-Kern (WebAssembly)
         run: npm run test:kernel
+      - name: CAM-Bahnen, Postprozessoren, Drehen
+        run: npm run test:cam
       - name: Browser-Version bauen
         run: node tools/build-web.mjs

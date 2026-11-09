@@ -18,7 +18,9 @@
     "test:kernel": "node tools/test-rust-kernel.mjs",
     "test:trim": "node tools/test-trim.mjs",
     "test:sketch": "node tools/test-sketchtools.mjs",
-    "test:solver": "node tools/test-solver-arcs.mjs"
+    "test:solver": "node tools/test-solver-arcs.mjs",
+    "test:cam": "node tools/test-cam.mjs",
+    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam"
   },
   "devDependencies": {
     "@electron/packager": "18.3.6",

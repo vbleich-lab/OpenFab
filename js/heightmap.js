@@ -37,19 +37,37 @@ export function buildHeightmap(bodies, stock, res) {
     const k = j * nx + i, z = h[k];
     vStart[k] = vPts.length / 3;
     if (z === -Infinity) continue;
-    for (const [di, dj] of dirs) {
+    const x0 = minX + i * res, y0 = minY + j * res;
+    const found = [null, null, null, null]; // edge distance (in cells) found towards +x, -x, +y, -y
+    dirs.forEach(([di, dj], q) => {
       const ii = i + di, jj = j + dj;
-      if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+      if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) return;
       const zn = h[jj * nx + ii];
-      if (!(z - zn > res)) continue; // no step towards this neighbour
+      if (!(z - zn > res)) return; // no step towards this neighbour
       const thr = zn === -Infinity ? -Infinity : (z + zn) / 2;
-      const x0 = minX + i * res, y0 = minY + j * res;
       let a = 0, b = 1, za = z;
-      for (let it = 0; it < 5; it++) {
+      for (let it = 0; it < 6; it++) {
         const m = (a + b) / 2, zm = at(x0 + di * res * m, y0 + dj * res * m);
         if (zm > thr) { a = m; za = zm; } else b = m;
       }
+      if (q < 4) found[q] = { a, thr };
       if (a > 0) vPts.push(x0 + di * res * a, y0 + dj * res * a, za);
+    });
+    // convex corners: with an edge both along x and along y the corner itself lies near (edge x, edge y), which
+    // none of the rays above reaches – search along the ray towards that point
+    for (const [qx, qy] of [[0, 2], [0, 3], [1, 2], [1, 3]]) {
+      const fx = found[qx], fy = found[qy];
+      if (!fx || !fy) continue;
+      const ex = dirs[qx][0] * res * fx.a, ey = dirs[qy][1] * res * fy.a;
+      if (Math.hypot(ex, ey) < 1e-9) continue;
+      const thr = Math.max(fx.thr, fy.thr);
+      if (at(x0 + ex * 1.6, y0 + ey * 1.6) > thr) continue; // still on top there: no corner
+      let a = 0, b = 1.6, za = z;
+      for (let it = 0; it < 7; it++) {
+        const m = (a + b) / 2, zm = at(x0 + ex * m, y0 + ey * m);
+        if (zm > thr) { a = m; za = zm; } else b = m;
+      }
+      if (a > 0) vPts.push(x0 + ex * a, y0 + ey * a, za);
     }
   }
   vStart[nx * ny] = vPts.length / 3;
@@ -113,6 +131,23 @@ export function dropCutter(hm, x, y, tool, floor) {
         c = z - (pr[k][1] * (1 - w) + pr[k + 1][1] * w);
       } else if (tool.type === 'ball') c = z + Math.sqrt(rr - d2) - r;
       else if (tool.type === 'chamfer' || tool.type === 'drill') c = z - Math.max(0, Math.sqrt(d2) - tipR) / Math.tan(half);
+      if (c > best) best = c;
+    }
+  }
+  // flat end: the rim can rest on a slope between the grid points (a slope rising inside the circle is missed by
+  // the point samples). Sample the rim on the bilinear surface, where the four cells around it are one continuous
+  // surface – real steps are covered by the edge samples above.
+  if (!tool.profile && tool.type !== 'ball' && tool.type !== 'chamfer' && tool.type !== 'drill' && r > 0) {
+    const n = Math.max(16, Math.ceil((2 * Math.PI * r) / (res * 0.5))), lim = 2 * res;
+    for (let q = 0; q < n; q++) {
+      const a = (q / n) * 2 * Math.PI, fi = (x + r * Math.cos(a) - minX) / res, fj = (y + r * Math.sin(a) - minY) / res;
+      const i = Math.floor(fi), j = Math.floor(fj);
+      if (i < 0 || j < 0 || i >= nx - 1 || j >= ny - 1) continue;
+      const k = j * nx + i, h00 = h[k], h10 = h[k + 1], h01 = h[k + nx], h11 = h[k + nx + 1];
+      const lo = Math.min(h00, h10, h01, h11), hi = Math.max(h00, h10, h01, h11);
+      if (lo === -Infinity || hi - lo > lim || hi <= best) continue;
+      const u = fi - i, v = fj - j;
+      const c = (h00 * (1 - u) + h10 * u) * (1 - v) + (h01 * (1 - u) + h11 * u) * v;
       if (c > best) best = c;
     }
   }

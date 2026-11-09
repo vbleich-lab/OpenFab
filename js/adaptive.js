@@ -11,6 +11,16 @@ function bounds(paths) {
   return { x0: x0 / S, y0: y0 / S, x1: x1 / S, y1: y1 / S };
 }
 
+// Clipper paths offset inwards by d (round joins).
+function shrink(paths, d) {
+  const L = globalThis.ClipperLib;
+  if (!L || !d) return paths;
+  const co = new L.ClipperOffset(2, 0.01 * S), out = new L.Paths();
+  co.AddPaths(paths, L.JoinType.jtRound, L.EndType.etClosedPolygon);
+  co.Execute(out, -d * S);
+  return out;
+}
+
 // even-odd scanline fill of Clipper paths into a grid
 function rasterize(paths, g) {
   const out = new Uint8Array(g.nx * g.ny);
@@ -73,7 +83,9 @@ export function adaptiveLevel(P, { allowed, material, z, zFrom, tool, ae, rampDe
   g.nx = Math.ceil((b.x1 - b.x0 + 2 * r + 2 * res) / res) + 1;
   g.ny = Math.ceil((b.y1 - b.y0 + 2 * r + 2 * res) / res) + 1;
   const N = g.nx * g.ny;
-  const allow = rasterize(allowed, g);
+  // a tool position is checked against the nearest cell, so it can lie up to half a cell diagonal beyond that
+  // cell's centre: rasterize the allowed region shrunk by that much (the finishing pass runs on the exact outline)
+  const allow = rasterize(shrink(allowed, res * Math.SQRT1_2), g);
   const mat = rasterize(material, g);
 
   const disc = [];

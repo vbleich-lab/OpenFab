@@ -30,11 +30,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Tests
-        run: |
-          npm run test:trim
-          npm run test:sketch
-          npm run test:solver
-          npm run test:kernel
+        run: npm test
       - name: Version passt zum Tag
         shell: pwsh
         run: |

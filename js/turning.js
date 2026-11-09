@@ -15,7 +15,7 @@ export function turnProfile(bodies, box) {
   const bvhs = bodies.map(b => new MeshBVH(b.geometry.clone()));
   const Rout = Math.max(...[box.min.x, box.max.x, box.min.y, box.max.y].map(Math.abs)) * 1.5 + 5;
   const z0 = box.min.z, z1 = box.max.z;
-  const dz = Math.max(0.05, (z1 - z0) / 800);
+  const dz = Math.max(0.01, (z1 - z0) / 4000);
   const n = Math.ceil((z1 - z0) / dz) + 1;
   const r = new Float32Array(n), ri = new Float32Array(n);
   const ray = new THREE.Ray(new THREE.Vector3(), new THREE.Vector3());
@@ -43,8 +43,14 @@ export function turnProfile(bodies, box) {
     }
     ri[i] = best > 0 && Number.isFinite(inner) ? inner : 0;
   }
-  const idx = z => Math.max(0, Math.min(n - 1, Math.round((z - z0) / dz)));
-  return { z0, z1, dz, r, ri, at: z => (z < z0 || z > z1 ? 0 : r[idx(z)]), atIn: z => (z < z0 || z > z1 ? Infinity : ri[idx(z)]) };
+  // between two samples the safe value: the larger outer radius, the smaller bore (a shoulder is never moved
+  // towards the material by the sampling)
+  const i0 = z => Math.max(0, Math.min(n - 1, Math.floor((z - z0) / dz))), i1 = z => Math.min(n - 1, i0(z) + 1);
+  return {
+    z0, z1, dz, r, ri,
+    at: z => (z < z0 || z > z1 ? 0 : Math.max(r[i0(z)], r[i1(z)])),
+    atIn: z => (z < z0 || z > z1 ? Infinity : Math.min(ri[i0(z)], ri[i1(z)])),
+  };
 }
 
 export function turnStock(box, setup, prof) {
@@ -70,11 +76,15 @@ export function turnCutShape(tool) {
     const beta = Math.max(1, Math.min(89, 180 - (+tool.leadAngle || 93) - (+tool.insertAngle || 55))), tb = Math.tan((beta * Math.PI) / 180);
     const L = Math.max(3 * rn, +tool.edgeLen || (ty === 'turnbore' ? 4 : 8));
     const nose = d => rn - Math.sqrt(Math.max(0, rn * rn - (d - rn) * (d - rn)));
+    // the nose rounding runs on to where the trailing edge touches it (normal at 180° − β), then the straight
+    // trailing edge continues tangentially
+    const dT = rn * (1 + Math.sin((beta * Math.PI) / 180)), oT = nose(dT);
+    const off = d => (d < dT ? nose(d) : oT + tb * (d - dT));
     if (ty === 'turnbore') {
       const D = Math.max(1, +tool.dia || 12);
-      return { side: 'in', lo: 0, hi: L, rn, beta, bar: { D, clr: Math.max(0.5, 0.2 * D) }, at: (x, d) => (d < rn ? x - nose(d) : x - tb * (d - rn)) };
+      return { side: 'in', lo: 0, hi: L, rn, beta, bar: { D, clr: Math.max(0.5, 0.2 * D) }, at: (x, d) => x - off(d) };
     }
-    return { side: 'out', lo: 0, hi: L, rn, beta, at: (x, d) => (d < rn ? x + nose(d) : x + tb * (d - rn)) };
+    return { side: 'out', lo: 0, hi: L, rn, beta, at: (x, d) => x + off(d) };
   }
   if (ty === 'drill' || ty === 'center' || ty === 'spot') {
     const R = Math.max(0.1, (+tool.dia || 6) / 2), tn = Math.tan((((+tool.angle || 118) / 2) * Math.PI) / 180);
@@ -133,16 +143,27 @@ class LPath {
   thread(x, z, f, pitch) { this.m.push({ t: 't', x, y: 0, z, f, pitch }); this.p = { x, z }; }
 }
 
+// Drops points within tol of the straight move that replaces them (Douglas-Peucker: every dropped point is checked
+// against the final segment, so a rounded corner cannot drift away point by point).
 function simplify(pts, tol = 0.005) {
-  if (pts.length < 3) return pts;
-  const out = [pts[0]];
-  for (let i = 1; i < pts.length - 1; i++) {
-    const a = out[out.length - 1], b = pts[i], c = pts[i + 1];
-    const cr = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-    if (Math.abs(cr) > tol * Math.hypot(c[0] - a[0], c[1] - a[1])) out.push(b);
+  const n = pts.length;
+  if (n < 3) return pts;
+  const keep = new Uint8Array(n);
+  keep[0] = keep[n - 1] = 1;
+  const stack = [[0, n - 1]];
+  while (stack.length) {
+    const [a, c] = stack.pop();
+    if (c - a < 2) continue;
+    const A = pts[a], C = pts[c], dx = C[0] - A[0], dz = C[1] - A[1], L2 = dx * dx + dz * dz;
+    let worst = -1, wi = -1;
+    for (let k = a + 1; k < c; k++) {
+      const p = pts[k], u = L2 > 1e-18 ? Math.max(0, Math.min(1, ((p[0] - A[0]) * dx + (p[1] - A[1]) * dz) / L2)) : 0;
+      const d = Math.hypot(p[0] - A[0] - u * dx, p[1] - A[1] - u * dz);
+      if (d > worst) { worst = d; wi = k; }
+    }
+    if (worst > tol) { keep[wi] = 1; stack.push([a, wi], [wi, c]); }
   }
-  out.push(pts[pts.length - 1]);
-  return out;
+  return pts.filter((_, i) => keep[i]);
 }
 
 function genTurnOp(op, t, st, prof, ctx = {}) {
@@ -152,7 +173,7 @@ function genTurnOp(op, t, st, prof, ctx = {}) {
   const stl = +op.stockToLeave || 0;
   // smallest radius the programmed point may take at z without the cutting edge going below the contour
   // (+ stock to leave) anywhere along its width: nose radius compensation of the path
-  const sh = turnCutShape(t), stepD = Math.max(0.01, Math.min(prof.dz, (sh.hi - sh.lo) / 8));
+  const sh = turnCutShape(t), stepD = Math.max(0.002, Math.min(0.005, (sh.hi - sh.lo) / 8)); // fine: at the tip the nose rounding is almost vertical
   const xmin = z => {
     let m = -Infinity;
     for (let d = sh.lo; d <= sh.hi + 1e-9; d += stepD) m = Math.max(m, prof.at(z + d) + stl - (sh.at(0, d)));
@@ -247,7 +268,21 @@ function genTurnOp(op, t, st, prof, ctx = {}) {
     case 'tfinish': {
       const zTop = st.modelTop + 0.5;
       const pts = [];
-      for (let z = zTop; z >= zEnd - 1e-9; z -= prof.dz) pts.push([Math.max(0, xmin(z)), z]);
+      const X = z => Math.max(0, xmin(z));
+      // a corner between two samples: the straight move would cut it (the nose rounds a shoulder edge). Bisect
+      // while the contour lies outside the line, and always across steep steps (shoulders) to pin them down.
+      const refine = (a, b, depth) => {
+        const dx = Math.abs(b[0] - a[0]), dz = Math.abs(b[1] - a[1]);
+        if (depth > 8 || dx <= 0.005 || dz < 1e-4) return;
+        const zm = (a[1] + b[1]) / 2, m = [X(zm), zm];
+        if (m[0] <= (a[0] + b[0]) / 2 + 0.002 && !(dx > 0.05 && dx > 3 * dz)) return;
+        refine(a, m, depth + 1); pts.push(m); refine(m, b, depth + 1);
+      };
+      for (let z = zTop; z >= zEnd - 1e-9; z -= prof.dz) {
+        const q = [X(z), z];
+        if (pts.length) refine(pts[pts.length - 1], q, 0);
+        pts.push(q);
+      }
       const sp = simplify(pts);
       P.rapid(clearX, zTop + 1); P.rapid(sp[0][0] + 0.5, zTop + 1);
       P.feed(sp[0][0], sp[0][1], t.plunge);

@@ -9,6 +9,18 @@ import { buildHeightmap, dropCutter as dropCutterRaw } from './heightmap.js';
 // base heightmap, avoided / fixture / machined groups add their own clearance (radial = bigger tool, axial = higher).
 let SURF = null, CUR = null;
 const grownTools = new WeakMap();
+// Stock to leave on 3D surfaces is measured normal to the surface: the height queries use the tool grown by it
+// (radius + stl) and add it on top, so steep walls keep it sideways too. Exact for ball cutters; flat and bull
+// cutters get it sideways and on top. Form, chamfer and drill tools keep the plain vertical allowance.
+const grownStl = new WeakMap();
+function growStl(tool, stl) {
+  if (!stl || tool.profile || !['ball', 'flat'].includes(toolBase(tool))) return tool;
+  let m = grownStl.get(tool);
+  if (!m) grownStl.set(tool, (m = new Map()));
+  let g = m.get(stl);
+  if (!g) m.set(stl, (g = { ...tool, dia: Math.max(0.01, tool.dia + 2 * stl) }));
+  return g;
+}
 function dropCutter(hm, x, y, tool, floor) {
   if (!SURF) return dropCutterRaw(hm, x, y, tool, floor);
   let z = dropCutterRaw(SURF.base || hm, x, y, tool, floor);
@@ -1295,8 +1307,12 @@ function heightGrid(ctx, stock, tool, stl, floor) {
   const hm = ctx.heightmap();
   const T = new Float32Array(hm.nx * hm.ny);
   const tl = { ...tool };
-  for (let j = 0; j < hm.ny; j++) for (let i = 0; i < hm.nx; i++) T[j * hm.nx + i] = dropCutter(hm, hm.minX + i * hm.res, hm.minY + j * hm.res, tl, -Infinity) + stl;
-  return { hm, T: T.map(v => Math.max(v, floor)) };
+  for (let j = 0; j < hm.ny; j++) for (let i = 0; i < hm.nx; i++) T[j * hm.nx + i] = dropCutter(hm, hm.minX + i * hm.res, hm.minY + j * hm.res, growStl(tl, stl), -Infinity) + stl;
+  const out = T.map(v => Math.max(v, floor));
+  // exact value anywhere (blockedAt uses it to place level contours between the grid points)
+  out.exact = (x, y) => Math.max(dropCutter(hm, x, y, growStl(tl, stl), -Infinity) + stl, floor);
+  out.reach = tl.dia / 2 + Math.max(0, stl); // beyond this distance from the grid the tool is always free
+  return { hm, T: out };
 }
 
 // Where the tool centre cannot go down to z (part + stock to leave), as Clipper paths.
@@ -1319,7 +1335,86 @@ function rasterPolys(hm, pred) {
   return rects.length ? clip(rects, null, 'ctUnion') : [];
 }
 
-function blockedAt(hm, T, z) { return rasterPolys(hm, k => T[k] > z + 1e-6); }
+// Where the tool centre cannot go down to z, as Clipper paths. With T.exact (from heightGrid) the outline is
+// traced between the grid points (marching squares) and every crossing is bisected on the exact tool height,
+// keeping the found point on the free side: the outline is then exact to res/64 and never too small. Without it,
+// the union of the blocked grid cells (staircase, up to half a cell off). The result carries .exact.
+function blockedAt(hm, T, z) {
+  if (!T.exact) return rasterPolys(hm, k => T[k] > z + 1e-6);
+  const { nx, ny, res, minX, minY } = hm;
+  // the tool reaches the part from up to `reach` outside the grid: pad by that (evaluated exactly) plus a ring of
+  // free points that closes every loop. Padded index (i + K, j + K).
+  const K = Math.ceil((T.reach || 0) / res) + 1, W = nx + 2 * K;
+  const B = new Uint8Array(W * (ny + 2 * K));
+  let any = false;
+  for (let j = 1 - K; j < ny + K - 1; j++) for (let i = 1 - K; i < nx + K - 1; i++) {
+    const inGrid = i >= 0 && j >= 0 && i < nx && j < ny;
+    const v = inGrid ? T[j * nx + i] : T.exact(minX + i * res, minY + j * res);
+    if (v > z + 1e-6) { B[(j + K) * W + i + K] = 1; any = true; }
+  }
+  if (!any) return [];
+  const bl = (i, j) => B[(j + K) * W + i + K] === 1; // i in −K..nx+K−1
+  const X = i => minX + i * res, Y = j => minY + j * res;
+  const cache = new Map();
+  // crossing on the grid edge from blocked point (ib, jb) to free point (if_, jf)
+  const cross = (ib, jb, if_, jf) => {
+    const key = (Math.min(jb, jf) + K) * W * 2 + (Math.min(ib, if_) + K) * 2 + (jb === jf ? 0 : 1);
+    let p = cache.get(key);
+    if (!p) {
+      const xb = X(ib), yb = Y(jb), xf = X(if_), yf = Y(jf);
+      let a = 0, b = 1; // a: blocked side, b: free side
+      for (let it = 0; it < 6; it++) { const m = (a + b) / 2; if (T.exact(xb + (xf - xb) * m, yb + (yf - yb) * m) > z + 1e-6) a = m; else b = m; }
+      p = { key, x: xb + (xf - xb) * b, y: yb + (yf - yb) * b };
+      cache.set(key, p);
+    }
+    return p;
+  };
+  // directed segments with the blocked side on the left: in each cell, walk its edges counter-clockwise and join
+  // every blocked→free crossing to the next free→blocked crossing
+  const next = new Map();
+  const C = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  for (let j = -K; j < ny + K - 1; j++) for (let i = -K; i < nx + K - 1; i++) {
+    const v = C.map(([di, dj]) => bl(i + di, j + dj));
+    if (v[0] === v[1] && v[1] === v[2] && v[2] === v[3]) continue;
+    const outs = [], ins = [];
+    for (let e = 0; e < 4; e++) {
+      const a = C[e], b = C[(e + 1) % 4];
+      if (v[e] && !v[(e + 1) % 4]) outs.push([e, cross(i + a[0], j + a[1], i + b[0], j + b[1])]);
+      else if (!v[e] && v[(e + 1) % 4]) ins.push([e, cross(i + b[0], j + b[1], i + a[0], j + a[1])]);
+    }
+    for (const [e, p] of outs) {
+      // the next free→blocked crossing after edge e, counter-clockwise
+      let best = null, bd = 9;
+      for (const [f, q] of ins) { const d = (f - e + 4) % 4; if (d > 0 && d < bd) { bd = d; best = q; } }
+      if (best) next.set(p.key, best);
+    }
+  }
+  const loops = [], seen = new Set();
+  for (const [k0] of next) {
+    if (seen.has(k0)) continue;
+    const loop = [];
+    let k = k0, guard = 0;
+    while (!seen.has(k) && guard++ < 1e7) {
+      seen.add(k);
+      const q = next.get(k);
+      if (!q) break;
+      loop.push([q.x, q.y]);
+      k = q.key;
+    }
+    if (loop.length > 2) loops.push(toC(loop));
+  }
+  // loops around blocked areas run counter-clockwise, holes clockwise: NonZero union keeps exactly the blocked area
+  const out = loops.length ? CL().Clipper.SimplifyPolygons(loops, CL().PolyFillType.pftNonZero) : [];
+  out.exact = true;
+  return out;
+}
+
+// Raster outlines: smooth the staircase. Exact outlines: only drop points closer than 0.005 mm.
+function smoothBlocked(blocked, hm) {
+  if (blocked.exact) return CL().Clipper.CleanPolygons(blocked, 0.005 * S);
+  blocked = offsetPaths(offsetPaths(blocked, hm.res * 0.6), -hm.res * 0.6);
+  return CL().Clipper.CleanPolygons(blocked, hm.res * 0.3 * S);
+}
 
 // ---------- 3D finishing helpers ----------
 // Fusion "Bearbeitungsbegrenzung": none, virtual box around the part, silhouette or a selection,
@@ -1371,23 +1466,27 @@ function boundaryFn(op, t, stock, hm) {
 }
 
 // Drops 2D sample points onto the surface and splits them into runs inside the boundary.
+// Where the surface rises steeply between two samples (wall edge) the straight move would cut the edge:
+// push the midpoints that lie above the line onto out (bisection, a few levels). drop(x, y) = tip height.
+// A jump (the tool leaving a wall's reach drops by the wall height at once) can sit anywhere in the interval, so a
+// midpoint below the line proves nothing there: steep intervals are always split until the jump is pinned down.
+function refineStep(a, b, drop, out, depth = 0) {
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]), dz = Math.abs(b[2] - a[2]);
+  if (depth > 6 || dz <= 0.01 || len < 0.005) return;
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, mz = drop(mx, my);
+  if (mz <= (a[2] + b[2]) / 2 + 0.002 && !(dz > 0.05 && dz > 3 * len)) return;
+  const m = [mx, my, mz];
+  refineStep(a, m, drop, out, depth + 1); out.push(m); refineStep(m, b, drop, out, depth + 1);
+}
+
 function dropRuns(pts2, hm, t, stl, floor, inside) {
   const runs = [];
   let cur = null;
-  const drop = (x, y) => dropCutter(hm, x, y, t, floor - stl) + stl;
-  // where the surface rises steeply between two samples (wall edge) the straight move would cut the edge:
-  // insert the midpoint while it lies above the line (bisection, a few levels)
-  const refine = (a, b, depth) => {
-    if (depth > 6 || Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.01) return;
-    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, mz = drop(mx, my);
-    if (mz <= (a[2] + b[2]) / 2 + 0.002) return;
-    const m = [mx, my, mz];
-    refine(a, m, depth + 1); cur.push(m); refine(m, b, depth + 1);
-  };
+  const drop = (x, y) => dropCutter(hm, x, y, growStl(t, stl), floor - stl) + stl;
   for (const [x, y] of pts2) {
     if (!inside(x, y)) { if (cur && cur.length > 1) runs.push(cur); cur = null; continue; }
     const p = [x, y, drop(x, y)];
-    if (cur) { const q = cur[cur.length - 1]; if (Math.abs(p[2] - q[2]) > 0.01) refine(q, p, 0); }
+    if (cur) refineStep(cur[cur.length - 1], p, drop, cur);
     (cur ||= []).push(p);
   }
   if (cur && cur.length > 1) runs.push(cur);
@@ -1426,7 +1525,7 @@ function emitRuns(P, runs, t, hm, stl, floor, hop) {
     const [x0, y0, z0] = run[0];
     if (P.p && P.p.z < P.clear - 1e-6 && Math.hypot(P.p.x - x0, P.p.y - y0) <= hop) {
       let zl = Math.max(P.p.z, z0);
-      for (let k = 1; k < 8; k++) zl = Math.max(zl, dropCutter(hm, P.p.x + ((x0 - P.p.x) * k) / 8, P.p.y + ((y0 - P.p.y) * k) / 8, t, floor) + stl);
+      for (let k = 1; k < 8; k++) zl = Math.max(zl, dropCutter(hm, P.p.x + ((x0 - P.p.x) * k) / 8, P.p.y + ((y0 - P.p.y) * k) / 8, growStl(t, stl), floor) + stl);
       if (zl > P.p.z + 1e-6) P.feed(P.p.x, P.p.y, zl, t.feed);
       P.feed(x0, y0, zl, t.feed);
       if (z0 < zl - 1e-6) P.feed(x0, y0, z0, t.plunge);
@@ -1529,6 +1628,10 @@ function genHorizontal3d(op, t, P, h, stock, ctx) {
   for (const z of lv) {
     let region = rasterPolys(hm, k => Math.abs(T[k] - z) < 0.011);
     region = CL().Clipper.CleanPolygons(offsetPaths(offsetPaths(region, hm.res * 0.6), -hm.res * 0.6), hm.res * 0.3 * S);
+    // the raster outline (and its smoothing) can reach a little into rising surfaces: cut away exactly where
+    // the tool cannot go down to this height
+    const blk = blockedAt(hm, T, z + 0.005);
+    if (blk.length) region = clip(region, blk, 'ctDifference');
     if (bndH) region = clip(region, bndH, 'ctIntersection');
     let cur = region;
     for (let guard = 0; cur.length && guard < 2000; guard++) {
@@ -1709,9 +1812,7 @@ function genContour3d(op, t, P, h, stock, ctx) {
   for (const z of lv) {
     let blocked = blockedAt(hm, T, z);
     if (!blocked.length) continue;
-    // smooth the raster staircase
-    blocked = offsetPaths(offsetPaths(blocked, hm.res * 0.6), -hm.res * 0.6);
-    blocked = CL().Clipper.CleanPolygons(blocked, hm.res * 0.3 * S);
+    blocked = smoothBlocked(blocked, hm);
     for (let loop of nearestOrder(blocked.map(fromC).filter(l => l.length > 2), l => l[0])) {
       // around material (island) climb = clockwise; inner holes run the other way
       const isle = signedArea(loop) > 0;
@@ -1869,7 +1970,7 @@ function genParallel3d(op, t, P, h, stock, ctx) {
   const alongY = +op.angle === 90;
   const [a0, a1] = alongY ? [stock.minY, stock.maxY] : [stock.minX, stock.maxX];
   const [b0, b1] = alongY ? [stock.minX, stock.maxX] : [stock.minY, stock.maxY];
-  const zAt = (a, b) => dropCutter(hm, alongY ? b : a, alongY ? a : b, t, h.bottom - stl) + stl;
+  const zAt = (a, b) => dropCutter(hm, alongY ? b : a, alongY ? a : b, growStl(t, stl), h.bottom - stl) + stl;
   const bndP = boundaryPaths(op, t, stock, hm);
   if (bndP) {
     // with a boundary: parallel passes as runs inside it
@@ -1893,7 +1994,12 @@ function genParallel3d(op, t, P, h, stock, ctx) {
   for (const b of lines) {
     const pts = [];
     const n = Math.ceil((a1 - a0) / step);
-    for (let k = 0; k <= n; k++) { const a = a0 + ((a1 - a0) * k) / n; pts.push([a, zAt(a, b)]); }
+    for (let k = 0; k <= n; k++) {
+      const a = a0 + ((a1 - a0) * k) / n, z = zAt(a, b);
+      // wall edges between two samples: extra points (in pass coordinates a, b)
+      if (k) { const q = pts[pts.length - 1], ins = []; refineStep([q[0], 0, q[1]], [a, 0, z], u => zAt(u, b), ins); for (const m of ins) pts.push([m[0], m[2]]); }
+      pts.push([a, z]);
+    }
     if (rev) pts.reverse();
     rev = !rev;
     // drop collinear points
@@ -1909,7 +2015,7 @@ function genParallel3d(op, t, P, h, stock, ctx) {
     else {
       // link along the boundary at a height that clears the model in between
       let zl = Math.max(P.p.z, simp[0][1]);
-      for (let k = 0; k <= 8; k++) { const q = P.p.x + ((sx - P.p.x) * k) / 8, r = P.p.y + ((sy - P.p.y) * k) / 8; zl = Math.max(zl, dropCutter(hm, q, r, t, h.bottom) + stl); }
+      for (let k = 0; k <= 8; k++) { const q = P.p.x + ((sx - P.p.x) * k) / 8, r = P.p.y + ((sy - P.p.y) * k) / 8; zl = Math.max(zl, dropCutter(hm, q, r, growStl(t, stl), h.bottom) + stl); }
       if (zl > P.p.z + 1e-6) P.feed(P.p.x, P.p.y, zl, t.feed);
       P.feed(sx, sy, zl, t.feed);
       if (simp[0][1] < zl - 1e-6) P.feed(sx, sy, simp[0][1], t.plunge);
@@ -2001,8 +2107,7 @@ function genFlat3d(op, t, P, h, stock, ctx) {
 function waterLoops(hm, T, z, climb) {
   let blocked = blockedAt(hm, T, z);
   if (!blocked.length) return [];
-  blocked = offsetPaths(offsetPaths(blocked, hm.res * 0.6), -hm.res * 0.6);
-  blocked = CL().Clipper.CleanPolygons(blocked, hm.res * 0.3 * S);
+  blocked = smoothBlocked(blocked, hm);
   return blocked.map(fromC).filter(l => l.length > 2).map(loop => {
     const isle = signedArea(loop) > 0;
     return (signedArea(loop) < 0) !== (climb === isle) ? loop.slice().reverse() : loop;
@@ -2012,7 +2117,7 @@ function waterLoops(hm, T, z, climb) {
 function linkTo(P, x, y, z, t, hm, stl, floor, hop) {
   if (P.p && P.p.z < P.clear - 1e-6 && Math.hypot(P.p.x - x, P.p.y - y) <= hop) {
     let zl = Math.max(P.p.z, z);
-    for (let k = 1; k < 8; k++) zl = Math.max(zl, dropCutter(hm, P.p.x + ((x - P.p.x) * k) / 8, P.p.y + ((y - P.p.y) * k) / 8, t, floor) + stl);
+    for (let k = 1; k < 8; k++) zl = Math.max(zl, dropCutter(hm, P.p.x + ((x - P.p.x) * k) / 8, P.p.y + ((y - P.p.y) * k) / 8, growStl(t, stl), floor) + stl);
     if (zl > P.p.z + 1e-6) P.feed(P.p.x, P.p.y, zl, t.feed);
     P.feed(x, y, zl, t.transitionFeed ?? t.feed);
     if (z < zl - 1e-6) P.feed(x, y, z, t.plunge);
@@ -2233,7 +2338,7 @@ function machinedSurface(hm, T, tool, stl = 0) {
     for (const [di, dj, l] of offs) {
       const ii = i + di, jj = j + dj;
       // beyond the grid (outside the stock): the tool position is dropped on the model directly
-      const v = (ii < 0 || jj < 0 || ii >= nx || jj >= ny ? dropCutter(hm, hm.minX + ii * res, hm.minY + jj * res, tool, -Infinity) + stl : T[jj * nx + ii]) + l;
+      const v = (ii < 0 || jj < 0 || ii >= nx || jj >= ny ? dropCutter(hm, hm.minX + ii * res, hm.minY + jj * res, growStl(tool, stl), -Infinity) + stl : T[jj * nx + ii]) + l;
       if (v < m) m = v;
     }
     M[j * nx + i] = m;
@@ -2403,7 +2508,7 @@ function genDeburr3d(op, t, P, h, stock, ctx) {
         expect = 2 * d + 0.2;
       }
       // never deeper than the depth below the safe drop position (protects other faces)
-      const zs = dropCutter(hm, c[0], c[1], t, -Infinity) + stl;
+      const zs = dropCutter(hm, c[0], c[1], growStl(t, stl), -Infinity) + stl;
       if (zs - zt > expect) { if (pts.length > 1) runs.push(pts.splice(0)); else pts.length = 0; continue; }
       pts.push([c[0], c[1], zt]);
     }

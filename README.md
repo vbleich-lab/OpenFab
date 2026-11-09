@@ -93,21 +93,21 @@ startet die Electron-App. Alternativ startet `start.bat` einen lokalen Webserver
 
 ## Tests
 
-```bash
-npm run test:trim
-```
+Alle Tests auf einmal:
 
 ```bash
-npm run test:sketch
+npm test
 ```
 
-```bash
-npm run test:solver
-```
+| Befehl | Prüft |
+|---|---|
+| `npm run test:trim` | Skizze: Stutzen und Verlängern |
+| `npm run test:sketch` | Skizzenwerkzeuge (Rechtecke, Kreise, Bögen) |
+| `npm run test:solver` | Abhängigkeiten und Bemaßungen an Bögen |
+| `npm run test:kernel` | Rust-Kern (WebAssembly) |
+| `npm run test:cam` | Alle Frässtrategien an einem Prüfteil mit exakt bekannter Form: keine Verletzung von Teil und Aufmaß (Toleranz 0,04 mm); alle Postprozessoren (gültige Werte, Programmrahmen, zurückgelesene Positionen = Bahn); alle Drehoperationen und Dreh-Posts, Schneide gegen Kontur; Lochmuster und Bohrreihenfolge |
 
-```bash
-npm run test:kernel
-```
+Die Tests laufen ohne Browser in Node.js und bei jedem Push automatisch auf GitHub.
 
 ### Neue Version veröffentlichen
 
