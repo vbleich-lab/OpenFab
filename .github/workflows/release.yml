@@ -1,0 +1,64 @@
+name: Release
+
+# Ein Tag wie v1.0.0 oder v1.0.0-rc.2 baut beide Pakete und hängt sie an den Release.
+# Tags mit Bindestrich (rc, beta) werden als Vorabversion veröffentlicht.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Vorhandener Tag, z. B. v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Tests
+        run: |
+          npm run test:trim
+          npm run test:sketch
+          npm run test:solver
+          npm run test:kernel
+      - name: Version passt zum Tag
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$v" -ne $env:TAG) { throw "package.json hat Version $v, Tag ist $env:TAG" }
+      - name: Windows-App bauen
+        run: npm run build
+      - name: Browser-Version bauen
+        run: node tools/build-web.mjs
+      - name: Pakete packen
+        shell: pwsh
+        run: |
+          $v = $env:TAG.TrimStart('v')
+          Compress-Archive -Path dist\OpenFab-win32-x64 -DestinationPath "dist\OpenFab-$v-windows-x64.zip"
+          Compress-Archive -Path dist\OpenFab-Browser\* -DestinationPath "dist\OpenFab-$v-browser.zip"
+      - name: Release erstellen oder aktualisieren
+        shell: pwsh
+        run: |
+          $v = $env:TAG.TrimStart('v')
+          $files = "dist\OpenFab-$v-windows-x64.zip", "dist\OpenFab-$v-browser.zip"
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @files --clobber
+          } else {
+            $pre = if ($env:TAG -match '-') { '--prerelease' } else { '--latest' }
+            gh release create $env:TAG @files $pre --verify-tag --title "OpenFab $v" --notes "Änderungen: siehe [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/$env:TAG/CHANGELOG.md)"
+          }

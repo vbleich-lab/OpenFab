@@ -109,6 +109,21 @@ npm run test:solver
 npm run test:kernel
 ```
 
+### Neue Version veröffentlichen
+
+1. Version in `package.json` setzen (z. B. `1.0.0`) und `CHANGELOG.md` ergänzen.
+2. Committen, Tag setzen und hochladen:
+
+```bash
+git tag v1.0.0
+```
+
+```bash
+git push origin main --tags
+```
+
+Der Workflow **Release** (`.github/workflows/release.yml`) testet, baut die Windows-App und die Browser-Version und hängt beide als ZIP an den GitHub-Release. Tags mit Bindestrich (z. B. `v1.0.0-rc.2`) werden als Vorabversion veröffentlicht. Bei jedem Push auf `main` laufen außerdem die Tests (`.github/workflows/ci.yml`).
+
 ---
 
 ## Aufbau
