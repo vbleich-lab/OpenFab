@@ -1,0 +1,19 @@
+# Abhängigkeiten und Build-Ausgaben
+node_modules/
+dist/
+rust/openfab-kernel/target/
+
+# Lokale Werkzeug-Einstellungen
+.claude/
+.vscode/
+.idea/
+
+# Nicht zum Projekt gehörende Ordner
+blitzarena/
+sandsturm_bilder/
+
+# Sonstiges
+*.log
+Thumbs.db
+desktop.ini
+.DS_Store

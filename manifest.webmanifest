@@ -1,0 +1,16 @@
+{
+  "name": "OpenFab CAD/CAM",
+  "short_name": "OpenFab",
+  "description": "Konstruktion (CAD) und Fertigung (CAM) im Browser – läuft auch offline.",
+  "lang": "de",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1c2025",
+  "theme_color": "#2b3440",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

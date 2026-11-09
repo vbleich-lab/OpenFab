@@ -1,0 +1,24 @@
+[package]
+name = "openfab-kernel"
+version = "0.1.0"
+edition = "2024"
+description = "OpenFab Rust-Geometriekern (B-rep auf Basis von truck), als WebAssembly"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde_json = "1.0.154"
+truck-geometry = "0.5.0"
+truck-meshalgo = { version = "0.4.0", default-features = false, features = ["tessellation", "filters"] }
+truck-modeling = "0.6.0"
+truck-shapeops = "0.4.0"
+truck-stepio = "0.3"
+truck-topology = "0.6.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
