@@ -29,7 +29,7 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 ### Konstruktion (CAD)
 - **Skizzen** mit Linie, Rechteck (2 Punkte, Mitte, 3 Punkte), Kreis (Mitte, 2 Punkte, 3 Punkte), Bögen (3 Punkte, Mittelpunkt, tangential), Langloch, Polygon, Text und Konstruktionslinien
 - **Geometrischer Solver** mit Bemaßungen und Abhängigkeiten (tangential, konzentrisch, gleich … auch an Bögen)
-- **Stutzen und Verlängern**: Abhängigkeiten und Bemaßungen bleiben dabei erhalten
+- **Stutzen und Verlängern**: Abhängigkeiten und Bemaßungen bleiben dabei erhalten; Stutzen auch an Langlöchern und gerundeten Konturen und durch Wischen mit gedrückter Maustaste
 - **Abrunden, Fase und Versatz** als Klick-Werkzeuge mit Vorschau am Mauszeiger
 - **Volumenkörper**: Extrusion, Rotation, Sweep, Loft, Rohr, Spirale, Rippe, Drücken/Ziehen, Bohrung (auch als Gewindebohrung), Gewinde, Verrundung, Fase, Formschräge, Wandung, Aufdicken, Prägen (eben oder auf Zylinder gewickelt), Kombinieren, Teilen, Skalieren
 - **Muster**: rechteckig, kreisförmig und entlang eines Pfades; Spiegeln
@@ -44,7 +44,7 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 - Kollisionsprüfung zwischen Körpern
 
 ### Zeichnung
-- Normalansichten, Isometrie, Schnitt A–A und Detailansicht; Mittellinien an Wellen, Zapfen und Bohrungen
+- Normalansichten, Isometrie, Schnitte (Vorder- und Seitenansicht) und mehrere Detailansichten mit eigenen Maßen; Mittellinien an Wellen, Zapfen und Bohrungen
 - Eigene Maße (linear, Durchmesser, Radius, Winkel) mit Toleranz-/Passungszusatz, Hinweise mit Pfeil, Oberflächenzeichen, Form- und Lagetoleranzen mit Bezügen, Gewinde- und Fasenangaben, Positionsnummern, Stückliste, Schriftfeld
 - Export als SVG, Drucken bzw. Speichern als PDF
 
@@ -55,7 +55,7 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 
 ### Fertigung (CAM)
 - **Einrichtungen** mit Rohteil (Quader, Zylinder, Restmaterial aus der vorigen Aufspannung), Nullpunkt, Spannmitteln und 3+2-Schwenkung
-- **2D-Fräsen**: Planen, Kontur, Tasche, 2D-Adaptiv, Nut, Gravur, Fase/Entgraten, Bohren, Gewindefräsen, Zirkularfräsen, Antasten
+- **2D-Fräsen**: Planen, Kontur, Tasche (auch nur das Restmaterial eines größeren Fräsers), 2D-Adaptiv, Nut, Gravur, Fase/Entgraten, Bohren, Gewindefräsen, Zirkularfräsen, Antasten
 - **3D-Fräsen**: Adaptiv-Schruppen, Parallel, Kontur (Z-Ebenen), Spirale, Radial, Morph, Geodätisch, Scallop, Planflächen, Restmaterial in Ecken und weitere
 - **4-Achs-Simultan**: Rotation (Helix/Linien), 4-Achs-Schruppen, Abwickeln von Skizzen auf den Zylinder
 - **Drehen**: Plandrehen, Schruppen/Schlichten (mit Schneidenradius-Kompensation), Einstechen, Gewinde, Abstechen, Bohren in der Drehachse, Innendrehen, Innen-Einstiche und Innengewinde; mit angetriebenem Werkzeug und C-Achse: Bohren (axial auf dem Lochkreis, radial als Querbohrung), Passfedernuten, Schlüsselflächen (Zweiflach, Vierkant, Sechskant) freie Skizzenkonturen auf der Planfläche oder abgewickelt auf dem Umfang und Taschen in der Planfläche

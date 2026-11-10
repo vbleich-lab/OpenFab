@@ -1,5 +1,22 @@
 # Änderungen
 
+## Unveröffentlicht
+
+### Zeichnung: mehrere Details mit eigenen Maßen, zweiter Schnitt
+- **Mehrere Detailansichten** auf einem Blatt („Detail hinzufügen" beliebig oft). Jede hat ihre eigene Vergrößerung (bis 10×), ihren Radius und lässt sich einzeln neu platzieren, verschieben und entfernen.
+- **Maße in der Detailansicht**: Längen, Durchmesser, Radien, Winkel, Hinweise und Toleranzrahmen lassen sich direkt im Detail setzen und zeigen die wahren Größen. Sie wandern mit, wenn das Detail verschoben wird, und verschwinden mit ihm.
+- **Seitenansicht als Schnitt**: zusätzlich zum Schnitt der Vorderansicht ein zweiter Schnitt quer dazu (Schnittlage X automatisch durch die Bohrungen oder von Hand). Die Schnittlinie mit Pfeilen steht in der Vorderansicht.
+- Schnitte und Details teilen sich eine Buchstabenreihe (Schnitt A–A, Schnitt B–B, Detail C …). Ein Detail aus einer Schnittansicht zeigt die Schraffur mit.
+
+### Skizze: Stutzen für Langlöcher und gerundete Konturen, Stutzen durch Wischen
+- **Stutzen** geht jetzt auch bei Langlöchern, gerundeten Rechtecken und Linienzügen mit Abrundungen oder Fasen: die Form wird dabei in ihre Linien und Bögen zerlegt, das angeklickte Stück entfernt.
+- **Wischen**: Maustaste gedrückt halten und über alles fahren, was weg soll – jedes überfahrene Stück wird gestutzt.
+- Ellipsen, Splines und Text bleiben Schnittkanten, lassen sich aber selbst nicht stutzen.
+
+### Fräsen: Restmaterial bei der 2D-Tasche
+- Die **2D-Tasche** hat den Schalter „Restmaterialbearbeitung" mit dem Durchmesser des vorigen Fräsers. Gefräst wird dann nur dort, wo der größere Fräser Material stehen gelassen hat (Ecken, enge Stellen) – im Testfall 490 statt 3931 mm Schnittweg.
+- Mit Restmaterial wird kein Steuerungszyklus ausgegeben (die Steuerung kennt das Restmaterial nicht).
+
 ## v1.0.0-rc.3 – 2026-11-10
 
 ### Konstruktion: Gewindebohrung im Bohrungs-Feature

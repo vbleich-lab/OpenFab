@@ -143,9 +143,15 @@ export function makeDrawing(bodies, opts) {
   for (const b of bodies) { b.geometry.computeBoundingBox(); box.union(b.geometry.boundingBox); }
   const size = box.getSize(new THREE.Vector3());
   const want = Object.entries(VIEWS).filter(([k]) => opts.views?.[k] !== false);
-  const sec = opts.section && opts.section.bodies?.length ? opts.section : null;
-  const secPrep = sec ? prepare(sec.bodies) : null;
-  const segs = Object.fromEntries(want.map(([k, v]) => [k, viewSegments(k === 'front' && sec ? secPrep : prep, v)]));
+  // sections: the front view cut parallel to XZ (opts.section), the left view cut parallel to YZ (opts.sectionX);
+  // sections and details share one row of letters (A–A, B–B, detail C …)
+  const LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ';
+  let nextLetter = 0;
+  const secs = {};
+  if (opts.section?.bodies?.length && opts.views?.front !== false) secs.front = { ...opts.section, letter: LETTERS[nextLetter++] };
+  if (opts.sectionX?.bodies?.length && opts.views?.left !== false) secs.left = { ...opts.sectionX, letter: LETTERS[nextLetter++] };
+  const sec = secs.front || null;
+  const segs = Object.fromEntries(want.map(([k, v]) => [k, viewSegments(secs[k] ? prepare(secs[k].bodies) : prep, v)]));
   const ext = k => {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const list of [segs[k].vis, segs[k].hid]) for (const s of list) for (const [x, y] of s) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
@@ -175,10 +181,30 @@ export function makeDrawing(bodies, opts) {
   if (E.top) place.top = { x: ox, y: oy + fh + gap };
   if (E.left) place.left = { x: ox + fw + gap, y: oy };
   if (E.iso) place.iso = { x: SW - 10 - E.iso.w * scale * 0.6 - gap, y: oy, s: scale * 0.6 };
+  // detail views: a circle of a view, enlarged. Each is a view of its own (key) in the coordinates of its parent,
+  // so dimensions picked in a detail show true sizes.
+  const DET = {};
   const toSheet = (k, [x, y]) => {
+    const dd = DET[k];
+    if (dd) { const p = toSheet(dd.k, [x, y]); return [dd.D[0] + dd.f * (p[0] - dd.C[0]), dd.D[1] + dd.f * (p[1] - dd.C[1])]; }
     const e = E[k], pl = place[k], s = pl.s || scale;
     return [pl.x + (x - e.x0) * s, pl.y + (e.y1 - y) * s];
   };
+  const viewScale = k => (DET[k] ? DET[k].s0 * DET[k].f : place[k].s || scale);
+  {
+    let left = 0;
+    nextLetter = Math.max(nextLetter, 1); // A stays the section's letter, as in drawings made before
+    for (const dt of opts.details || (opts.detail ? [{ ...opts.detail, key: 'detail' }] : [])) {
+      const k = dt.view;
+      if (!place[k] || k === 'iso' || !dt.key || DET[dt.key]) continue;
+      const f = Math.max(1.5, +dt.factor || 2), s0 = place[k].s || scale;
+      const C = toSheet(k, dt.c), r = Math.max(2, (+dt.r || 10) * s0), R2 = r * f;
+      // from the lower right corner (above the title block and the parts list) to the left
+      const D = [SW - 10 - 6 - R2 - left, SH - 10 - tbH - 18 - R2 - (opts.parts?.length ? (opts.parts.length + 1) * 6 : 0)];
+      left += 2 * R2 + 14;
+      DET[dt.key] = { k, f, s0, C, D, r, R2, c: dt.c, rv: r / s0, letter: LETTERS[nextLetter++] || '?' };
+    }
+  }
   // every view goes into its own group: the drawing window moves views by shifting their group
   const G = {};
   let cur = 'sheet';
@@ -192,20 +218,20 @@ export function makeDrawing(bodies, opts) {
   };
   const text = (x, y, s, cls = 'txt', anchor = 'middle', rot = 0) => L.push(`<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" class="${cls}" text-anchor="${anchor}"${rot ? ` transform="rotate(${rot} ${x.toFixed(2)} ${y.toFixed(2)})"` : ''}>${esc(s)}</text>`);
 
-  const asSection = k => k === 'front' && sec;
+  const asSection = k => secs[k];
   for (const k of Object.keys(place)) {
     cur = k;
     // a section view shows no hidden edges (DIN ISO 128-40)
     const showHidden = opts.hidden !== false && k !== 'iso' && !asSection(k);
     if (showHidden) for (const [a, b] of segs[k].hid) line(toSheet(k, a), toSheet(k, b), 'hid');
     // cut faces: hatched at 45°
-    if (asSection(k)) for (const poly of sec.polys) {
+    if (asSection(k)) for (const poly of secs[k].polys) {
       const d = poly.map(loop => loop.map((p, i) => `${i ? 'L' : 'M'}${toSheet(k, p).map(v => v.toFixed(3)).join(' ')}`).join('') + 'Z').join('');
       L.push(`<path d="${d}" class="hatch" fill-rule="evenodd"/>`);
     }
     for (const [a, b] of segs[k].vis) line(toSheet(k, a), toSheet(k, b), 'vis');
     const e = E[k], pl = place[k], s = pl.s || scale;
-    text(pl.x + (e.w * s) / 2, pl.y + e.h * s + (k === 'iso' ? 8 : 5), asSection(k) ? 'Schnitt A–A' : VIEWS[k].label, asSection(k) ? 'lbl sec' : 'lbl');
+    text(pl.x + (e.w * s) / 2, pl.y + e.h * s + (k === 'iso' ? 8 : 5), asSection(k) ? `Schnitt ${secs[k].letter}–${secs[k].letter}` : VIEWS[k].label, asSection(k) ? 'lbl sec' : 'lbl');
   }
   // cutting line A–A in the top view: thick ends, arrows in the viewing direction (towards +Y)
   if (sec && place.top) {
@@ -218,7 +244,23 @@ export function makeDrawing(bodies, opts) {
     const down = toSheet('top', [e.x0, -sec.y - 1])[1] > a[1] ? 1 : -1;
     for (const p of [l, r]) {
       line([p[0] + (p === l ? 2.5 : -2.5), p[1]], [p[0] + (p === l ? 2.5 : -2.5), p[1] + down * 7], 'dim arrow1');
-      text(p[0] + (p === l ? 2.5 : -2.5), p[1] + down * 7 + (down > 0 ? 5 : -2), 'A', 'secl');
+      text(p[0] + (p === l ? 2.5 : -2.5), p[1] + down * 7 + (down > 0 ? 5 : -2), sec.letter, 'secl');
+    }
+  }
+  // cutting line of the side section (plane parallel to YZ): upright in the front view (in the top view when
+  // there is no front view), arrows in the viewing direction (towards +X)
+  if (secs.left && (place.front || place.top)) {
+    const k = place.front ? 'front' : 'top';
+    cur = k;
+    const e = E[k], sx = secs.left;
+    const a = toSheet(k, [sx.x, e.y1]), b = toSheet(k, [sx.x, e.y0]);
+    const t = [a[0], a[1] - 6], u = [b[0], b[1] + 6];
+    line(t, u, 'cut');
+    line(t, [t[0], t[1] + 5], 'cutend'); line([u[0], u[1] - 5], u, 'cutend');
+    for (const p of [t, u]) {
+      const y = p[1] + (p === t ? 2.5 : -2.5);
+      line([p[0], y], [p[0] + 7, y], 'dim arrow1');
+      text(p[0] + 9.5, y + 1.4, sx.letter, 'secl');
     }
   }
 
@@ -438,7 +480,7 @@ export function makeDrawing(bodies, opts) {
     }
     // diameter / radius of a circle: leader through the centre at an angle, text outside
     if (dm.kind === 'dia' || dm.kind === 'rad') {
-      const c = toSheet(dm.view, dm.c), rr = (+dm.r) * (place[dm.view].s || scale);
+      const c = toSheet(dm.view, dm.c), rr = (+dm.r) * viewScale(dm.view);
       const ang = ((+dm.ang || 45) * Math.PI) / 180, ux = Math.cos(ang), uy = -Math.sin(ang);
       const outer = [c[0] + ux * (rr + 9), c[1] + uy * (rr + 9)];
       if (dm.kind === 'dia') line([c[0] - ux * rr, c[1] - uy * rr], [c[0] + ux * rr, c[1] + uy * rr], 'dim arrow2');
@@ -477,7 +519,7 @@ export function makeDrawing(bodies, opts) {
     }
     };
   (opts.userDims || []).forEach((dm, di) => {
-    if (!place[dm.view]) return;
+    if (!place[dm.view] && !DET[dm.view]) return;
     cur = dm.view;
     L.push(`<g class="udim" data-dim="${di}">`);
     hitLines = true;
@@ -487,25 +529,25 @@ export function makeDrawing(bodies, opts) {
   });
 
   // ----- detail view: a circle of a view, enlarged (Fusion: "Detailansicht") -----
-  let detailInfo = null;
-  const dt = opts.detail;
-  if (dt && place[dt.view] && G[dt.view]) {
-    const k = dt.view, f = Math.max(1.5, +dt.factor || 2), s0 = place[k].s || scale;
-    const C = toSheet(k, dt.c), r = Math.max(2, (+dt.r || 10) * s0), R2 = r * f;
+  const detailInfo = {};
+  let clipNo = 0;
+  for (const [key, dd] of Object.entries(DET)) {
+    const { k, f, s0, C, D, r, R2, letter } = dd;
+    if (!G[k]) continue;
+    const clipId = 'detclip' + (clipNo++ || '');
     // only the part's own lines (no dimension lines without their numbers)
     const src = G[k].filter(x => /class="(vis|hid|hatch|ctr)"/.test(x));
     // circle and letter on the parent view
     cur = k;
     L.push(`<circle cx="${C[0].toFixed(2)}" cy="${C[1].toFixed(2)}" r="${r.toFixed(2)}" class="detc"/>`);
-    text(C[0] + r * 0.75 + 1.5, C[1] - r * 0.75 - 1, 'B', 'secl', 'start');
+    text(C[0] + r * 0.75 + 1.5, C[1] - r * 0.75 - 1, letter, 'secl', 'start');
     // the enlarged copy, clipped to its circle; strokes keep their width
-    cur = 'detail';
-    const D = [SW - 10 - 6 - R2, SH - 10 - tbH - 18 - R2 - (opts.parts?.length ? (opts.parts.length + 1) * 6 : 0)];
-    L.push(`<clipPath id="detclip"><circle cx="${D[0].toFixed(2)}" cy="${D[1].toFixed(2)}" r="${R2.toFixed(2)}"/></clipPath>`);
-    L.push(`<g clip-path="url(#detclip)"><g class="det" transform="translate(${D[0].toFixed(3)} ${D[1].toFixed(3)}) scale(${f}) translate(${(-C[0]).toFixed(3)} ${(-C[1]).toFixed(3)})">${src.join('')}</g></g>`);
+    cur = key;
+    L.push(`<clipPath id="${clipId}"><circle cx="${D[0].toFixed(2)}" cy="${D[1].toFixed(2)}" r="${R2.toFixed(2)}"/></clipPath>`);
+    L.push(`<g clip-path="url(#${clipId})"><g class="det" transform="translate(${D[0].toFixed(3)} ${D[1].toFixed(3)}) scale(${f}) translate(${(-C[0]).toFixed(3)} ${(-C[1]).toFixed(3)})">${src.join('')}</g></g>`);
     L.push(`<circle cx="${D[0].toFixed(2)}" cy="${D[1].toFixed(2)}" r="${R2.toFixed(2)}" class="detc"/>`);
-    text(D[0], D[1] + R2 + 5, `Detail B (${scaleLabel(s0 * f)})`, 'lbl sec');
-    detailInfo = { x: D[0] - R2 - 4, y: D[1] - R2 - 4, w: 2 * R2 + 8, h: 2 * R2 + 12 };
+    text(D[0], D[1] + R2 + 5, `Detail ${letter} (${scaleLabel(s0 * f)})`, 'lbl sec');
+    detailInfo[key] = { x: D[0] - R2 - 4, y: D[1] - R2 - 4, w: 2 * R2 + 8, h: 2 * R2 + 12 };
   }
 
   // ----- balloons (Positionsnummern) in the isometric view, pointing at each part -----
@@ -590,7 +632,7 @@ ${Object.entries(G).map(([k, arr]) => (k === 'sheet' ? arr.join('\n') : `<g data
 </svg>`;
   // area of every view on the sheet (with its dimensions), for picking it up with the mouse
   const views = Object.fromEntries(Object.keys(place).map(k => { const e = E[k], pl = place[k], s = pl.s || scale; return [k, { x: pl.x - 14, y: pl.y - 14, w: e.w * s + 28, h: e.h * s + 24 }]; }));
-  if (detailInfo) views.detail = detailInfo;
+  Object.assign(views, detailInfo);
   // for picking points on the sheet: the mapping sheet ↔ view coordinates and the corner points of every view
   const xf = Object.fromEntries(Object.keys(place).map(k => [k, { px: place[k].x, py: place[k].y, x0: E[k].x0, y1: E[k].y1, s: place[k].s || scale }]));
   const snaps = {};
@@ -602,5 +644,15 @@ ${Object.entries(G).map(([k, arr]) => (k === 'sheet' ? arr.join('\n') : `<g data
   }
   // circles seen face-on in the top view (holes, bosses), for diameter dimensions by clicking
   const circlesOf = { top: holes.map(hh => { const rs = [...hh.rs.keys()].map(Number); return { c: [hh.cx, -hh.cy], rs }; }) };
-  return { svg, scale, scaleLabel: scaleLabel(scale), warnings, holes: holes.length, views, xf, snaps, circles: circlesOf };
+  // details: picked like their parent view, with the corners and circles inside their circle
+  const details = [];
+  for (const [key, dd] of Object.entries(DET)) {
+    if (!detailInfo[key]) continue;
+    const pl = place[dd.k], e = E[dd.k], inside = p => Math.hypot(p[0] - dd.c[0], p[1] - dd.c[1]) <= dd.rv + 1e-6;
+    xf[key] = { px: dd.D[0] + dd.f * (pl.x - dd.C[0]), py: dd.D[1] + dd.f * (pl.y - dd.C[1]), x0: e.x0, y1: e.y1, s: dd.s0 * dd.f };
+    snaps[key] = (snaps[dd.k] || []).filter(inside);
+    circlesOf[key] = (circlesOf[dd.k] || []).filter(ci => ci.rs.some(r => Math.abs(Math.hypot(ci.c[0] - dd.c[0], ci.c[1] - dd.c[1]) - r) <= dd.rv));
+    details.push({ key, letter: dd.letter, view: dd.k });
+  }
+  return { svg, scale, scaleLabel: scaleLabel(scale), warnings, holes: holes.length, views, xf, snaps, circles: circlesOf, details, sections: Object.fromEntries(Object.entries(secs).map(([k, s]) => [k, s.letter])) };
 }

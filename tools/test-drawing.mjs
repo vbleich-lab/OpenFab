@@ -95,3 +95,48 @@ ok('Eigene Maße als greifbare Gruppen (eine je Maß, mit breiten Greiflinien)',
   ok('Zeichnung ohne Körper: leeres Blatt ohne ungültige Werte', !badE && empty.includes('<svg'), badE ? badE[0] : '');
 }
 
+
+// ---- detail views: several of them, with their own dimensions at true size ----
+{
+  const details = [{ key: 'detail', view: 'top', c: [0, 0], r: 15, factor: 2 }, { key: 'detk2', view: 'front', c: [120, 0], r: 8, factor: 4 }];
+  const dims = [
+    { view: 'top', kind: 'h', a: [0, 0], b: [120, 0], off: 16 },
+    { view: 'detk2', kind: 'v', a: [120, 0], b: [120, 10], off: 10 },
+    { view: 'detail', kind: 'dia', c: [5, -5], r: 2, ang: 45 },
+    { view: 'gone', kind: 'h', a: [0, 0], b: [1, 0], off: 5 },
+  ];
+  const dd = makeDrawing(bodies, { ...base, userDims: dims, details });
+  const tx = [...dd.svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(m => m[1]);
+  ok('Zwei Details mit eigenen Buchstaben', dd.details.length === 2 && dd.details.map(t => t.letter).join('') === 'BC' && tx.some(t => /^Detail B \(/.test(t)) && tx.some(t => /^Detail C \(/.test(t)), tx.filter(t => /Detail/.test(t)).join(' | '));
+  ok('Maß im Detail zeigt die wahre Größe', tx.includes('10') && tx.includes('Ø4'), tx.filter(t => /^(10|Ø4)$/.test(t)).join(' | '));
+  // the detail maps like its parent, enlarged: a point of the part lands at centre + factor × distance
+  const x = dd.xf.detk2, xp = dd.xf.front, v = dd.views.detk2;
+  const P = (m, p) => [m.px + (p[0] - m.x0) * m.s, m.py + (m.y1 - p[1]) * m.s];
+  const cen = P(x, [120, 0]), far = P(x, [120, 10]);
+  ok('Detail: Abbildung = Elternansicht × Faktor', Math.abs(x.s - 4 * xp.s) < 1e-9 && Math.abs(cen[1] - far[1] - 10 * x.s) < 1e-6 && cen[0] > v.x && cen[0] < v.x + v.w && cen[1] > v.y && cen[1] < v.y + v.h, `Maßstab ${x.s}`);
+  ok('Detail: nur die Ecken im Kreis sind wählbar', dd.snaps.detk2.length > 0 && dd.snaps.detk2.every(p => Math.hypot(p[0] - 120, p[1]) <= 8 + 1e-6) && dd.snaps.detk2.length < dd.snaps.front.length, `${dd.snaps.detk2.length} von ${dd.snaps.front.length}`);
+  ok('Details liegen nebeneinander', Math.abs(dd.views.detail.x - dd.views.detk2.x) > 20 && !/NaN|undefined|Infinity/.test(dd.svg));
+  ok('Zwei eigene Ausschnitte (clipPath)', (dd.svg.match(/<clipPath id="detclip\d*">/g) || []).length === 2 && new Set(dd.svg.match(/<clipPath id="detclip\d*">/g)).size === 2);
+  // an old drawing with the single detail still works
+  const old = makeDrawing(bodies, { ...base, userDims: [], detail: { view: 'top', c: [0, 0], r: 15, factor: 2 } });
+  ok('Alte Zeichnung mit einem Detail', old.details.length === 1 && old.details[0].key === 'detail' && !!old.views.detail);
+}
+
+// ---- sections: front (A–A) and side (B–B), the details take the next letters ----
+{
+  const half = (x0, x1, y0, y1) => { const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, 10).translate((x0 + x1) / 2, (y0 + y1) / 2, 5); return { id: 'h', geometry: g, edges: new THREE.EdgesGeometry(g, 30), shape: { edges: [] } }; };
+  const section = { y: 40, bodies: [half(0, 120, 40, 80)], polys: [[[[0, 0], [120, 0], [120, 10], [0, 10]]]] };
+  const sectionX = { x: 60, bodies: [half(60, 120, 0, 80)], polys: [[[[-80, 0], [0, 0], [0, 10], [-80, 10]]]] };
+  const ds = makeDrawing(bodies, { ...base, userDims: [], section, sectionX, details: [{ key: 'detq', view: 'top', c: [0, 0], r: 10, factor: 2 }] });
+  const tx = [...ds.svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(m => m[1]);
+  ok('Schnitt A–A und Schnitt B–B beschriftet', tx.includes('Schnitt A–A') && tx.includes('Schnitt B–B') && ds.sections.front === 'A' && ds.sections.left === 'B', tx.filter(t => /Schnitt/.test(t)).join(' | '));
+  ok('Detail bekommt den nächsten Buchstaben', ds.details[0].letter === 'C' && tx.some(t => /^Detail C/.test(t)));
+  ok('Beide Schnittflächen schraffiert', (ds.svg.match(/class="hatch"/g) || []).length === 2);
+  // the cutting line of B–B stands upright in the front view at x = 60
+  const cut = [...ds.svg.matchAll(/<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)" class="cut"\/>/g)].map(m => m.slice(1, 5).map(Number));
+  const xs = ds.xf.front.px + (60 - ds.xf.front.x0) * ds.xf.front.s;
+  ok('Schnittlinie B–B senkrecht in der Vorderansicht', cut.length === 2 && cut.some(l => Math.abs(l[0] - l[2]) < 1e-6 && Math.abs(l[0] - xs) < 0.01), JSON.stringify(cut));
+  ok('Schnittbuchstaben an beiden Schnittlinien', tx.filter(t => t === 'A').length === 2 && tx.filter(t => t === 'B').length === 2);
+  const only = makeDrawing(bodies, { ...base, userDims: [], sectionX });
+  ok('Nur der Seitenschnitt heißt A–A', only.sections.left === 'A' && !only.sections.front);
+}
