@@ -12,12 +12,12 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . OpenFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=OpenFab --win32metadata.FileDescription=\"OpenFab CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=/rust/openfab-kernel --ignore=^/blitzarena --ignore=^/sandsturm_bilder --ignore=^/[.]claude --ignore=^/[.]git",
+    "build": "electron-packager . OpenFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=OpenFab --win32metadata.FileDescription=\"OpenFab CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=/rust/openfab-kernel --ignore=^/[.]claude --ignore=^/[.]git",
     "build:web": "node tools/build-web.mjs",
     "build:kernel": "node tools/build-kernel.mjs",
     "test:kernel": "node tools/test-rust-kernel.mjs",
     "test:trim": "node tools/test-trim.mjs",
-    "test:sketch": "node tools/test-sketchtools.mjs",
+    "test:sketch": "node tools/test-sketchtools.mjs && node tools/test-sketchcorner.mjs",
     "test:solver": "node tools/test-solver-arcs.mjs",
     "test:cam": "node tools/test-cam.mjs",
     "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam"

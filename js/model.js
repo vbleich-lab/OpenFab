@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { R } from './kernel.js';
 import { registerKernel, activeKernel, getKernel } from './kern/index.js';
 import { entityPolys, entityOutlines, entityOutline, buildRegions, chainLoops, circle3 } from './profiles.js';
+import { cornerPlan, hasCorners } from './sketchcorner.js';
 import { basis, planeMatrix, sketchPlane, toWorld, axisRef, planeRef } from './plane.js';
 import { sheetSolid } from './sheetmetal.js';
 import { stepSolids } from './interop.js';
@@ -52,6 +53,19 @@ function polyDrawing(pts) {
   return d.close();
 }
 
+// polyline with sketch fillets / chamfers: straight lines and true arcs (the solid gets cylindrical faces)
+function cornerDrawing(e) {
+  const { segs, closed } = cornerPlan(e);
+  if (!segs.length) return null;
+  let d = R.draw(segs[0].a);
+  const last = segs.length - 1;
+  segs.forEach((s, i) => {
+    if (closed && i === last && s.k === 'L') return; // close() draws it
+    d = s.k === 'L' ? d.lineTo(s.b) : d.threePointsArcTo(s.b, s.m);
+  });
+  return closed ? d.close() : d.done();
+}
+
 function entityDrawing(e) {
   switch (e.type) {
     case 'rect': {
@@ -80,7 +94,11 @@ function regionDrawings(sk, ids) {
   const { regions } = buildRegions(items);
   const byId = Object.fromEntries(items.map(i => [i.id, i]));
   // exact arcs for native shapes, polygons for everything else (text, polylines)
-  const drawingOf = id => { const it = byId[id]; return EXACT.has(it.e.type) && it.id === it.e.id ? entityDrawing(it.e) : polyDrawing(it.poly); };
+  const drawingOf = id => {
+    const it = byId[id];
+    if (it.id === it.e.id && hasCorners(it.e) && it.e.closed) { try { const d = cornerDrawing(it.e); if (d) return d; } catch { /* fall back to the polygon */ } }
+    return EXACT.has(it.e.type) && it.id === it.e.id ? entityDrawing(it.e) : polyDrawing(it.poly);
+  };
   return regions.map(r => {
     let d = drawingOf(r.id);
     for (const h of r.holeIds) d = d.cut(drawingOf(h));
@@ -394,6 +412,7 @@ function curveWires(sk, ids) {
     let d = null;
     if (EXACT.has(e.type)) d = entityDrawing(e);
     else if (e.type === 'poly' && e.curve === 'arc' && e.pts.length === 3) d = R.draw(e.pts[0]).threePointsArcTo(e.pts[2], e.pts[1]).done();
+    else if (hasCorners(e)) d = cornerDrawing(e);
     else if (e.type === 'poly') {
       const pts = (e.curve ? entityPolys(e)[0] : e.pts).filter((q, i, a) => i === 0 || Math.hypot(q[0] - a[i - 1][0], q[1] - a[i - 1][1]) > 1e-6);
       if (pts.length < 2) continue;

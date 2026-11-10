@@ -1,5 +1,6 @@
 // 2D sketch geometry: entities -> polygons, profile nesting, hit testing.
 import { textPolys } from './fonts.js';
+import { cornerPts, hasCorners } from './sketchcorner.js';
 
 const TAU = Math.PI * 2;
 
@@ -98,41 +99,9 @@ export function entityOutlines(e) {
   return o ? [o] : [];
 }
 
-// Polyline with sketch fillets: e.radii[k] rounds vertex k with a tangent arc.
+// Polyline with sketch fillets (e.radii) and chamfers (e.chamfers): see sketchcorner.js.
 // The stored vertex stays the (virtual) sharp corner, like Fusion.
-export function filletedPts(e) {
-  const pts = e.pts.map(p => [+p[0], +p[1]]);
-  const radii = e.radii || {};
-  if (!Object.keys(radii).length) return pts;
-  const n = pts.length, out = [];
-  for (let k = 0; k < n; k++) {
-    const r = +radii[k] || 0;
-    const inner = e.closed || (k > 0 && k < n - 1);
-    if (!(r > 0) || !inner) { out.push(pts[k]); continue; }
-    const P = pts[k], A = pts[(k - 1 + n) % n], B = pts[(k + 1) % n];
-    const ua = [A[0] - P[0], A[1] - P[1]], ub = [B[0] - P[0], B[1] - P[1]];
-    const la = Math.hypot(...ua), lb = Math.hypot(...ub);
-    if (la < 1e-9 || lb < 1e-9) { out.push(P); continue; }
-    const u = [ua[0] / la, ua[1] / la], v = [ub[0] / lb, ub[1] / lb];
-    const th = Math.acos(Math.max(-1, Math.min(1, u[0] * v[0] + u[1] * v[1])));
-    if (th < 1e-3 || th > Math.PI - 1e-3) { out.push(P); continue; }
-    // tangent distance, limited so neighbouring fillets cannot overlap
-    let t = r / Math.tan(th / 2);
-    t = Math.min(t, la * 0.499, lb * 0.499);
-    const rr = t * Math.tan(th / 2);
-    const bis = [u[0] + v[0], u[1] + v[1]], lbis = Math.hypot(...bis);
-    const d = rr / Math.sin(th / 2);
-    const C = [P[0] + (bis[0] / lbis) * d, P[1] + (bis[1] / lbis) * d];
-    const T1 = [P[0] + u[0] * t, P[1] + u[1] * t], T2 = [P[0] + v[0] * t, P[1] + v[1] * t];
-    let a1 = Math.atan2(T1[1] - C[1], T1[0] - C[0]), a2 = Math.atan2(T2[1] - C[1], T2[0] - C[0]);
-    let sweep = a2 - a1;
-    while (sweep > Math.PI) sweep -= TAU;
-    while (sweep < -Math.PI) sweep += TAU;
-    const m = Math.max(3, Math.min(64, Math.ceil((Math.abs(sweep) * rr) / 0.4)));
-    for (let i = 0; i <= m; i++) { const a = a1 + (sweep * i) / m; out.push([C[0] + rr * Math.cos(a), C[1] + rr * Math.sin(a)]); }
-  }
-  return out;
-}
+export const filletedPts = e => cornerPts(e);
 
 // Circle through three points (null when they are collinear).
 export function circle3(a, b, c) {
@@ -191,7 +160,7 @@ export function splinePts(pts, closed) {
 export function curvePts(e) {
   if (e.curve === 'arc' && e.pts.length === 3) return arcPts(e.pts[0], e.pts[1], e.pts[2]);
   if (e.curve === 'spline') return splinePts(e.pts, !!e.closed);
-  return e.radii ? filletedPts(e) : e.pts.map(p => [+p[0], +p[1]]);
+  return hasCorners(e) ? cornerPts(e) : e.pts.map(p => [+p[0], +p[1]]);
 }
 
 // Open lines, arcs and splines whose ends meet form closed profiles (like Fusion).

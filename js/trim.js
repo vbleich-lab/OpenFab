@@ -17,7 +17,7 @@ function arcOf(p0, pm, p1) {
   if (norm(ang(pm) - a0) > sw) sw -= TAU;
   return { k: 'arc', cx: c.cx, cy: c.cy, r: c.r, a0, sw };
 }
-const isPlainPoly = e => e.type === 'poly' && !e.curve && !e.radii;
+const isPlainPoly = e => e.type === 'poly' && !e.curve && !e.radii && !e.chamfers;
 const isArc = e => e.type === 'poly' && e.curve === 'arc' && e.pts.length === 3;
 
 // trimmable entities as primitives; `poly` = the polyline they become (rect/ngon → closed polyline)

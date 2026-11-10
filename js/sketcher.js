@@ -7,6 +7,7 @@ import { distToEntity, arcPts, splinePts, entityPoly } from './profiles.js';
 import { basis, planeMatrix, toLocal, toWorld } from './plane.js';
 import { sketchHandles, refKind, refEntity, dimensionFor, dimBase } from './solver.js';
 import { trimAt, extendAt, remapConstraints } from './trim.js';
+import { cornerAt, cornerPreview } from './sketchcorner.js';
 import { centerRect, rect3, circle2, circleThrough, centerArc, endTangent, tangentArc } from './sketchtools.js';
 
 const r2 = v => Math.round(v * 100) / 100;
@@ -34,6 +35,7 @@ export class Sketcher {
     this.dim = null;        // dimension tool: { refs } picked so far
     this.dimPreview = null; // dimension following the mouse
     this.hoverRef = null;
+    this.cornerVal = { fillet: 3, chamfer: 1 }; // last value of the corner tools (preview and prompt)
     this.locks = {};        // values typed while drawing
     this.segDims = [];      // typed line lengths, per polyline segment
     this.inp = null;        // value boxes while drawing
@@ -227,6 +229,14 @@ export class Sketcher {
       this.dimPreview = pv;
       if (changed) this.hooks.overlay();
       this.hooks.tip(pv ? 'Klicken: Bemaßung hier ablegen' : this.dim.refs.length ? 'Zweites Element wählen' : 'Linie, Kreis oder Punkt wählen', e);
+      return;
+    }
+    if (this.tool === 'fillet' || this.tool === 'chamfer') {
+      this.cur = p;
+      const c = cornerAt(this.entities, p, this.vp.worldPerPixel() * 16);
+      this.drawPreview();
+      const v = this.cornerVal[this.tool];
+      this.hooks.tip(c ? `Klicken: ${this.tool === 'fillet' ? 'Abrundung R' : 'Fase '}${Array.isArray(v) ? v.join('/') : v} an dieser Ecke` : 'Ecke anklicken (Linienzug, Rechteck, zwei Linien) · Esc beendet', e);
       return;
     }
     if (this.tool === 'trim' || this.tool === 'extend') {
@@ -478,6 +488,12 @@ export class Sketcher {
     if (this.tool === 'dim') { this.dimClick(raw); return; }
 
     if (this.tool === 'trim') { this.trimClick(raw); return; }
+    if (this.tool === 'fillet' || this.tool === 'chamfer') {
+      const c = cornerAt(this.entities, raw, this.vp.worldPerPixel() * 16);
+      if (!c) { this.hooks.status?.('Keine Ecke hier – Eckpunkt eines Linienzugs, Rechtecks oder Treffpunkt zweier Linien anklicken.'); return; }
+      this.hooks.corner?.(this.tool, c.ref);
+      return;
+    }
     if (this.tool === 'extend') { this.extendClick(raw); return; }
 
     if (this.tool === 'select') {
@@ -763,6 +779,18 @@ export class Sketcher {
 
   drawPreview() {
     this.vp.clear(this.preview);
+    if (this.active && this.cur && (this.tool === 'fillet' || this.tool === 'chamfer')) {
+      const c = cornerAt(this.entities, this.cur, this.vp.worldPerPixel() * 16);
+      if (!c) return;
+      this.preview.matrix.copy(planeMatrix(this.sketch));
+      const mat = new THREE.LineBasicMaterial({ color: 0xff7a00, depthTest: false, transparent: true });
+      const add = pts => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(q => new THREE.Vector3(q[0], q[1], 0.06))), mat); l.renderOrder = 11; this.preview.add(l); };
+      const rr = this.vp.worldPerPixel() * 7;
+      add(Array.from({ length: 25 }, (_, i) => [c.p[0] + rr * Math.cos((i / 24) * Math.PI * 2), c.p[1] + rr * Math.sin((i / 24) * Math.PI * 2)]));
+      const o = cornerPreview(this.entities, c.ref, this.tool, this.cornerVal[this.tool]);
+      if (o) add(o.closed ? [...o.pts, o.pts[0]] : o.pts);
+      return;
+    }
     if (this.active && this.cur && (this.tool === 'trim' || this.tool === 'extend')) {
       this.preview.matrix.copy(planeMatrix(this.sketch));
       const tol = this.vp.worldPerPixel() * 8;

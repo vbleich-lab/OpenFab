@@ -8,10 +8,6 @@ rust/openfab-kernel/target/
 .vscode/
 .idea/
 
-# Nicht zum Projekt gehörende Ordner
-blitzarena/
-sandsturm_bilder/
-
 # Sonstiges
 *.log
 Thumbs.db

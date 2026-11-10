@@ -15,6 +15,7 @@ import { allMachines, findMachine, copyMachine, newMachine, machineChecks, KIN_T
 import { StockSim, defaultFluteLen, defaultHolderDia, defaultStickout } from './sim.js';
 import { exampleProject, exampleTurning } from './example.js';
 import { describeEntity, entityPolys, translateEntity, rotateEntity } from './profiles.js';
+import { applyCorners, cornerPlan } from './sketchcorner.js';
 import { parseDXF, writeDXF } from './dxf.js';
 import { loadFonts, FONTS } from './fonts.js';
 import { solveSketch, lockedFields, sketchHandles, constraintFor, dimensionFor, dimBase, measure as measureDim, refKind, refEntity, CONSTRAINTS, GLYPH, DIM_KINDS } from './solver.js';
@@ -175,6 +176,7 @@ const sketcher = new Sketcher(vp, {
   project: e => projectFaceAt(e),
   preview: () => rebuildScene(),
   overlay: () => refreshSketchOverlay(),
+  corner: (kind, ref) => sketchCorner(kind, [ref]),
   addDim: d => createDim(d),
   evalNum: str => { const v = /^[-+]?[0-9.]+$/.test(str) ? +str : evalExpr(str, paramScope(state.project)); return Number.isFinite(v) ? v : NaN; },
   tip: (text, e) => {
@@ -2212,7 +2214,8 @@ function toolbarTabs() {
           .map(([icon, label, tool]) => tbtn(icon, label, () => sketcher.setTool(tool), sketcher.tool === tool ? 'active' : '', label)),
         T('project', 'Projizieren', 'project', 'J'), tbtn('example', 'DXF-Import', () => $('#dxfInput').click(), '', 'DXF in diese Skizze importieren')),
       tgroup('ÄNDERN', T('trim', 'Stutzen', 'trim', 'T'), tbtn('extend', 'Verlängern', () => sketcher.setTool('extend'), sketcher.tool === 'extend' ? 'active' : '', 'Verlängern: offenes Linienende bis zur nächsten Kante'),
-        tbtn('fillet', 'Abrunden', sketchFillet, '', 'Abrunden: Eckpunkte eines Linienzugs wählen'),
+        tbtn('fillet', 'Abrunden', sketchFillet, sketcher.tool === 'fillet' ? 'active' : '', 'Abrunden: Ecken anklicken (Linienzug, Rechteck, zwei Linien)'),
+        tbtn('edgechamfer', 'Fase', sketchChamfer, sketcher.tool === 'chamfer' ? 'active' : '', 'Fase: Ecken anklicken (Linienzug, Rechteck, zwei Linien)'),
         tbtn('offset', 'Versatz', sketchOffset, '', 'Versatz: geschlossene Konturen wählen, Abstand eingeben (+ außen, − innen)'),
         tbtn('sketchMirror', 'Spiegeln', sketchMirror, '', 'Spiegeln: Elemente wählen und zuletzt eine Linie als Spiegelachse'),
         tbtn('patternRect', 'Rechteck-Muster', () => sketchPattern('rect'), '', 'Rechteckige Anordnung der gewählten Elemente'),
@@ -3158,7 +3161,8 @@ function propsSketchEdit(b) {
     }
     else if (e.type === 'poly') {
       e.pts.forEach((p, i) => b.append(row(`Punkt ${i + 1}`, h('div', { style: 'display:flex;gap:4px' },
-        h('input', { type: 'text', value: e.radii?.[i] ?? '', placeholder: 'R', title: 'Eckenradius (Abrundung)', style: 'width:46px', onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); commitSketch(sk.id, s2 => { const x = s2.entities.find(q => q.id === e.id); x.radii ||= {}; if (v > 0) x.radii[i] = v; else delete x.radii[i]; }); } }),
+        h('input', { type: 'text', value: e.radii?.[i] ?? '', placeholder: 'R', title: 'Eckenradius (Abrundung)', style: 'width:42px', onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); commitSketch(sk.id, s2 => { const x = s2.entities.find(q => q.id === e.id); x.radii ||= {}; if (v > 0) { x.radii[i] = v; if (x.chamfers) delete x.chamfers[i]; } else delete x.radii[i]; if (!Object.keys(x.radii).length) delete x.radii; }); } }),
+        h('input', { type: 'text', value: Array.isArray(e.chamfers?.[i]) ? e.chamfers[i].join('; ') : e.chamfers?.[i] ?? '', placeholder: 'F', title: 'Fase (Abstand, ungleich: „2; 3“)', style: 'width:42px', onchange: ev => { const v = ev.target.value.split(';').map(q => parseFloat(q.replace(',', '.'))).filter(q => q > 0); commitSketch(sk.id, s2 => { const x = s2.entities.find(q => q.id === e.id); x.chamfers ||= {}; if (v.length) { x.chamfers[i] = v.length > 1 ? v.slice(0, 2) : v[0]; if (x.radii) delete x.radii[i]; } else delete x.chamfers[i]; if (!Object.keys(x.chamfers).length) delete x.chamfers; }); } }),
         num(p[0], v => ed(x => (x.pts[i][0] = v), `pts.${i}.0`)), num(p[1], v => ed(x => (x.pts[i][1] = v), `pts.${i}.1`))))));
       b.append(row('Geschlossen', chk(e.closed, v => ed(x => (x.closed = v)))));
     }
@@ -7563,16 +7567,60 @@ function projectFaceAt(evt) {
   status(`${loops.length} Kontur(en) projiziert`);
 }
 
-async function sketchFillet() {
+// Sketch fillet / chamfer (like Fusion): corners of polylines and rectangles, and corners where two separate lines
+// meet (they are joined into one polyline). 0 removes the rounding / chamfer.
+// Toolbar: with corner points selected, those are changed at once; otherwise the tool starts and the corners are
+// clicked one by one (hover shows the result)
+const sketchFillet = () => sketchCornerTool('fillet');
+const sketchChamfer = () => sketchCornerTool('chamfer');
+function sketchCornerTool(kind) {
   const rsk = resolved().features.find(f => f.id === state.sketchId);
-  const picks = sketcher.selection.map(r => r.split(':')).filter(([id, k]) => k && k[0] === 'p' && rsk.entities.find(e => e.id === id)?.type === 'poly');
-  if (!picks.length) return status('Abrunden: Eckpunkte von Linienzügen wählen (Auswahl-Werkzeug, Umschalt für mehrere).');
-  const r = evalExpr(await askValue('Radius der Abrundung (mm):', '3') || '', paramScope(state.project));
-  if (!(r > 0)) return;
+  const picks = sketcher.selection.filter(r => { const [id, k] = r.split(':'), e = rsk.entities.find(x => x.id === id); return k && k[0] === 'p' && (e?.type === 'rect' || (e?.type === 'poly' && !e.curve)); });
+  if (picks.length) return sketchCorner(kind, picks);
+  sketcher.setTool(kind);
+  status(`${kind === 'fillet' ? 'Abrunden' : 'Fase'}: Ecke anklicken – Linienzug, Rechteck oder Treffpunkt zweier Linien. Das Werkzeug bleibt aktiv, Esc beendet.`);
+}
+async function sketchCorner(kind, picks) {
+  const rsk = resolved().features.find(f => f.id === state.sketchId);
+  const what = kind === 'fillet' ? 'Abrunden' : 'Fase';
+  if (!picks?.length) return;
+  const scope = paramScope(state.project);
+  const last = sketcher.cornerVal[kind];
+  const txt = await askValue(kind === 'fillet' ? 'Radius der Abrundung (mm, 0 = entfernen):' : 'Fasenabstand (mm, ungleich: „2; 3“, 0 = entfernen):', Array.isArray(last) ? last.join('; ') : String(last));
+  if (txt == null || txt === '') return;
+  const vals = String(txt).split(/[;×x]/).map(v => evalExpr(v.trim(), scope)).filter(v => Number.isFinite(v));
+  if (!vals.length || vals.some(v => v < 0)) return status(`${what}: ungültiger Wert`);
+  const value = kind === 'chamfer' && vals.length > 1 ? vals.slice(0, 2) : vals[0];
+  if (vals[0] > 0) sketcher.cornerVal[kind] = value;
+  const res = applyCorners(rsk.entities, rsk.constraints || [], picks, kind, value, () => uid('c'));
+  if (!res.done) return status(`${what}: an diesen Punkten nicht möglich (Bogen, Spline, Linienende ohne zweite Linie oder bemaßte Rechteckmitte).`);
+  const changed = new Set(res.changed);
   commitSketch(state.sketchId, sk => {
-    for (const [id, k] of picks) { const e = sk.entities.find(x => x.id === id); (e.radii ||= {})[+k.slice(1)] = r; }
+    // keep the stored values (formulas) of everything that was not rebuilt; take over radii / chamfers
+    const raw = Object.fromEntries(sk.entities.map(e => [e.id, e]));
+    sk.entities = res.entities.map(e => {
+      const r = raw[e.id];
+      if (r?.type === 'rect' && e.type === 'poly') {
+        // rectangle → polyline: the corners keep the rectangle's formulas (e.g. w = "=laenge")
+        const ex = v => (typeof v === 'string' && v.startsWith('=') ? `(${v.slice(1)})` : String(+v));
+        const plus = (a, b) => (typeof a === 'number' || !String(a).startsWith('=')) && (typeof b === 'number' || !String(b).startsWith('=')) ? +a + +b : `=${ex(a)}+${ex(b)}`;
+        const x1 = plus(r.x, r.w), y1 = plus(r.y, r.h);
+        return { ...e, pts: [[r.x, r.y], [x1, r.y], [x1, y1], [r.x, y1]] };
+      }
+      if (!r || changed.has(e.id)) return e;
+      const x = { ...r };
+      if (e.radii) x.radii = e.radii; else delete x.radii;
+      if (e.chamfers) x.chamfers = e.chamfers; else delete x.chamfers;
+      return x;
+    });
+    const rawC = Object.fromEntries((sk.constraints || []).map(c => [c.id, c]));
+    sk.constraints = res.constraints.map(c => (rawC[c.id] ? { ...rawC[c.id], refs: c.refs } : c));
   });
   sketcher.selection = [];
+  // corners that do not fit on their edges were made smaller
+  const after = resolved().features.find(f => f.id === state.sketchId);
+  const small = after.entities.filter(e => e.type === 'poly' && !e.curve).reduce((n, e) => n + cornerPlan(e).clamped.length, 0);
+  status(`${what}: ${res.done} Ecke(n)${res.skipped ? `, ${res.skipped} übersprungen` : ''}${changed.size ? ' – Linien/Rechteck zu einem Linienzug verbunden' : ''}${small ? ` · ⚠ ${small} Ecke(n) verkleinert: passen nicht auf die Kanten` : ''}`);
 }
 
 function sketchPatternForm(sketchId, e) {
@@ -9199,7 +9247,7 @@ function markingItems() {
     const T = (icon, label, tool) => I(icon, label, () => { sketcher.setTool(tool); renderAll(); });
     return {
       ring: [T('line', 'Linie', 'line'), T('rect', 'Rechteck', 'rect'), T('circle', 'Kreis', 'circle'), I('finish', 'Skizze fertig', finishSketch),
-        T('select', 'Auswahl', 'select'), I('offset', 'Versatz', sketchOffset), T('trim', 'Stutzen', 'trim'), I('fillet', 'Abrunden', sketchFillet)],
+        T('select', 'Auswahl', 'select'), I('offset', 'Versatz', sketchOffset), T('trim', 'Stutzen', 'trim'), I('fillet', 'Abrunden', sketchFillet), I('edgechamfer', 'Fase', sketchChamfer)],
       list: [I('params', 'Bemaßung', addDimension), I('line', 'Normal/Konstruktion (X)', () => { if (!sketcher.toggleConstruction()) status('Zuerst Skizzengeometrie auswählen.'); }), I('sketchMirror', 'Spiegeln', sketchMirror), I('fit', 'Einpassen', fitView)],
     };
   }
@@ -9324,7 +9372,9 @@ function sketchMirror() {
   commitSketch(state.sketchId, sk => {
     for (const e of items) {
       const id = uid('e');
-      if (e.type === 'poly') sk.entities.push({ ...JSON.parse(JSON.stringify(e)), id, pts: e.pts.map(M).reverse(), radii: undefined });
+      // mirrored polyline: points reversed, so the corner numbers too (unequal chamfers swap their sides)
+      const rev = (o, f = v => v) => (o ? Object.fromEntries(Object.entries(o).map(([k, v]) => [e.pts.length - 1 - +k, f(v)])) : undefined);
+      if (e.type === 'poly') sk.entities.push({ ...JSON.parse(JSON.stringify(e)), id, pts: e.pts.map(M).reverse(), radii: rev(e.radii), chamfers: rev(e.chamfers, v => (Array.isArray(v) ? [v[1], v[0]] : v)) });
       else if (e.type === 'circle') { const [cx, cy] = M([e.cx, e.cy]); sk.entities.push({ id, type: 'circle', cx, cy, r: e.r }); }
       else if (e.type === 'rect') {
         const pts = [[+e.x, +e.y], [+e.x + +e.w, +e.y], [+e.x + +e.w, +e.y + +e.h], [+e.x, +e.y + +e.h]].map(M).reverse();
