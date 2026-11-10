@@ -1,92 +1,100 @@
 # OpenFab
 
-**CAD/CAM für Konstruktion und Fertigung – komplett offline, im Browser oder als Windows-App.**
+**English** · [Deutsch](README.de.md)
 
-OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über Skizzen und eine Feature-Zeitachse konstruiert. Danach lassen sich Baugruppen, Zeichnungen und Renderings erstellen und NC-Programme für Fräs- und Drehmaschinen erzeugen, simulieren und prüfen. Alles läuft lokal: kein Konto, keine Cloud, keine Telemetrie.
+**Free, open-source CAD/CAM for design and CNC machining – runs completely offline, in the browser or as a Windows app.**
 
-> **Status: Release Candidate 3 (v1.0.0-rc.3).** Der Funktionsumfang ist vollständig für 1.0. Bitte NC-Programme vor dem ersten Einsatz an der Maschine immer im Probelauf prüfen (siehe [Grenzen](#bekannte-grenzen)).
+OpenFab is a parametric 3D CAD program with integrated CAM. Parts are designed with sketches and a feature timeline. From there you can build assemblies, drawings and renderings, and generate, simulate and check NC programs (G-code and Heidenhain Klartext) for CNC milling machines and lathes. Everything runs locally: no account, no cloud, no telemetry.
 
-![Konstruktion über die Zeitachse, danach Fräsbahnen und Simulation mit Materialabtrag](docs/media/demo.gif)
+> [!CAUTION]
+> **Every NC program must be verified before it runs on a machine for the first time – in a dry run on the machine (single block, reduced rapid, in the air or with a safe Z offset) or in an external NC simulator.** The simulation inside OpenFab does not replace this check. OpenFab is free software and comes with no warranty of any kind; there is no liability for damage to machines, tools, workpieces or people. See [Safety](#safety-always-simulate-nc-programs-first).
 
-*Von der Skizze zum fertigen Teil: Konstruktion Schritt für Schritt, danach Werkzeugwege und Simulation.*
+> **Status: Release Candidate 3 (v1.0.0-rc.3).** Feature complete for 1.0.
+
+![Designing a part on the timeline, then toolpaths and a simulation with stock removal](docs/media/demo.gif)
+
+*From sketch to finished part: design step by step, then toolpaths and simulation.*
 
 ---
 
-## Bilder
+## Screenshots
 
-| Konstruktion | Skizze |
+| Design | Sketch |
 |---|---|
-| ![Parametrisches 3D-Modell mit Browser und Zeitachse](docs/media/01-konstruktion.png) | ![Skizze mit Abhängigkeiten und Bemaßungen](docs/media/02-skizze.png) |
-| **Fertigung: Werkzeugwege** | **Simulation mit Materialabtrag** |
-| ![Fräsbahnen für Planen, Tasche, Bohren und Kontur](docs/media/03-fertigung.png) | ![Simulation der Fräsbearbeitung](docs/media/04-simulation.png) |
-| **Drehen** | **Rendern** |
-| ![Drehteil mit Schrupp-, Schlicht-, Einstech- und Gewindebahnen](docs/media/05-drehen.png) | ![Rendering im Fotostudio](docs/media/06-rendern.png) |
+| ![Parametric 3D model with browser and timeline](docs/media/01-konstruktion.png) | ![Sketch with constraints and dimensions](docs/media/02-skizze.png) |
+| **Manufacture: toolpaths** | **Simulation with stock removal** |
+| ![Toolpaths for facing, pocket, drilling and contour](docs/media/03-fertigung.png) | ![Simulation of the milling operations](docs/media/04-simulation.png) |
+| **Turning** | **Rendering** |
+| ![Turned part with roughing, finishing, grooving and threading passes](docs/media/05-drehen.png) | ![Rendering in a photo studio](docs/media/06-rendern.png) |
+
+The screenshots show the German interface. The interface is available in **English, German, Russian and Chinese**.
 
 ---
 
-## Funktionen
+## Features
 
-### Konstruktion (CAD)
-- **Skizzen** mit Linie, Rechteck (2 Punkte, Mitte, 3 Punkte), Kreis (Mitte, 2 Punkte, 3 Punkte), Bögen (3 Punkte, Mittelpunkt, tangential), Langloch, Polygon, Text und Konstruktionslinien
-- **Geometrischer Solver** mit Bemaßungen und Abhängigkeiten (tangential, konzentrisch, gleich … auch an Bögen)
-- **Stutzen und Verlängern**: Abhängigkeiten und Bemaßungen bleiben dabei erhalten; Stutzen auch an Langlöchern und gerundeten Konturen und durch Wischen mit gedrückter Maustaste
-- **Abrunden, Fase und Versatz** als Klick-Werkzeuge mit Vorschau am Mauszeiger
-- **Volumenkörper**: Extrusion, Rotation, Sweep, Loft, Rohr, Spirale, Rippe, Drücken/Ziehen, Bohrung (auch als Gewindebohrung), Gewinde, Verrundung, Fase, Formschräge, Wandung, Aufdicken, Prägen (eben oder auf Zylinder gewickelt), Kombinieren, Teilen, Skalieren
-- **Muster**: rechteckig, kreisförmig und entlang eines Pfades; Spiegeln
-- **Konstruktionsgeometrie**: Ebenen (versetzt, unter Winkel, durch 3 Punkte, tangential), Achsen und Punkte
-- **Flächen**: Extrusion, Rotation, Loft, Pflaster, Versatz, Vernähen, Trennen, Verlängern, Füllen
-- **Blech**: Laschen, Lasche an Lasche (U-Falz, Z-Stufe, 180°-Umschlag), offene oder geschlossene Ecken mit Eckfreistellung (rund oder eckig), Abwicklung mit Biegetabelle
-- **Zeitachse** mit Zwischenspeicher: Änderungen berechnen nur die betroffenen Features neu, mit schrittweiser Berechnung und Fortschrittsanzeige
+### Design (CAD)
+- **Sketches** with line, rectangle (2 points, centre, 3 points), circle (centre, 2 points, 3 points), arcs (3 points, centre, tangent), slot, polygon, text and construction lines
+- **Geometric constraint solver** with dimensions and constraints (tangent, concentric, equal … also on arcs)
+- **Trim and extend**: constraints and dimensions are kept; trim also works on slots and rounded contours, and by swiping with the mouse button held down
+- **Fillet, chamfer and offset** as click tools with a preview at the cursor
+- **Solids**: extrude, revolve, sweep, loft, pipe, coil, rib, press/pull, hole (also tapped), thread, fillet, chamfer, draft, shell, thicken, emboss (flat or wrapped on a cylinder), combine, split, scale
+- **Patterns**: rectangular, circular and along a path; mirror
+- **Construction geometry**: planes (offset, at an angle, through 3 points, tangent), axes and points
+- **Surfaces**: extrude, revolve, loft, patch, offset, stitch, trim, extend, fill
+- **Sheet metal**: flanges, flange on flange (U hem, Z step, 180° hem), open or closed corners with corner relief (round or square), flat pattern with bend table
+- **Timeline** with a cache: a change recomputes only the features it affects, step by step with a progress display
 
-### Baugruppen
-- Gelenke: starr, Dreh-, Schiebe-, Zylinder-, Kugel- und Ebenengelenk
-- Gelenkursprünge, Grenzen, Kontaktstopp, gekoppelte Bewegungen, Bewegungsstudie
-- Kollisionsprüfung zwischen Körpern
+### Assemblies
+- Joints: rigid, revolute, slider, cylindrical, ball and planar
+- Joint origins, limits, contact stop, linked motion, motion study
+- Collision check between bodies
 
-### Zeichnung
-- Normalansichten, Isometrie, Schnitte (Vorder- und Seitenansicht) und mehrere Detailansichten mit eigenen Maßen; Mittellinien an Wellen, Zapfen und Bohrungen
-- Eigene Maße (linear, Durchmesser, Radius, Winkel) mit Toleranz-/Passungszusatz, Hinweise mit Pfeil, Oberflächenzeichen, Form- und Lagetoleranzen mit Bezügen, Gewinde- und Fasenangaben, Positionsnummern, Stückliste, Schriftfeld
-- Export als SVG, Drucken bzw. Speichern als PDF
+### Drawings
+- Standard views, isometric view, sections (full, half and offset section; front and side view) and several detail views with their own dimensions; centre lines on shafts, bosses and holes
+- Your own dimensions (linear, diameter, radius, angle) with tolerance / fit text, notes with a leader, surface texture symbols, geometric tolerances with datums, thread and chamfer callouts, balloons, parts list, title block
+- Export as SVG, print or save as PDF
 
-### Rendern
-- Studioumgebungen, Belichtung, Bodenschatten und Spiegelung
-- Progressive Kantenglättung, Tiefenschärfe, PNG-Export
-- Darstellungen per Drag-and-Drop auf Körper ziehen
+### Rendering
+- Studio environments, exposure, ground shadow and reflection
+- Progressive anti-aliasing, depth of field, PNG export
+- Drag and drop appearances onto bodies
 
-### Fertigung (CAM)
-- **Einrichtungen** mit Rohteil (Quader, Zylinder, Restmaterial aus der vorigen Aufspannung), Nullpunkt, Spannmitteln und 3+2-Schwenkung
-- **2D-Fräsen**: Planen, Kontur, Tasche (auch nur das Restmaterial eines größeren Fräsers), 2D-Adaptiv, Nut, Gravur, Fase/Entgraten, Bohren, Gewindefräsen, Zirkularfräsen, Antasten
-- **3D-Fräsen**: Adaptiv-Schruppen, Parallel, Kontur (Z-Ebenen), Spirale, Radial, Morph, Geodätisch, Scallop, Planflächen, Restmaterial in Ecken und weitere
-- **4-Achs-Simultan**: Rotation (Helix/Linien), 4-Achs-Schruppen, Abwickeln von Skizzen auf den Zylinder
-- **Drehen**: Plandrehen, Schruppen/Schlichten (mit Schneidenradius-Kompensation), Einstechen, Gewinde, Abstechen, Bohren in der Drehachse, Innendrehen, Innen-Einstiche und Innengewinde; mit angetriebenem Werkzeug und C-Achse: Bohren (axial auf dem Lochkreis, radial als Querbohrung), Passfedernuten, Schlüsselflächen (Zweiflach, Vierkant, Sechskant) freie Skizzenkonturen auf der Planfläche oder abgewickelt auf dem Umfang und Taschen in der Planfläche
-- **Werkzeugbibliothek** mit Schnittdaten-Rechner, Werkstoff-Sätzen, Standzeit und Halterdarstellung
-- **Simulation** mit Materialabtrag (auch auf Zylinder-Rohteilen), Vergleich mit dem Fertigteil (Rest / zu tief), Bearbeitungszeit je Aufspannung
-- **NC-Editor** mit Backplot, Suche und Bearbeiten; die **NC-Prüfung** erkennt Kollisionen von Halter, Schaft und Eilgang, Spannmittel- und Tischkontakt, Achsgrenzen und Syntaxfehler (Heidenhain)
-- **Postprozessoren**: Heidenhain Klartext (inkl. APPR/DEP, Zyklen 2xx, Lochmuster 220/221), Fanuc, Sinumerik, Okuma (Fräsen/Drehen), LinuxCNC, GRBL und weitere. Eigene Postprozessoren lassen sich im integrierten Editor mit Live-Vorschau anpassen.
-- **Steuerungszyklen** statt ausgerechneter Bahnen: Bohr- und Taschenzyklen, Zapfen, Lochkreise und -raster, Dreh-Schruppzyklus und Gewindezyklus
+### Manufacture (CAM)
+- **Setups** with stock (box, cylinder, rest material from the previous setup), work origin, fixtures and 3+2 tilting
+- **2D milling**: face, contour and pocket (both also for the rest material of a larger cutter only), 2D adaptive, slot, engrave, chamfer / deburr, drilling, thread milling, bore milling, probing
+- **3D milling**: adaptive roughing, parallel, contour (Z levels), spiral, radial, morph, geodesic, scallop, flats, rest material in corners and more
+- **4-axis simultaneous**: rotary (helix / lines), 4-axis roughing, wrapping sketches onto the cylinder
+- **Turning**: facing, roughing / finishing (with nose radius compensation), grooving, threading, parting, drilling on the axis, boring, internal grooves and internal threads; with live tools and C axis: drilling (axial on a bolt circle, radial as a cross hole), keyways, wrench flats (two flats, square, hexagon), free sketch contours on the face or wrapped around the diameter, and pockets in the face
+- **Tool library** with a cutting data calculator, material presets, tool life and holder display
+- **Simulation** with stock removal (also on cylindrical stock), comparison with the finished part (rest / too deep), machining time per setup
+- **NC editor** with backplot, search and editing; the **NC check** detects collisions of holder, shank and rapid moves, contact with fixtures and table, axis limits and syntax errors (Heidenhain)
+- **Post processors**: Heidenhain Klartext (incl. APPR/DEP, cycles 2xx, hole patterns 220/221), Fanuc, Sinumerik, Okuma (milling / turning), LinuxCNC, GRBL and more. Your own post processors can be adapted in the built-in editor with a live preview.
+- **Control cycles** instead of computed paths: drilling and pocket cycles, studs, bolt circles and grids, turning roughing cycle and threading cycle
 
-### Bedienung
-- Markierungsmenü (Rechtsklick), ViewCube, Tastenkürzel (z. B. Q Drücken/Ziehen, F Verrundung, M Verschieben, I Messen, X Konstruktionslinie)
-- Mehrere Dokumente in Tabs, Versionsstände beim Speichern; Import von STEP, IGES, STL, OBJ und DXF, Werkzeugbibliotheken und Postprozessoren (.cps)
+### User interface
+- **Languages**: English, German, Russian and Chinese (Preferences → Units and value display → Language; the first start follows the browser language)
+- Marking menu (right click), ViewCube, keyboard shortcuts (e.g. Q press/pull, F fillet, M move, I measure, X construction line)
+- Several documents in tabs, versions on save; import of STEP, IGES, STL, OBJ and DXF, tool libraries and post processors (.cps)
 
 ---
 
-## Starten
+## Getting started
 
-### Windows-App
-Lade `OpenFab-<Version>-windows-x64.zip` aus den [Releases](../../releases), entpacke das Archiv und starte `OpenFab.exe`.
+### Windows app
+Download `OpenFab-<version>-windows-x64.zip` from the [Releases](../../releases), unpack it and start `OpenFab.exe`.
 
-### Browser-Version (offline-fähig)
-Lade `OpenFab-<Version>-browser.zip` aus den [Releases](../../releases) und entpacke es. Dann im Ordner einen lokalen Webserver starten, zum Beispiel:
+### Browser version (works offline)
+Download `OpenFab-<version>-browser.zip` from the [Releases](../../releases) and unpack it. Start a local web server in that folder, for example:
 
 ```bash
 python -m http.server 8765
 ```
 
-und `http://localhost:8765` öffnen. Nach dem ersten Laden funktioniert die App auch ohne Netzwerk (Service Worker). Hinweise dazu stehen in `LIESMICH.txt` im Archiv.
+and open `http://localhost:8765`. After the first load the app also works without a network (service worker). More notes are in `LIESMICH.txt` inside the archive.
 
-### Aus dem Quellcode
-Voraussetzungen: [Node.js](https://nodejs.org) 18 oder neuer. Für die Browser-Variante zusätzlich Python 3 (oder ein anderer statischer Webserver).
+### From source
+Requirements: [Node.js](https://nodejs.org) 18 or newer. For the browser variant also Python 3 (or any other static web server).
 
 ```bash
 npm install
@@ -96,44 +104,61 @@ npm install
 npm start
 ```
 
-startet die Electron-App. Alternativ startet `start.bat` einen lokalen Webserver und öffnet OpenFab im Browser.
+starts the Electron app. Alternatively `start.bat` starts a local web server and opens OpenFab in the browser.
 
 ---
 
-## Bauen
+## Safety: always simulate NC programs first
 
-| Befehl | Ergebnis |
+OpenFab writes programs that move real machines. A wrong program can destroy tools, fixtures, the spindle and the machine, and it can injure people.
+
+- **Check every program before its first run:** on the machine in a dry run (single block, reduced feed and rapid, first in the air) **or in an external NC simulator** or the graphic simulation of the control.
+- The simulation and the NC check in OpenFab work on the toolpaths OpenFab itself has computed. They know nothing about your control, its parameters or your machine, and they do not replace the check at the machine.
+- The post processors are tested against the programming rules of the controls, **but they have not run on real machines**. M codes, tool changes, tilting, cycles and the C axis depend on the machine and must be adapted to yours.
+- Work origin, tool lengths, fixtures and travel limits are the operator's responsibility.
+- OpenFab is provided without any warranty (GPL-3.0, sections 15 and 16). You use it at your own risk.
+
+---
+
+## Building
+
+| Command | Result |
 |---|---|
-| `npm run build` bzw. `build-exe.bat` | Windows-App in `dist/OpenFab-win32-x64` |
-| `npm run build:web` bzw. `build-web.bat` | Browser-Version in `dist/OpenFab-Browser` (+ ZIP über die .bat) |
-| `npm run build:kernel` | Rust-Kern nach WebAssembly (`vendor/openfab-kernel`), benötigt Rust + `wasm32-unknown-unknown` |
+| `npm run build` or `build-exe.bat` | Windows app in `dist/OpenFab-win32-x64` |
+| `npm run build:web` or `build-web.bat` | Browser version in `dist/OpenFab-Browser` (+ ZIP via the .bat) |
+| `npm run build:kernel` | Rust kernel to WebAssembly (`vendor/openfab-kernel`), needs Rust + `wasm32-unknown-unknown` |
 
 ## Tests
 
-Alle Tests auf einmal:
+All tests at once:
 
 ```bash
 npm test
 ```
 
-| Befehl | Prüft |
+| Command | Checks |
 |---|---|
-| `npm run test:trim` | Skizze: Stutzen und Verlängern |
-| `npm run test:sketch` | Skizzenwerkzeuge (Rechtecke, Kreise, Bögen) |
-| `npm run test:solver` | Abhängigkeiten und Bemaßungen an Bögen |
-| `npm run test:kernel` | Rust-Kern (WebAssembly) |
-| `npm run test:cam` | Alle Frässtrategien an einem Prüfteil mit exakt bekannter Form: keine Verletzung von Teil und Aufmaß (Toleranz Schlichten 0,02 mm, Schruppen 0,04 mm); alle Postprozessoren (gültige Werte, Programmrahmen, zurückgelesene Positionen = Bahn); alle Drehoperationen und Dreh-Posts, Schneide gegen Kontur, Schrupp-/Schlichtzyklus G71/G70 und G85/G87; Lochmuster und Bohrreihenfolge |
-| `npm run test:hh` | Heidenhain Klartext: ein Programm mit allen Zyklen, APPR/DEP, Schraubenlinien, Tastzyklus und geschwenkter Aufspannung in sechs Optionskombinationen, Satz für Satz gegen die Klartext-Regeln und den Zustand der Steuerung geprüft |
-| `npm run test:iso` | G-Code für Fanuc/ISO, Okuma OSP-M, LinuxCNC, GRBL und Sinumerik: dasselbe Programm in fünf Optionskombinationen, Satz für Satz geprüft (Längenkorrektur, Spindel, Vorschub, Zyklen, Kreisbögen) |
-| `npm run test:lathe` | Drehprogramme für Fanuc, Okuma und LinuxCNC: alle Operationen als Bahn und als Zyklen, Satz für Satz geprüft (Werkzeugwechsel abseits des Teils, Spindel, C-Achse, Zyklen mit Kontur) |
-| `npm run test:drawing` | Zeichnung: eigene Maße, Winkelmaße, Hinweise und Maßzusätze im erzeugten SVG |
+| `npm run test:trim` | Sketch: trim and extend |
+| `npm run test:sketch` | Sketch tools (rectangles, circles, arcs, offset) |
+| `npm run test:solver` | Constraints and dimensions on arcs |
+| `npm run test:kernel` | Rust kernel (WebAssembly) |
+| `npm run test:cam` | Every milling strategy on a test part of exactly known shape: no gouging of the part or the stock to leave (tolerance 0.02 mm finishing, 0.04 mm roughing); every post processor (valid values, program frame, positions read back = toolpath); all turning operations and lathe posts, insert against contour, roughing / finishing cycles G71/G70 and G85/G87; hole patterns and drilling order |
+| `npm run test:hh` | Heidenhain Klartext: one program with all cycles, APPR/DEP, helices, probing cycle and a tilted setup in six option combinations, checked block by block against the Klartext rules and the state of the control |
+| `npm run test:iso` | G-code for Fanuc/ISO, Okuma OSP-M, LinuxCNC, GRBL and Sinumerik: the same program in five option combinations, checked block by block (length offset, spindle, feed, cycles, arcs) |
+| `npm run test:lathe` | Lathe programs for Fanuc, Okuma and LinuxCNC: all operations as paths and as cycles, checked block by block (tool change away from the part, spindle, C axis, cycles with a contour) |
+| `npm run test:drawing` | Drawing: dimensions, angles, notes, detail views and sections in the generated SVG |
+| `npm run test:i18n` | Languages: every dictionary against the texts of the source (placeholders, line breaks), and the translation at run time |
 
-Die Tests laufen ohne Browser in Node.js und bei jedem Push automatisch auf GitHub.
+The tests run without a browser in Node.js, and automatically on GitHub with every push.
 
-### Neue Version veröffentlichen
+### Translations
 
-1. Version in `package.json` setzen (z. B. `1.0.0`) und `CHANGELOG.md` ergänzen.
-2. Committen, Tag setzen und hochladen:
+The interface is written in German; the other languages are dictionaries in `js/lang/`. `node tools/i18n-extract.mjs` collects the German texts from the source, `node tools/i18n-extract.mjs --missing en` lists what has no translation yet, and `node tools/i18n-build.mjs merge` builds the dictionaries from the work files in `tools/i18n/`. Corrections go into `tools/i18n/fix-<language>.json`. Improvements by native speakers are very welcome.
+
+### Publishing a new version
+
+1. Set the version in `package.json` (e.g. `1.0.0`) and add to `CHANGELOG.md`.
+2. Commit, tag and push:
 
 ```bash
 git tag v1.0.0
@@ -143,45 +168,47 @@ git tag v1.0.0
 git push origin main --tags
 ```
 
-Der Workflow **Release** (`.github/workflows/release.yml`) testet, baut die Windows-App und die Browser-Version und hängt beide als ZIP an den GitHub-Release. Tags mit Bindestrich (z. B. `v1.0.0-rc.2`) werden als Vorabversion veröffentlicht. Bei jedem Push auf `main` laufen außerdem die Tests (`.github/workflows/ci.yml`).
+The **Release** workflow (`.github/workflows/release.yml`) tests, builds the Windows app and the browser version and attaches both as ZIP files to the GitHub release. Tags with a hyphen (e.g. `v1.0.0-rc.2`) become pre-releases. The tests also run on every push to `main` (`.github/workflows/ci.yml`).
 
 ---
 
-## Aufbau
+## Project layout
 
-| Ordner | Inhalt |
+| Folder | Content |
 |---|---|
-| `js/` | Anwendung (ES-Module, ohne Bundler): Modell, Skizze, Solver, CAM, Simulation, Postprozessoren, Oberfläche |
-| `css/`, `icons/` | Oberfläche und Symbole |
-| `electron/` | Hülle für die Windows-App |
-| `vendor/` | Mitgelieferte Bibliotheken (OpenCascade/replicad, three.js, Clipper, opentype.js …) |
-| `rust/openfab-kernel/` | Experimenteller eigener Geometriekern in Rust (truck), als WebAssembly eingebunden |
-| `tools/` | Build- und Testskripte |
+| `js/` | The application (ES modules, no bundler): model, sketch, solver, CAM, simulation, post processors, user interface |
+| `js/lang/` | Translations of the interface |
+| `css/`, `icons/` | Styles and icons |
+| `electron/` | Shell of the Windows app |
+| `vendor/` | Bundled libraries (OpenCascade/replicad, three.js, Clipper, opentype.js …) |
+| `rust/openfab-kernel/` | Experimental geometry kernel of its own in Rust (truck), built to WebAssembly |
+| `tools/` | Build and test scripts |
 
-Standardmäßig rechnet OpenFab mit **OpenCascade** (über replicad/WebAssembly). Der Rust-Kern ist eine experimentelle Alternative, die über die Kern-Schnittstelle umgeschaltet werden kann.
-
----
-
-## Bekannte Grenzen
-
-- **NC-Programme immer erst im Probelauf testen.** Die Okuma-Syntax (Fräsen und Drehen, inkl. G85/G81-Zyklen) wurde nach allgemeinem Wissen umgesetzt und nicht an einer echten Steuerung geprüft.
-- Kein simultanes 5-Achs-Fräsen. Unterstützt werden 3+2 (geschwenkte Aufspannungen) und 4-Achs-Simultan um die A-Achse.
-- Angetriebene Werkzeuge an der Drehmaschine: Bohren, Nuten, Flächen und Skizzenkonturen auf Planfläche und Umfang; keine Y-Achse, Taschen nur auf der Planfläche. Polar- und Zylinder-Interpolation (G12.1, G7.1) nur im Fanuc-Postprozessor, sonst kurze X/C-Schritte bzw. Z/C ohne Interpolation. In der Simulation erscheinen Konturen als Bänder, nicht als Materialabtrag. Die M-Codes für C-Achse und Werkzeugspindel sind maschinenabhängig und müssen im Postprozessor geprüft werden. Die NC-Prüfung rechnet angetriebene Bearbeitungen nicht gegen das Rohteil.
-- Keine Freiform-/T-Spline-Modellierung.
-- Große 3D-Strategien (Adaptiv 3D, Geodätisch) brauchen je nach Teil mehrere Sekunden Rechenzeit.
+By default OpenFab computes with **OpenCascade** (through replicad / WebAssembly). The Rust kernel is an experimental alternative that can be switched on through the kernel interface.
 
 ---
 
-## Lizenz
+## Known limits
 
-OpenFab steht unter der **GNU General Public License v3.0 oder später**, siehe [LICENSE](LICENSE).
-
-Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen, siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- The Okuma syntax (milling and turning, incl. the G85/G81 cycles) was written from general knowledge and has not been checked on a real control.
+- No simultaneous 5-axis milling. Supported are 3+2 (tilted setups) and 4-axis simultaneous around the A axis.
+- Live tools on the lathe: drilling, keyways, flats and sketch contours on the face and around the diameter; no Y axis, pockets on the face only. Polar and cylindrical interpolation (G12.1, G7.1) in the Fanuc post only, otherwise short X/C steps or Z/C without interpolation. The simulation shows these contours as ribbons, not as stock removal. The M codes for the C axis and the tool spindle depend on the machine and must be checked in the post processor. The NC check does not test live tool operations against the stock.
+- No freeform / T-spline modelling.
+- Large 3D strategies (adaptive 3D, geodesic) need several seconds of computing time, depending on the part.
+- Translations: the interface is written in German. In the other languages a few composed messages can remain German; comments in the NC program are always German. The changelog is in German.
 
 ---
 
-## Unterstützen
+## License
 
-OpenFab ist kostenlos und entsteht in der Freizeit. Wenn dir das Programm hilft, freue ich mich über einen Kaffee:
+OpenFab is licensed under the **GNU General Public License v3.0 or later**, see [LICENSE](LICENSE).
 
-<a href="https://www.paypal.com/donate/?business=vbleich%40gmail.com&currency_code=EUR&item_name=OpenFab"><img src="docs/media/kaffee-button.svg" alt="Spendier mir einen Kaffee (PayPal)" height="48"></a>
+Bundled libraries come under their own licenses, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+## Support
+
+OpenFab is free and made in my spare time. If the program helps you, I am happy about a coffee:
+
+<a href="https://www.paypal.com/donate/?business=vbleich%40gmail.com&currency_code=EUR&item_name=OpenFab"><img src="docs/media/kaffee-button.svg" alt="Buy me a coffee (PayPal)" height="48"></a>

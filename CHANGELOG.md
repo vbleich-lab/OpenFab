@@ -2,6 +2,24 @@
 
 ## Unveröffentlicht
 
+### Sprachen: Englisch, Russisch und Chinesisch
+- Die Oberfläche gibt es jetzt auf **Deutsch, Englisch, Russisch und Chinesisch**. Beim ersten Start richtet sie sich nach der Sprache des Browsers (unbekannte Sprachen: Englisch); umstellen unter Voreinstellungen → Einheiten- und Wertanzeige → Sprache.
+- Die Texte werden beim Anzeigen übersetzt (Wörterbücher in `js/lang/`), auch Meldungen mit Zahlen und Namen, Tooltips, die Würfelbeschriftung und die exportierte Zeichnung, das Einrichteblatt und die Werkzeugliste. Was keine Übersetzung hat, bleibt deutsch; Kommentare im NC-Programm sind immer deutsch.
+- Neue Werkzeuge: `node tools/i18n-extract.mjs` sammelt die Texte aus dem Quelltext, `node tools/i18n-build.mjs merge` baut die Wörterbücher, `npm run test:i18n` prüft sie.
+
+### Sicherheitshinweis am NC-Programm
+- Das Fenster „NC-Programm" zeigt jetzt in jeder Sprache den Hinweis, dass jedes Programm vor dem ersten Lauf an der Maschine im Probelauf oder in einem externen NC-Simulator geprüft werden muss. Die README (jetzt auf Englisch, die deutsche Fassung in `README.de.md`) hat dazu einen eigenen Abschnitt.
+
+### Zeichnung: Halbschnitt und abgesetzter Schnitt
+- Der Schnitt der Vorderansicht hat einen **Schnittverlauf**: Vollschnitt, **Halbschnitt** (nur die rechte Hälfte geschnitten) oder **abgesetzt** (zwei Ebenen mit Sprung bei einem X-Wert – automatisch links und rechts durch die jeweiligen Bohrungen). Die Schnittlinie in der Draufsicht folgt dem Verlauf, mit dicken Enden und Ecken.
+
+### Fräsen: Restmaterial bei der 2D-Kontur
+- Auch die **2D-Kontur** hat „Restmaterialbearbeitung": gefahren werden nur die Stellen, denen ein größerer Fräser nicht folgen konnte (Innenecken, enge Stellen), mit kurzem Überlapp auf die fertige Wand – im Testfall 266 statt 686 mm. Ohne An-/Abfahrbögen, Haltestege und Schlichtdurchgänge; Korrektur im Rechner.
+
+### Skizze: Verlängern und exakte Schnittkanten
+- **Verlängern** geht auch an offenen Linienzügen mit Abrundungen oder Fasen.
+- Langlöcher, gerundete Rechtecke und Linienzüge mit Abrundungen zählen beim Stutzen und Verlängern mit ihren exakten Bögen als Schnittkanten (vorher angenähert).
+
 ### Zeichnung: mehrere Details mit eigenen Maßen, zweiter Schnitt
 - **Mehrere Detailansichten** auf einem Blatt („Detail hinzufügen" beliebig oft). Jede hat ihre eigene Vergrößerung (bis 10×), ihren Radius und lässt sich einzeln neu platzieren, verschieben und entfernen.
 - **Maße in der Detailansicht**: Längen, Durchmesser, Radien, Winkel, Hinweise und Toleranzrahmen lassen sich direkt im Detail setzen und zeigen die wahren Größen. Sie wandern mit, wenn das Detail verschoben wird, und verschwinden mit ihm.

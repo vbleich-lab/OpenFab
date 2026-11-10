@@ -3,6 +3,7 @@ import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import { state, onChange, commit, undo, redo, undoDepth, revertTo, setUndoLimit, persist, setProject, loadSaved, newProject, uid, nextName, feature, camOp, migrate, defaultSetup } from './state.js';
 import { Viewport } from './viewport.js';
 import { loadKernel, R as OC } from './kernel.js';
+import { LANGS, lang as uiLang, setLanguage, t as tr, tHtml, deText, deAttr } from './i18n.js';
 import { setActiveKernel, activeKernelId, getKernel } from './kern/index.js';
 import './kern/rust.js';
 import { THREAD_SIZES, meshBody } from './model.js';
@@ -1704,7 +1705,7 @@ function planeTexture(label, hover) {
   g.font = '600 40px Segoe UI, Arial, sans-serif';
   g.textBaseline = 'top';
   g.textAlign = 'right';
-  g.fillText(label, 238, 16);
+  g.fillText(tr(label), 238, 16);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
@@ -2066,7 +2067,7 @@ setPostLibrary(libPosts);
 const tbPins = loadJ('openfab.toolbar.v1', {});      // "workspace|tab|group" → command ids shown in the toolbar
 let tbShortcuts = loadJ('openfab.shortcuts.v1', []); // command ids pinned to "Verknüpfungen" (S box)
 const tbKeys = loadJ('openfab.keys.v1', {});         // command id → key combo
-const cmdLabel = b => b.querySelector('span')?.textContent || b.title;
+const cmdLabel = b => (b.querySelector('span') ? deText(b.querySelector('span')) : '') || deAttr(b, 'title');
 const cmdId = b => (b.dataset.icon || 'g') + '|' + cmdLabel(b);
 const groupKey = (tab, label) => `${state.workspace}|${tab}|${label}`;
 function pinnedIds(g) {
@@ -2256,7 +2257,7 @@ function toolbarTabs() {
       tbtn('zebra', 'Zebra', () => setAnalysis('zebra'), analysis.mode === 'zebra' ? 'active' : '', 'Zebra-Analyse: Stetigkeit der Flächenübergänge'),
       tbtn('draftAn', 'Entformung', () => setAnalysis('draft'), analysis.mode === 'draft' ? 'active' : '', 'Formschräge-Analyse: Entformbarkeit'),
       tbtn('combine', 'Interferenz', runInterference, '', 'Überschneidungen zwischen Körpern finden'), tbtn('fit', 'Einpassen', fitView, '', 'Einpassen (F6)'));
-    const KONSTRUKTION = () => tgroup('KONSTRUKTION', C('plane', 'Versatzebene', 'plane', { kind: 'offset' }), C('planeAngle', 'Ebene unter Winkel', 'plane', { kind: 'angle' }), C('planeMid', 'Mittelebene', 'plane', { kind: 'mid' }),
+    const KONSTRUKTION = () => tgroup('KONSTRUIEREN', C('plane', 'Versatzebene', 'plane', { kind: 'offset' }), C('planeAngle', 'Ebene unter Winkel', 'plane', { kind: 'angle' }), C('planeMid', 'Mittelebene', 'plane', { kind: 'mid' }),
       C('plane3pt', 'Ebene durch drei Punkte', 'plane', { kind: '3pt' }), C('planeTangent', 'Tangentialebene', 'plane', { kind: 'tangent' }), C('axisCyl', 'Achse durch Zylinder', 'axis', { kind: 'cyl' }), C('axis2pt', 'Achse durch zwei Punkte', 'axis', { kind: '2pt' }),
       C('axisPlanes', 'Achse durch zwei Ebenen', 'axis', { kind: 'planes' }), C('cpoint', 'Punkt', 'point'));
     tabs['VOLUMENKÖRPER'] = [
@@ -2366,7 +2367,7 @@ function renderToolbar() {
   const seen = new Set();
   for (const [tab, groups] of Object.entries(tabs)) {
     for (const g of groups) {
-      const glabel = g.querySelector('.tgroup-label')?.firstChild?.textContent || '';
+      const glabel = deText(g.querySelector('.tgroup-label')?.firstChild) || '';
       for (const b of g._items || g.querySelectorAll('.tbtn')) {
         const label = cmdLabel(b);
         const key = label + '|' + b.title;
@@ -2926,7 +2927,7 @@ function renderProps() {
   }
   // collapsible sections (click on a section heading)
   for (const s of body.querySelectorAll(':scope > .sec')) {
-    const name = s.textContent;
+    const name = deText(s);
     const apply = () => {
       const closed = closedSecs.has(name);
       s.classList.toggle('closed', closed);
@@ -2958,7 +2959,7 @@ function propsTabs(body, tabs, secTab, key, horizontal = false) {
   const owner = new Map();
   let cur = tabs[0][0];
   kids.forEach((el, i) => {
-    if (el.classList.contains('sec')) { const m = secTab[el.textContent.trim()]; if (m) cur = m; }
+    if (el.classList.contains('sec')) { const m = secTab[deText(el).trim()]; if (m) cur = m; }
     // the last button row (move / duplicate / delete) stays visible on every tab
     owner.set(el, i === kids.length - 1 && el.classList.contains('btns') ? '*' : cur);
   });
@@ -2967,7 +2968,7 @@ function propsTabs(body, tabs, secTab, key, horizontal = false) {
   const active = present.some(([k]) => k === tabState[key]) ? tabState[key] : present[0][0];
   for (const [el, k] of owner) if (k !== '*' && k !== active) el.classList.add('tab-hidden');
   // a section heading equal to the tab name is redundant
-  if (!horizontal) for (const [el, k] of owner) if (k === active && el.classList.contains('sec') && present.find(([pk]) => pk === k)[1].toUpperCase() === el.textContent.trim()) el.classList.add('tab-hidden');
+  if (!horizontal) for (const [el, k] of owner) if (k === active && el.classList.contains('sec') && present.find(([pk]) => pk === k)[1].toUpperCase() === deText(el).trim()) el.classList.add('tab-hidden');
   body.prepend(h('div', { class: 'ptabs' + (horizontal ? ' ptabs-h' : '') }, ...present.map(([k, label, icon]) =>
     h('button', { class: 'ptab' + (k === active ? ' on' : ''), title: label, html: icon + `<span>${label}</span>`, onclick: () => { tabState[key] = k; renderProps(); } }))));
 }
@@ -5103,10 +5104,10 @@ function propsOp(b, op) {
     put('geo', csec('Haltestege', op.tabs, v => ed(x => (x.tabs = v))));
     if (op.tabs) put('geo', N('Anzahl', 'tabCount', { unit: null, min: 1, int: true }), N('Haltestegbreite', 'tabWidth', { min: 0.1 }), N('Haltesteghöhe', 'tabHeight', { min: 0.1 }));
   }
-  if (op.type === 'adaptive' || op.type === 'pocket') {
+  if (op.type === 'adaptive' || op.type === 'pocket' || op.type === 'contour') {
     const on = op.restDia != null && op.restDia !== '';
     put('geo', csec('Restmaterialbearbeitung', on, v => ed(x => (x.restDia = v ? (x.restDia || Math.max(2 * (t?.dia || 6), 10)) : null))));
-    if (on) put('geo', N('Vorheriger Werkzeug-Ø', 'restDia', { min: 0.1 }), h('p', { class: 'hint' }, 'Nur das bearbeiten, was ein größerer Fräser in Ecken stehen gelassen hat.'));
+    if (on) put('geo', N('Vorheriger Werkzeug-Ø', 'restDia', { min: 0.1 }), h('p', { class: 'hint' }, op.type === 'contour' ? 'Nur die Stellen der Kontur nachfahren, die ein größerer Fräser nicht erreicht hat (Innenecken, enge Stellen). Ohne An-/Abfahrbögen, Haltestege und Schlichtdurchgänge; Korrektur im Rechner.' : 'Nur das bearbeiten, was ein größerer Fräser in Ecken stehen gelassen hat.'));
   }
   if (isTurn) put('geo', sec('Geometrie'), h('p', { class: 'hint' }, 'Drehbearbeitung: Kontur aus dem Modell (Drehachse = Setup-Z).'));
   if (OPS_3D.includes(op.type)) faceManager(put, op, ed, N);
@@ -6221,7 +6222,7 @@ function renderPostEditor() {
   const right = h('div', { class: 'pe-right' });
   const head = h('div', { class: 'lib-title' });
   const warnBox = h('div');
-  const pre = h('div', { class: 'pe-preview' });
+  const pre = h('div', { class: 'pe-preview no-i18n' });
   right.append(head, warnBox, pre);
   const labelOf = Object.fromEntries(SECTIONS);
   const tas = new Map(); // section key -> textarea
@@ -6693,9 +6694,9 @@ function printTools(tools) {
   const w = window.open('', '_blank');
   if (!w) return status('Popup blockiert – Druckfenster konnte nicht geöffnet werden.');
   const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
-  w.document.write(`<!doctype html><meta charset="utf-8"><title>Werkzeugliste</title><style>body{font:12px sans-serif;margin:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px 6px;text-align:left}th{background:#eee}</style>
+  w.document.write(tHtml(`<!doctype html><meta charset="utf-8"><title>Werkzeugliste</title><style>body{font:12px sans-serif;margin:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px 6px;text-align:left}th{background:#eee}</style>
     <h2>Werkzeugliste – ${esc(libName())}</h2><p>${new Date().toLocaleString('de-DE')}</p><table><tr><th>T</th><th>Beschreibung</th><th>Typ</th><th>Ø</th><th>R</th><th>Schneiden</th><th>Schneidenl.</th><th>Gesamtl.</th><th>Unter Halter</th><th>n</th><th>vf</th><th>Zulieferer</th></tr>
-    ${tools.map(t => `<tr><td>${t.number}</td><td>${esc(t.name)}</td><td>${esc(TOOL_TYPES[t.type])}</td><td>${f2(t.dia)}</td><td>${t.cornerR ? f2(t.cornerR) : ''}</td><td>${t.flutes || ''}</td><td>${f2(toolFlute(t))}</td><td>${f2(toolLen(t))}</td><td>${f2(toolStick(t))}</td><td>${t.rpm}</td><td>${t.feed}</td><td>${esc(t.vendor || '')}</td></tr>`).join('')}</table>`);
+    ${tools.map(t => `<tr><td>${t.number}</td><td>${esc(t.name)}</td><td>${esc(TOOL_TYPES[t.type])}</td><td>${f2(t.dia)}</td><td>${t.cornerR ? f2(t.cornerR) : ''}</td><td>${t.flutes || ''}</td><td>${f2(toolFlute(t))}</td><td>${f2(toolLen(t))}</td><td>${f2(toolStick(t))}</td><td>${t.rpm}</td><td>${t.feed}</td><td>${esc(t.vendor || '')}</td></tr>`).join('')}</table>`));
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 300);
@@ -8102,7 +8103,7 @@ function renderDrawing(rebuild = false) {
       }
       parts = [...by.values()];
     }
-    drawingCache = { key, sectionY: section?.y, sectionXv: sectionX?.x, ...makeDrawing(bodies, { ...d, section, sectionX, details: drawingDetails(d), parts, axes: d.centerLines === false ? [] : drawingAxes(bodies), threads: getModel().threads || [], userDims: d.userDims || [], detail: null, title: { name: p.name, material: mat.label, mass, ...d.title } }) };
+    drawingCache = { key, sectionY: section?.y, sectionXv: sectionX?.x, sectionStepX: section?.stepX, sectionY2: section?.y2, ...makeDrawing(bodies, { ...d, section, sectionX, details: drawingDetails(d), parts, axes: d.centerLines === false ? [] : drawingAxes(bodies), threads: getModel().threads || [], userDims: d.userDims || [], detail: null, title: { name: p.name, material: mat.label, mass, ...d.title } }) };
   }
   const placed = placedDrawingSvg(drawingCache.svg, d.offsets);
   root.replaceChildren();
@@ -8115,7 +8116,10 @@ function renderDrawing(rebuild = false) {
     ...Object.entries(DRAW_VIEWS).map(([k, v]) => row(v.label, chk(d.views?.[k] !== false, on => ed(x => { x.views ||= {}; x.views[k] = on; })))),
     row('Verdeckte Kanten', chk(d.hidden !== false, v => ed(x => (x.hidden = v)))),
     row(`Vorderansicht als Schnitt${drawingCache.sections?.front ? ` ${drawingCache.sections.front}–${drawingCache.sections.front}` : ''}`, chk(!!d.section, v => ed(x => (x.section = v)))),
-    d.section ? row('Schnittlage Y', num(d.sectionY ?? drawingCache.sectionY ?? null, v => ed(x => (x.sectionY = v)), { unit: 'mm', allowEmpty: true, ph: 'automatisch' })) : null,
+    d.section ? row('Schnittverlauf', sel([['full', 'Vollschnitt (gerade)'], ['half', 'Halbschnitt (rechte Hälfte)'], ['step', 'Abgesetzt (zwei Ebenen)']], d.sectionMode || 'full', v => ed(x => (x.sectionMode = v)))) : null,
+    d.section ? row(d.sectionMode === 'step' ? 'Schnittlage Y links' : 'Schnittlage Y', num(d.sectionY ?? drawingCache.sectionY ?? null, v => ed(x => (x.sectionY = v)), { unit: 'mm', allowEmpty: true, ph: 'automatisch' })) : null,
+    d.section && d.sectionMode === 'step' ? row('Schnittlage Y rechts', num(d.sectionY2 ?? drawingCache.sectionY2 ?? null, v => ed(x => (x.sectionY2 = v)), { unit: 'mm', allowEmpty: true, ph: 'automatisch' })) : null,
+    d.section && ['half', 'step'].includes(d.sectionMode) ? row(d.sectionMode === 'half' ? 'Geschnitten ab X' : 'Sprung bei X', num(d.sectionStepX ?? drawingCache.sectionStepX ?? null, v => ed(x => (x.sectionStepX = v)), { unit: 'mm', allowEmpty: true, ph: 'Mitte' })) : null,
     row(`Seitenansicht als Schnitt${drawingCache.sections?.left ? ` ${drawingCache.sections.left}–${drawingCache.sections.left}` : ''}`, chk(!!d.sectionX, v => ed(x => (x.sectionX = v)))),
     d.sectionX ? row('Schnittlage X', num(d.sectionXv ?? drawingCache.sectionXv ?? null, v => ed(x => (x.sectionXv = v)), { unit: 'mm', allowEmpty: true, ph: 'automatisch' })) : null,
     (d.section && !drawingCache.sections?.front && d.views?.front !== false) || (d.sectionX && !drawingCache.sections?.left && d.views?.left !== false) ? h('p', { class: 'warn' }, 'Die Schnittlage liegt außerhalb des Teils – der Schnitt wird nicht gezeichnet.') : null,
@@ -8163,8 +8167,8 @@ function renderDrawing(rebuild = false) {
     sec('SCHRIFTFELD'),
     T('Benennung', 'name'), T('Zeichnungsnr.', 'number'), T('Werkstoff', 'material'), T('Gezeichnet', 'author'),
     h('div', { class: 'btns' },
-      btn('Drucken / PDF', () => { const w = window.open('', '_blank'); if (!w) return status('Popup blockiert.'); w.document.write(`<!doctype html><title>${p.name}</title><style>@page{size:${d.sheet} landscape;margin:0}body{margin:0}svg{width:100vw;height:auto}</style>${placed}<script>onload=()=>print()<\/script>`); w.document.close(); }, 'primary'),
-      btn('SVG', () => download(`${safeName()}_Zeichnung.svg`, placed, 'image/svg+xml'))),
+      btn('Drucken / PDF', () => { const w = window.open('', '_blank'); if (!w) return status('Popup blockiert.'); w.document.write(`<!doctype html><title>${p.name}</title><style>@page{size:${d.sheet} landscape;margin:0}body{margin:0}svg{width:100vw;height:auto}</style>${tHtml(placed)}<script>onload=()=>print()<\/script>`); w.document.close(); }, 'primary'),
+      btn('SVG', () => download(`${safeName()}_Zeichnung.svg`, tHtml(placed), 'image/svg+xml'))),
     ...drawingCache.warnings.map(w => h('p', { class: 'err' }, '⚠ ' + w)),
     h('p', { class: 'hint' }, `Maßstab ${drawingCache.scaleLabel} · ${drawingCache.holes} Bohrung(en) erkannt · Projektionsmethode 1 (DIN ISO 128). Ansichten lassen sich mit der Maus auf dem Blatt verschieben.`),
   );
@@ -8190,17 +8194,52 @@ function drawingSection(bodies, d, axis = 'y') {
   y = +y;
   if (!(y > box.min[axis] + 1e-4 && y < box.max[axis] - 1e-4)) return null;
   const plane = axis === 'x' ? new OC.Plane([y, 0, 0], [0, 1, 0], [1, 0, 0]) : new OC.Plane([0, y, 0], [1, 0, 0], [0, 1, 0]);
+  // front section in steps: 'half' cuts only the right half (Halbschnitt), 'step' jumps to a second Y at an X
+  // (abgesetzter Schnitt). Each step takes away the block in front of its plane.
+  const mode = axis === 'y' && ['half', 'step'].includes(d.sectionMode) ? d.sectionMode : 'full';
+  const given = v => v !== null && v !== '' && v !== undefined && Number.isFinite(+v);
+  let steps = null;
+  if (mode !== 'full') {
+    const xs = given(d.sectionStepX) ? +d.sectionStepX : (box.min.x + box.max.x) / 2;
+    if (!(xs > box.min.x + 1e-4 && xs < box.max.x - 1e-4)) return null;
+    if (mode === 'half') steps = [{ x0: xs, x1: Infinity, y }];
+    else {
+      // automatically: each side through its own holes closest to the middle
+      const mid = (box.min.y + box.max.y) / 2, L = [], R = [];
+      for (const b of bodies) for (const e of b.shape.edges) if (e.geomType === 'CIRCLE' && e.isClosed) { const c = e.boundingBox.center; (c[0] < xs ? L : R).push(c[1]); }
+      const pick = (ys, fb) => (ys.length ? ys.reduce((a, v) => (Math.abs(v - mid) < Math.abs(a - mid) ? v : a), ys[0]) : fb);
+      const y1 = given(d.sectionY) ? y : pick(L, y);
+      let y2 = given(d.sectionY2) ? +d.sectionY2 : pick(R.filter(v => Math.abs(v - y1) > 1e-3), pick(R, y1));
+      if (!(y2 > box.min.y + 1e-4 && y2 < box.max.y - 1e-4)) y2 = y1;
+      y = y1;
+      steps = [{ x0: -Infinity, x1: xs, y: y1 }, { x0: xs, x1: Infinity, y: y2 }];
+    }
+  }
   const halves = [], polys = [];
   const L = window.ClipperLib, S = 1000;
   for (const b of bodies) {
     let half;
-    try { half = b.shape.clone().cutPlane(plane, undefined, 'positive'); } catch { continue; }
+    try {
+      if (!steps) half = b.shape.clone().cutPlane(plane, undefined, 'positive');
+      else {
+        half = b.shape.clone();
+        for (const st of steps) {
+          const lo = [Math.max(st.x0, box.min.x - 1), box.min.y - 1, box.min.z - 1], hi = [Math.min(st.x1, box.max.x + 1), st.y, box.max.z + 1];
+          half = half.cut(OC.makeBox(lo, hi));
+        }
+      }
+    } catch { continue; }
     if (!half) continue;
     const mb = meshBody(half);
     halves.push({ shape: half, ...mb });
     // triangles of the faces lying in the cut plane, merged into clean outlines
     const cutFaces = new Set();
-    half.faces.forEach((fc, i) => { const bb = fc.boundingBox.bounds; if (Math.abs(bb[0][ai] - y) < 1e-4 && Math.abs(bb[1][ai] - y) < 1e-4) cutFaces.add(i); });
+    half.faces.forEach((fc, i) => {
+      const bb = fc.boundingBox.bounds;
+      if (!steps) { if (Math.abs(bb[0][ai] - y) < 1e-4 && Math.abs(bb[1][ai] - y) < 1e-4) cutFaces.add(i); return; }
+      // the faces in the plane of a step, within its stretch of X (the faces across, at the jump, stay plain)
+      if (steps.some(st => Math.abs(bb[0][1] - st.y) < 1e-4 && Math.abs(bb[1][1] - st.y) < 1e-4 && bb[0][0] >= st.x0 - 1e-4 && bb[1][0] <= st.x1 + 1e-4)) cutFaces.add(i);
+    });
     const idx = mb.geometry.index.array, P = mb.geometry.attributes.position.array;
     const tris = [];
     for (let t = 0; t < mb.faceOf.length; t++) {
@@ -8216,7 +8255,7 @@ function drawingSection(bodies, d, axis = 'y') {
     c.Execute(L.ClipType.ctUnion, out, L.PolyFillType.pftNonZero, L.PolyFillType.pftNonZero);
     polys.push(out.map(path => path.map(q => [q.X / S, q.Y / S])));
   }
-  return halves.length ? { y, x: y, bodies: halves, polys } : null;
+  return halves.length ? { y, x: y, bodies: halves, polys, mode, steps, stepX: steps ? steps[steps.length - 1].x0 : null, y2: steps && steps.length > 1 ? steps[1].y : null } : null;
 }
 
 // views moved by the user: their groups get a shift
@@ -8502,7 +8541,7 @@ function openSetupSheet() {
     ${setupsHtml}</body></html>`;
   const w = window.open('', '_blank');
   if (!w) return status('Popup blockiert – bitte Popups für diese Seite erlauben.');
-  w.document.write(html);
+  w.document.write(tHtml(html));
   w.document.close();
 }
 
@@ -8909,7 +8948,7 @@ $('#cadInput').addEventListener('change', e => {
 });
 
 function commitProjectName(el) {
-  const v = el.textContent.trim();
+  const v = deText(el).trim();
   if (v && v !== state.project.name) commit(p => (p.name = v), 'meta');
   else el.textContent = state.project.name;
 }
@@ -9207,6 +9246,9 @@ const PREF_TREE = [
     ]],
   ] },
   { id: 'units', label: 'Einheiten- und Wertanzeige', groups: [
+    ['Sprache / Language', [
+      ['__lang'],
+    ]],
     ['Einheiten', [
       ['__unit'],
     ]],
@@ -9272,6 +9314,8 @@ function openSettings(page) {
 
   // special rows with actions instead of a stored value
   const special = key => {
+    if (key === '__lang') return h('div', { class: 'prefs-row no-i18n' }, h('label', null, 'Sprache / Language', info('Die Oberfläche wird neu geladen · The page reloads')),
+      h('div', { class: 'prefs-ctl' }, sel(Object.entries(LANGS), uiLang, v => setLanguage(v))));
     if (key === '__unit') return h('div', { class: 'prefs-row' }, h('label', null, 'Standardeinheit', info('Alle Längen in Millimeter, Winkel in Grad')), h('div', { class: 'prefs-ctl' }, h('b', null, 'Millimeter (mm)')));
     if (key === '__smStatus') {
       const st = h('b', { style: spaceMouse.connected ? 'color:var(--ok)' : '' }, !spaceMouse.supported ? 'Nicht unterstützt (Chrome, Edge oder Desktop-App nötig)' : spaceMouse.connected ? `Verbunden: ${spaceMouse.name}` : 'Nicht verbunden');
@@ -11094,7 +11138,7 @@ function ncViewer(results) {
   let i = 0, cur = -1, timer = null;
   const win = h('div', { class: 'nc-win' });
   const tabs = h('div', { class: 'nc-tabs' }), warn = h('div', { class: 'nc-warn' });
-  const code = h('div', { class: 'nc-code', tabindex: '0' });
+  const code = h('div', { class: 'nc-code no-i18n', tabindex: '0' });
   const info = h('div', { class: 'nc-info' });
   const slider = h('input', { type: 'range', min: 0, max: 0, value: 0, class: 'nc-slider' });
   const search = h('input', { type: 'search', class: 'twl-search', placeholder: 'Suchen (Enter = weiter)' });
@@ -11290,6 +11334,7 @@ function ncViewer(results) {
   win.append(
     h('div', { class: 'modal-head nc-head' }, 'NC-PROGRAMM', h('button', { onclick: close }, '✕')),
     tabs, warn,
+    h('p', { class: 'warn', style: 'margin:4px 12px' }, '⚠ Jedes NC-Programm vor dem ersten Lauf prüfen: an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang) oder in einem externen NC-Simulator. Die Simulation hier ersetzt das nicht – Nutzung auf eigene Gefahr, ohne Gewährleistung.'),
     h('div', { class: 'nc-bar' }, search, tplBtn, editBtn),
     issueBox,
     code,

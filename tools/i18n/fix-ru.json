@@ -1,0 +1,6 @@
+{
+ "⚠ Jedes NC-Programm vor dem ersten Lauf prüfen: an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang) oder in einem externen NC-Simulator. Die Simulation hier ersetzt das nicht – Nutzung auf eigene Gefahr, ohne Gewährleistung.": "⚠ Проверяйте каждую управляющую программу перед первым запуском: на станке в пробном прогоне (покадровый режим, сниженная скорость ускоренных перемещений) или во внешнем симуляторе УП. Симуляция здесь этого не заменяет – использование на свой риск, без каких-либо гарантий.",
+ "ARBEITSBEREICH": "РАБОЧЕЕ ПРОСТРАНСТВО",
+ "KONSTRUKTION": "ПРОЕКТИРОВАНИЕ",
+ "Werkzeugnummer(n) {0} > Magazinplätze ({1})": "Номера инструментов {0} > число гнёзд магазина ({1})"
+}

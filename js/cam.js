@@ -964,6 +964,46 @@ function genContour(op, t, P, h, project) {
   if (op.repeatFinish) offsets.push(base);
   const lv = depthLevels(op, t, h);
   if (!lv.length) throw new Error('Unterkante liegt über der Oberkante');
+  if (+op.restDia > t.dia) {
+    // rest machining: only the stretches of the contour a cutter of the previous diameter could not follow
+    // (inside corners, narrow places). Where that cutter has been, this tool's path coincides with the path
+    // along the wall it left – those parts are skipped.
+    if (ct !== 'computer') throw new Error('Restmaterial an der Kontur braucht die Korrektur „Im Rechner“');
+    const R1 = +op.restDia / 2, r = t.dia / 2, plain = { ...op, minCutRadius: 0, smoothing: false };
+    const fin = contourLoops(op, g, base, inside);
+    if (!fin.length) throw new Error('Werkzeug zu groß für die Kontur');
+    const big = contourLoops(plain, g, R1 + stl, inside);
+    const done = big.length ? offsetPaths(big.map(l => toC(ensureCCW(l))), inside ? R1 - r : -(R1 - r)).map(fromC) : [];
+    const segD = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy, u = L2 > 1e-18 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)) : 0; return Math.hypot(p[0] - a[0] - u * dx, p[1] - a[1] - u * dy); };
+    const isDone = p => done.some(l => l.some((a, i) => segD(p, a, l[(i + 1) % l.length]) <= 0.02));
+    const ext = Math.max(0.5, r / 2), step = 0.25, runs = [];
+    for (const loop of fin) {
+      const pts = densify(loop, step, true).slice(0, -1), n = pts.length, todo = pts.map(p => !isDone(p));
+      if (todo.every(Boolean)) { runs.push({ pts: [...pts, pts[0]], closed: true }); continue; }
+      if (!todo.some(Boolean)) continue;
+      // a little further along the finished wall at both ends, so the cut blends in
+      const k = Math.ceil(ext / step), grow = todo.slice();
+      for (let i = 0; i < n; i++) if (todo[i]) for (let j = -k; j <= k; j++) grow[(((i + j) % n) + n) % n] = true;
+      if (grow.every(Boolean)) { runs.push({ pts: [...pts, pts[0]], closed: true }); continue; }
+      const s0 = grow.findIndex((v, i) => v && !grow[(i - 1 + n) % n]);
+      for (let c = 0, i = s0; c < n; ) {
+        if (!grow[i % n]) { i++; c++; continue; }
+        const run = [];
+        while (c < n && grow[i % n]) { run.push(pts[i % n]); i++; c++; }
+        if (run.length > 1) runs.push({ pts: run, closed: false });
+      }
+    }
+    if (!runs.length) throw new Error('Kein Restmaterial – der vorige Fräser erreicht schon alles');
+    const fF = +op.finishFeed || t.feed;
+    for (const run of nearestOrder(runs, q => q.pts[0])) {
+      for (const z of lv) {
+        P.plungeAt(run.pts[0][0], run.pts[0][1], z, t.plunge);
+        for (const [x, y] of run.pts.slice(1)) P.feed(x, y, z, fF);
+        P.retract();
+      }
+    }
+    return { rest: true, restRuns: runs.length };
+  }
   let lead = leadOpts(op);
   // the control can switch compensation on/off only on a straight move: make sure the leads have one
   if (compSide) {

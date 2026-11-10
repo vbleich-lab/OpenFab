@@ -76,7 +76,7 @@ export function machineChecks(machine, stock, setup, tools) {
   }
   if (machine.toolChanger === 'auto' && machine.tools) {
     const big = tools.filter(t => t.number > machine.tools);
-    if (big.length) out.push(`Werkzeugnummer${big.length > 1 ? 'n' : ''} ${big.map(t => 'T' + t.number).join(', ')} > Magazinplätze (${machine.tools})`);
+    if (big.length) out.push(`Werkzeugnummer(n) ${big.map(t => 'T' + t.number).join(', ')} > Magazinplätze (${machine.tools})`);
   }
   return out;
 }

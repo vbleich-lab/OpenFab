@@ -38,6 +38,9 @@ function primitives(e) {
   }
   if (isArc(e)) { const a = arcOf(...e.pts); return a ? [a] : []; }
   if (e.type === 'circle') return [{ k: 'arc', cx: +e.cx, cy: +e.cy, r: +e.r, a0: 0, sw: TAU, full: true }];
+  // slots, rounded rectangles, filleted polylines: their exact lines and arcs
+  const parts = explodeEntity(e);
+  if (parts) return parts.flatMap(q => primitives(q));
   // everything else: its outline as segments (cutting edges only)
   const out = [];
   for (const o of entityOutlines(e)) {
@@ -281,7 +284,8 @@ export function extendAt(entities, p, tol) {
     const B = { ...rev, sw: rev.sw * next };
     return { id: e.id, pts: [arcPoint(B, 1), arcPoint(B, 0.5), arcPoint(B, 0)], from: arcPoint(P, 0), to: arcPoint(B, 1) };
   }
-  if (!isPlainPoly(e) || e.closed) return null;
+  // open polylines, also with fillets or chamfers (their ends are straight: the corners lie further in)
+  if (e.type !== 'poly' || e.curve || e.closed || e.pts.length < 2) return null;
   const pts = e.pts.map(q => [+q[0], +q[1]]);
   const n = pts.length;
   // which end: the one nearer to the click
