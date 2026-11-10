@@ -14,7 +14,7 @@ export class StockSim {
     this.group = new THREE.Group();
     parent.add(this.group);
     this.mat = new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.8, metalness: 0.05, side: THREE.DoubleSide });
-    // comparison with the finished part (Fusion "Vergleich"): green = at size, blue = material left, red = cut too deep
+    // comparison with the finished part ("Vergleich"): green = at size, blue = material left, red = cut too deep
     this.cmpMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.0, side: THREE.DoubleSide });
     this.part = null;
     this.cmpTol = 0.1;

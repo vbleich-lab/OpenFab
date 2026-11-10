@@ -1,17 +1,17 @@
 # Translating the OpenFab user interface
 
 OpenFab is a CAD/CAM program (sketches, 3D modelling, assemblies, drawings, CNC milling and turning, post
-processors) whose user interface is written in German. You translate one chunk of its texts into **English (en)**,
-**Russian (ru)** and **Simplified Chinese (zh)**.
+processors) whose user interface is written in German. You translate one chunk of its texts into **English (en)** and
+**Simplified Chinese (zh)** (the glossary also has a Russian column; Russian is not shipped at present).
 
 ## Input and output
 
 - Input: `tools/i18n/chunks/NN.json` – a JSON array of German texts.
-- Output: three files `tools/i18n/out/en-NN.json`, `tools/i18n/out/ru-NN.json`, `tools/i18n/out/zh-NN.json`, each a JSON
+- Output: the files `tools/i18n/out/en-NN.json` and `tools/i18n/out/zh-NN.json`, each a JSON
   object `{ "German text exactly as given": "translation", … }`.
 - Write the files with the Write tool (UTF-8, real characters, no \u escapes needed). Do **not** write a script
   that translates – you are the translator. Work through the chunk in order; do not skip texts because they are long.
-- Afterwards run `node tools/i18n-build.mjs check tools/i18n/out/en-NN.json` (and the same for ru and zh) from the
+- Afterwards run `node tools/i18n-build.mjs check tools/i18n/out/en-NN.json` (and the same for zh) from the
   project folder and fix everything it reports until it says `0 Fehler`.
 
 ## Rules

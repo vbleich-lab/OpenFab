@@ -1,4 +1,4 @@
-// Sketch "Stutzen" (trim) and "Verlängern" (extend), like Fusion.
+// Sketch "Stutzen" (trim) and "Verlängern" (extend).
 // Lines, polylines, rectangles, polygons, arcs and circles are cut at their intersections with all other
 // sketch geometry; other curves (splines, ellipses, text) act as cutting edges only.
 import { circle3, entityOutlines, entityPoly } from './profiles.js';

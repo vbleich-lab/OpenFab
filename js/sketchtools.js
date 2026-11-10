@@ -1,4 +1,4 @@
-// Geometry of the extra sketch drawing methods (like Fusion's variants of rectangle, circle and arc).
+// Geometry of the extra sketch drawing methods (variants of rectangle, circle and arc).
 import { circle3 } from './profiles.js';
 
 const TAU = Math.PI * 2;
@@ -68,7 +68,7 @@ export function endTangent(entities, ref) {
   return T ? { p: P[i], T, curve: `${id}:l${i === n - 1 ? n - 2 : 0}` } : null;
 }
 
-// arc starting at S in direction T and ending at E (Fusion "Tangentialbogen") → [S, point on arc, E] or null
+// arc starting at S in direction T and ending at E ("Tangentialbogen") → [S, point on arc, E] or null
 export function tangentArc(S, T, E) {
   const N = [-T[1], T[0]], d = [E[0] - S[0], E[1] - S[1]];
   const dn = d[0] * N[0] + d[1] * N[1];

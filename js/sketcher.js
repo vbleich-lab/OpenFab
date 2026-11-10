@@ -187,7 +187,7 @@ export class Sketcher {
   onDown(e) {
     this.down = [e.clientX, e.clientY, e.button];
     this.swipe = null;
-    // trim by swiping (Fusion): hold the button and drag across everything that should go
+    // trim by swiping (common CAD/CAM): hold the button and drag across everything that should go
     if (this.active && this.tool === 'trim' && e.button === 0) { this.swipe = { on: false, n: 0 }; return; }
     if (!this.active || this.tool !== 'select' || e.button !== 0) return;
     const p = this.localPoint(e);
@@ -296,7 +296,7 @@ export class Sketcher {
   }
 
   // ---------- dimension tool ----------
-  // Like Fusion: the mouse position decides between aligned, horizontal and vertical.
+  // Like the mouse position decides between aligned, horizontal and vertical.
   dimFromMouse(p) {
     const refs = this.dim.refs, H = sketchHandles(this.entities);
     const K = refs.map(refKind).join('');
@@ -715,7 +715,7 @@ export class Sketcher {
     }
     const a = this.pts[0], aref = this.ptRefs[0];
     this.resetDrawing();
-    // typed values become dimensions (like Fusion)
+    // typed values become dimensions (like common CAD/CAM)
     if (this.tool === 'rect') {
       const w = Math.abs(pt[0] - a[0]), h = Math.abs(pt[1] - a[1]);
       // corner index of the first click in the normalised rectangle
@@ -808,7 +808,7 @@ export class Sketcher {
     this.drawPreview();
   }
 
-  // Fusion "Normal/Konstruktion" (X): selected geometry becomes dashed helper geometry and stops forming profiles
+  // common CAD/CAM "Normal/Konstruktion" (X): selected geometry becomes dashed helper geometry and stops forming profiles
   toggleConstruction() {
     const ids = new Set(this.selection.map(refEntity).filter(Boolean));
     if (this.selected) ids.add(this.selected);
@@ -853,7 +853,7 @@ export class Sketcher {
     if (e.key === 'Enter') { this.finishPolyline(); return true; }
     if (e.key === 'Delete' || e.key === 'Backspace') return this.deleteSelected();
     if (!e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'x') return this.toggleConstruction();
-    // like Fusion: T = Stutzen (text has no shortcut there)
+    //: T = Stutzen (text has no shortcut there)
     const map = { l: 'line', r: 'rect', c: 'circle', p: 'ngon', s: 'select', o: 'slot', t: 'trim', j: 'project', a: 'arc', e: 'ellipse', b: 'spline', d: 'dim' };
     if (!e.ctrlKey && !e.metaKey && map[e.key.toLowerCase()]) { this.setTool(map[e.key.toLowerCase()]); return true; }
     return false;

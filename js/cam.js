@@ -5,7 +5,7 @@ import { entityPolys, entityOutlines, buildRegions, signedArea, ensureCCW, point
 import { basis, toWorld } from './plane.js';
 import { buildHeightmap, dropCutter as dropCutterRaw } from './heightmap.js';
 
-// Surface of the current 3D operation (Fusion "Flächen-Manager"): ignored faces are left out of the
+// Surface of the current 3D operation ("Flächen-Manager"): ignored faces are left out of the
 // base heightmap, avoided / fixture / machined groups add their own clearance (radial = bigger tool, axial = higher).
 let SURF = null, CUR = null;
 const grownTools = new WeakMap();
@@ -112,7 +112,7 @@ export const ORIENTATIONS = {
 export function setupMatrix(setup) {
   if (!setup || typeof setup === 'string') return presetMatrix(setup);
   if (setup.wcsMode === 'axes') {
-    // picked axes (Fusion: "Z-Achse/-Ebene und X-Achse", "… und Y-Achse", "X- und Y-Achse")
+    // picked axes ("Z-Achse/-Ebene und X-Achse", "… und Y-Achse", "X- und Y-Achse")
     const V = (a, flip) => (Array.isArray(a) ? new THREE.Vector3(...a).normalize().multiplyScalar(flip ? -1 : 1) : null);
     const pair = setup.axesPair || 'zx';
     let x, y, z;
@@ -205,7 +205,7 @@ function clip(subj, clipPaths, type, fill = 'pftNonZero') {
 }
 const unionEvenOdd = paths => clip(paths, null, 'ctUnion', 'pftEvenOdd');
 
-// Fusion "Rohteil → Modus"
+// common CAD/CAM "Rohteil → Modus"
 export const STOCK_MODES = {
   fixed: 'Quader mit fester Größe', margin: 'Relative Quadergröße', cylFixed: 'Zylinder mit fester Größe', cyl: 'Relative Zylindergröße',
   tubeFixed: 'Rohr mit fester Größe', tube: 'Rohr mit relativer Größe', solid: 'Von Volumenkörper', boundingSolid: 'Von begrenzendem Volumenkörper', prevSetup: 'Von vorherigem Setup',
@@ -592,7 +592,7 @@ export function opHeights(op, project, stock, setup) {
     return (out[k] = base + (+sp.offset || 0));
   };
   for (const k of HEIGHT_KEYS) get(k);
-  // axial stock to leave lifts the bottom (Fusion: "Axiales Aufmaß")
+  // axial stock to leave lifts the bottom ("Axiales Aufmaß")
   const axial = op.stockOn === false ? 0 : +op.axialStock || 0;
   return { top: out.top, bottom: out.bottom + axial, edge, auto: spec.bottom.from === 'auto', retract: Math.max(out.retract, out.top), safe: Math.max(out.safe, out.retract, out.top), feed: out.feed };
 }
@@ -655,7 +655,7 @@ function nearestOrder(items, getPt, start = { x: 0, y: 0 }) {
   return out;
 }
 
-// Order of the holes of a drilling-type operation (Fusion: "Reihenfolge"):
+// Order of the holes of a drilling-type operation ("Reihenfolge"):
 //  'shortest' – nearest neighbour, then 2-opt (reverse a stretch where that shortens the rapids), fixed start
 //  'keep'     – as selected;  'x' / 'y' – row by row along X (rows in Y) or column by column, zig-zag
 // Returns the ordered holes and the rapid lengths (xy) for the panel hint.
@@ -726,7 +726,7 @@ class Path {
     this.up(this.p.x, this.p.y, zl);
     this.rapid(x, y, zl);
   }
-  // rapid down to the feed height, then feed (Fusion: "Vorschubhöhe")
+  // rapid down to the feed height, then feed ("Vorschubhöhe")
   downTo(x, y, z, f) {
     if (this.feedZ != null && this.p.z > this.feedZ + 1e-6 && this.feedZ > z + 1e-6) this.rapid(x, y, this.feedZ);
     this.feed(x, y, z, f);
@@ -912,7 +912,7 @@ function leadOpts(op) {
   if (!(inn.R > 0 || inn.linear > 0) && !(out.R > 0 || out.linear > 0)) return null;
   return { ...inn, out, vert: +op.leadVert || 0 };
 }
-// tool position on the loop closest to the preferred entry points (Fusion: "Bevorzugte Einfahrpositionen")
+// tool position on the loop closest to the preferred entry points ("Bevorzugte Einfahrpositionen")
 function entryRotate(loop, op, P) {
   const pts = (op.entryPts || []).filter(q => Array.isArray(q));
   if (pts.length) {
@@ -922,7 +922,7 @@ function entryRotate(loop, op, P) {
   }
   return P.p ? rotateNearest(loop, P.p) : loop;
 }
-// one closed pass that runs past its start by "overlap" mm (Fusion: "Überlappung")
+// one closed pass that runs past its start by "overlap" mm ("Überlappung")
 function overlapRun(P, loop, z, f, d) {
   let left = d;
   for (let k = 1; k <= loop.length && left > 1e-6; k++) {
@@ -934,7 +934,7 @@ function overlapRun(P, loop, z, f, d) {
   return null;
 }
 
-// depth levels with optional finishing depth cuts (Fusion: "Tiefenschnitte")
+// depth levels with optional finishing depth cuts ("Tiefenschnitte")
 function depthLevels(op, t, h) {
   if (op.multiDepth === false) return h.bottom < h.top - 1e-6 ? [h.bottom] : [];
   const nfd = op.finishDepth ? Math.max(0, Math.round(+op.finishDepthCount || 1)) : 0, fds = +op.finishDepthStep || 0.2;
@@ -1540,7 +1540,7 @@ function smoothBlocked(blocked, hm) {
 }
 
 // ---------- 3D finishing helpers ----------
-// Fusion "Bearbeitungsbegrenzung": none, virtual box around the part, silhouette or a selection,
+// common CAD/CAM "Bearbeitungsbegrenzung": none, virtual box around the part, silhouette or a selection,
 // with the tool inside / centred on / outside the boundary plus an extra offset. Clipper paths or null.
 export const BOUNDARY_MODES = { none: 'Kein(e/s)', box: 'Virtueller Rahmen', silhouette: 'Silhouette', selection: 'Auswahl' };
 function boundaryPaths(op, t, stock, hm) {
@@ -2167,7 +2167,7 @@ function genParallel3d(op, t, P, h, stock, ctx) {
   P.retract();
 }
 
-// ---------- more 3D strategies (Fusion: Flach, Materialeinfahrt, Hohlkehle, Morph-Spirale, Leitkurven, Ecke, Fluss, Morph, Entgraten, Geodätisch) ----------
+// ---------- more 3D strategies (Flach, Materialeinfahrt, Hohlkehle, Morph-Spirale, Leitkurven, Ecke, Fluss, Morph, Entgraten, Geodätisch) ----------
 const opStl = op => +op.stockToLeave || 0;
 const cellOf = (hm, x, y) => {
   const i = Math.round((x - hm.minX) / hm.res), j = Math.round((y - hm.minY) / hm.res);
@@ -3040,11 +3040,11 @@ export function leanMoves(moves, tol = 0.0005) {
 export function generateOp(op, project, stock, ctx) {
   let t = project.cam.tools.find(x => x.id === op.tool);
   if (!t) throw new Error('Kein Werkzeug gewählt');
-  // cutting data preset of the tool (Fusion: "Schnittdaten")
+  // cutting data preset of the tool ("Schnittdaten")
   const pre = op.preset && (t.presets || []).find(x => x.id === op.preset);
   if (pre) t = { ...t, ...Object.fromEntries(Object.entries({ rpm: pre.rpm, feed: pre.feed, plunge: pre.plunge, stepdown: pre.stepdown, stepover: pre.stepover, coolant: pre.coolant }).filter(([, v]) => v != null && v !== '' && !(typeof v === 'number' && !Number.isFinite(v)))) };
   t = applyCutData(t, op);
-  // switched-off sections of the dialog (Fusion: "Rohteil-Aufmaß", "Tiefenschnitte")
+  // switched-off sections of the dialog ("Rohteil-Aufmaß", "Tiefenschnitte")
   if (op.stockOn === false) op = { ...op, stockToLeave: 0, axialStock: 0 };
   if (op.multiDepth === false && ['pocket', 'adaptive', 'rough3d', 'adaptive3d', 'pocket3d', 'contour3d', 'ramp3d', 'slot', 'circular', 'trace', 'steep3d'].includes(op.type)) op = { ...op, stepdown: 1e6 };
   if (!t.type || t.type === 'none') throw new Error('Dieses Werkzeug (Halter oder Auftragskopf) kann nicht zerspanen');
@@ -3081,7 +3081,7 @@ function generateOpInner(op, project, stock, ctx, t, s) {
   const P = new Path(h.safe, h.retract);
   P.feedZ = h.feed;
   P.top = h.top;
-  // linking (Fusion: "Verknüpfung")
+  // linking ("Verknüpfung")
   if (op.retractPolicy === 'minimal') P.link = Math.min(h.retract, h.top + Math.max(0.1, +(op.safeDist ?? 1)));
   if (op.rapidRetract === false) { P.noRapidUp = true; P.upFeed = +op.highFeed || t.feed; }
   if (op.keepDown) { P.keepDown = true; P.keepDist = +op.keepDownDist || t.dia; P.lift = +op.liftHeight || 0; P.linkFeed = t.transitionFeed ?? t.feed; }
@@ -3130,7 +3130,7 @@ function generateOpInner(op, project, stock, ctx, t, s) {
   return { moves, heights: h, tool: t, ...extra, ...stats(moves, ctx.rapid) };
 }
 
-// Cutting data of the operation (Fusion "Werkzeug" tab); empty = from tool / preset
+// Cutting data of the operation ("Werkzeug" tab); empty = from tool / preset
 export const CUT_KEYS = ['rpm', 'rampRpm', 'feed', 'leadInFeed', 'leadOutFeed', 'transitionFeed', 'helixFeed', 'plunge'];
 export function applyCutData(t, op) {
   const c = op.cut || {};
@@ -3145,7 +3145,7 @@ export function applyCutData(t, op) {
   return out;
 }
 
-// Fusion "Schnellvorschub-Modus": keep rapids, rapids only on retract/clearance height, or all as high feed
+// common CAD/CAM "Schnellvorschub-Modus": keep rapids, rapids only on retract/clearance height, or all as high feed
 function rapidMode(moves, op, h) {
   const mode = op.rapidMode || 'preserve';
   if (mode === 'preserve') return moves;
@@ -3351,7 +3351,7 @@ export function setupBodies(bodies, setup) {
   return use;
 }
 
-// Results of single operations, reused while nothing they depend on has changed (Fusion recomputes only the
+// Results of single operations, reused while nothing they depend on has changed (recomputes only the
 // edited operation and the ones after it): key = model + setup/tools/sketches + all earlier ops of the setup + op.
 const OP_CACHE = new Map(), OP_CACHE_MAX = 80;
 const hashStr = str => {

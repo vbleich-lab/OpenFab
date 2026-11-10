@@ -1,4 +1,4 @@
-// Tool catalog (like Fusion's "Neues Werkzeug") and tool geometry: one side profile
+// Tool catalog ("Neues Werkzeug") and tool geometry: one side profile
 // per tool type, used for the 3D view, the 2D drawing and the small icons.
 import * as THREE from 'three';
 import { defaultFluteLen, defaultHolderDia, defaultStickout } from './sim.js';
@@ -173,7 +173,7 @@ function splitProfile(pts, z) {
 
 const kindOf = t => (TURNING.includes(t.type) ? 'turn' : CUTTING.includes(t.type) ? 'cut' : ADDITIVE.includes(t.type) ? 'add' : t.type === 'probe' ? 'probe' : t.type === 'holder' ? 'holder' : 'mill');
 
-// ---------- 2D drawing (Fusion's profile view: grid, axes, scale bar) ----------
+// ---------- 2D drawing (profile view: grid, axes, scale bar) ----------
 export function toolSvg2D(t, { width = 260, height = 360, grid = true, holder = true, icon = false } = {}) {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');

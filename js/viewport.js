@@ -71,7 +71,7 @@ export class Viewport {
     this.controls.dampingFactor = 0.18;
     this.controls.screenSpacePanning = true;
     this.controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
-    // Fusion "Freie Orbitbewegung": the part turns in every direction (over the top, upside down).
+    // common CAD/CAM "Freie Orbitbewegung": the part turns in every direction (over the top, upside down).
     // OrbitControls keeps panning/zooming; its own rotation is switched off (rotateSpeed 0) and replaced here.
     this.orbitMode = 'free';
     this.orbitSpeed = 1;

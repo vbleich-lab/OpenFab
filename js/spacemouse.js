@@ -145,7 +145,7 @@ export class SpaceMouse {
     this.move(t, r, dt);
   }
 
-  // Object mode (like Fusion's default): the model follows the cap.
+  // Object mode (default): the model follows the cap.
   move([tx, ty, tz], [rx, ry, rz], dt) {
     const o = this.opts();
     const cam = this.vp.camera, ctl = this.vp.controls, target = ctl.target;
@@ -181,7 +181,7 @@ export class SpaceMouse {
       const tilted = off.clone().applyQuaternion(tilt);
       // do not tip over the poles (the view would flip)
       if (Math.abs(tilted.clone().normalize().z) < 0.995) off = tilted;
-      // ry (rolling the cap sideways) is ignored: the view keeps Z up like Fusion's default
+      // ry (rolling the cap sideways) is ignored: the view keeps Z up like the usual default
       void ry;
     }
     cam.position.copy(target).add(off);

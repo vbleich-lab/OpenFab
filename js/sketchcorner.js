@@ -1,4 +1,4 @@
-// Sketch corners: fillets (e.radii[k]) and chamfers (e.chamfers[k]) at the vertices of a polyline, like Fusion's
+// Sketch corners: fillets (e.radii[k]) and chamfers (e.chamfers[k]) at the vertices of a polyline's
 // sketch fillet / chamfer. The stored vertex stays the (virtual) sharp corner; the geometry is built from it.
 //   e.radii[k]    = r                → tangent arc of radius r
 //   e.chamfers[k] = d | [d1, d2]     → straight cut, d1 along the edge to the previous vertex, d2 to the next

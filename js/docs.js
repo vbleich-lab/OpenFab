@@ -1,4 +1,4 @@
-// Local document store (like Fusion's data panel, but on this computer):
+// Local document store (data panel, but on this computer):
 // every design is kept in IndexedDB with its saved versions and a thumbnail.
 const DB = 'openfab.docs';
 let dbp = null;

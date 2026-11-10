@@ -541,7 +541,7 @@ export function makeDrawing(bodies, opts) {
     L.push('</g>');
   });
 
-  // ----- detail view: a circle of a view, enlarged (Fusion: "Detailansicht") -----
+  // ----- detail view: a circle of a view, enlarged ("Detailansicht") -----
   const detailInfo = {};
   let clipNo = 0;
   for (const [key, dd] of Object.entries(DET)) {

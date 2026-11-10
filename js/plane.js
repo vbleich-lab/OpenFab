@@ -61,7 +61,7 @@ export function withOffset(plane, off) {
   return { ...plane, o: n.map(c => +(c * off).toFixed(6) + 0) };
 }
 
-// ---------- construction planes (Fusion: Versatzebene, Ebene unter Winkel, Mittelebene) ----------
+// ---------- construction planes (Versatzebene, Ebene unter Winkel, Mittelebene) ----------
 // A reference is a base plane name, a construction plane feature id or a sketch id.
 export function planeRef(ref, features, depth = 0) {
   if (BASE_PLANES[ref]) return BASE_PLANES[ref];
@@ -101,10 +101,10 @@ export function constructionPlane(f, features, depth = 0) {
     return { o: out(P[0].clone().addScaledVector(n0, +f.r)), x: out(ad), n: out(n0) };
   }
   if (f.kind === 'angle' && f.axisRef) {
-    // rotate the reference plane about a construction axis (Fusion: plane at an angle to a line)
+    // rotate the reference plane about a construction axis (plane at an angle to a line)
     const ax = axisRef(f.axisRef, features, depth + 1);
     if (!ax) return null;
-    // like Fusion the plane contains the axis: start from the reference plane's orientation, tilted so the
+    // the plane contains the axis: start from the reference plane's orientation, tilted so the
     // axis lies in it, then turn it about the axis by the angle
     const ao = v3(ax.o), ad = v3(ax.d).normalize();
     let n0 = n.clone().addScaledVector(ad, -n.dot(ad));
@@ -133,7 +133,7 @@ export function constructionPlane(f, features, depth = 0) {
   return { o: out(o.clone().addScaledVector(n, +f.offset || 0)), x: out(x), n: out(n) };
 }
 
-// ---------- construction axes (Fusion: Achse durch zwei Punkte / Zylinder / Schnitt zweier Ebenen) ----------
+// ---------- construction axes (Achse durch zwei Punkte / Zylinder / Schnitt zweier Ebenen) ----------
 // An axis is { o: point on it, d: unit direction }. References: 'X', 'Y', 'Z' (origin axes) or an axis feature id.
 export const BASE_AXES = {
   X: { o: [0, 0, 0], d: [1, 0, 0] },
