@@ -2,6 +2,7 @@
 // Lines, polylines, rectangles, polygons, arcs and circles are cut at their intersections with all other
 // sketch geometry; other curves (splines, ellipses, text) act as cutting edges only.
 import { circle3, entityOutlines, entityPoly } from './profiles.js';
+import { cornerPlan, hasCorners } from './sketchcorner.js';
 
 const TAU = Math.PI * 2;
 const EPS = 1e-7;
@@ -149,6 +150,30 @@ function cutParams(entities, e, P) {
 const arcEntity = (A, s0, s1, base) => ({ ...base, type: 'poly', curve: 'arc', closed: false, pts: [arcPoint(A, s0), arcPoint(A, (s0 + s1) / 2), arcPoint(A, s1)] });
 const lineEntity = (pts, base) => ({ ...base, type: 'poly', closed: false, pts });
 
+// Outlines made of lines and arcs in one entity – a slot, a rounded rectangle, a polyline with fillets or
+// chamfers – as single lines and arcs (without ids), so one of them can be trimmed; null for everything else.
+export function explodeEntity(e) {
+  const base = e.cons ? { cons: true } : {};
+  const line = (a, b) => ({ ...base, type: 'poly', closed: false, pts: [a, b] });
+  const arc = (c, r, a0, sw) => ({ ...base, type: 'poly', curve: 'arc', closed: false, pts: [0, 0.5, 1].map(s => [c[0] + r * Math.cos(a0 + sw * s), c[1] + r * Math.sin(a0 + sw * s)]) });
+  if (e.type === 'slot' && +e.w > 0) {
+    const r = +e.w / 2, h = +e.len / 2, a = ((+e.rot || 0) * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+    const W = (x, y) => [+e.cx + x * ca - y * sa, +e.cy + x * sa + y * ca];
+    const out = [arc(W(h, 0), r, a - Math.PI / 2, Math.PI), arc(W(-h, 0), r, a + Math.PI / 2, Math.PI)];
+    if (h > 1e-9) out.push(line(W(-h, -r), W(h, -r)), line(W(h, r), W(-h, r)));
+    return out;
+  }
+  if (e.type === 'rect' && +e.r > 0 && !+e.rot) {
+    const x0 = +e.x, y0 = +e.y, x1 = x0 + +e.w, y1 = y0 + +e.h, r = Math.min(+e.r, +e.w / 2, +e.h / 2), Q = Math.PI / 2;
+    const out = [arc([x1 - r, y0 + r], r, -Q, Q), arc([x1 - r, y1 - r], r, 0, Q), arc([x0 + r, y1 - r], r, Q, Q), arc([x0 + r, y0 + r], r, 2 * Q, Q)];
+    if (x1 - x0 > 2 * r + 1e-9) out.push(line([x0 + r, y0], [x1 - r, y0]), line([x1 - r, y1], [x0 + r, y1]));
+    if (y1 - y0 > 2 * r + 1e-9) out.push(line([x1, y0 + r], [x1, y1 - r]), line([x0, y1 - r], [x0, y0 + r]));
+    return out;
+  }
+  if (hasCorners(e)) return cornerPlan(e).segs.map(s => (s.k === 'L' ? line(s.a, s.b) : { ...base, type: 'poly', curve: 'arc', closed: false, pts: [s.a, s.m, s.b] }));
+  return null;
+}
+
 /**
  * Trim at point p. → { remove: [entity id], add: [new entities without id], piece: [[x,y]…] } or null.
  * `piece` is the removed part (for the red preview).
@@ -158,7 +183,17 @@ export function trimAt(entities, p, tol) {
   if (!hit) return null;
   const { e, P, t } = hit;
   const base = { ...(e.cons ? { cons: true } : {}) };
-  if (!trimShape(e) && !isArc(e) && e.type !== 'circle') return { unsupported: true, e };
+  if (!trimShape(e) && !isArc(e) && e.type !== 'circle') {
+    // a slot, a rounded rectangle, a filleted polyline: taken apart into lines and arcs, one of which is trimmed
+    const parts = explodeEntity(e);
+    if (!parts) return { unsupported: true, e };
+    const tmp = parts.map((q, i) => ({ ...q, id: `~trim~x${i}` }));
+    const r = trimAt([...entities.filter(o => o !== e), ...tmp], p, tol);
+    if (!r || r.unsupported) return r;
+    const gone = new Set(r.remove);
+    if (!tmp.some(q => gone.has(q.id))) return r; // another entity was nearer
+    return { remove: [e.id], add: [...tmp.filter(q => !gone.has(q.id)).map(({ id, ...q }) => q), ...r.add.map(({ map, ...q }) => q)], piece: r.piece };
+  }
   const all = cutParams(entities, e, P);
   const raw = all.filter(x => x > EPS && x < 1 - EPS);
   if (P.full) {

@@ -5103,7 +5103,7 @@ function propsOp(b, op) {
     put('geo', csec('Haltestege', op.tabs, v => ed(x => (x.tabs = v))));
     if (op.tabs) put('geo', N('Anzahl', 'tabCount', { unit: null, min: 1, int: true }), N('Haltestegbreite', 'tabWidth', { min: 0.1 }), N('Haltesteghöhe', 'tabHeight', { min: 0.1 }));
   }
-  if (op.type === 'adaptive') {
+  if (op.type === 'adaptive' || op.type === 'pocket') {
     const on = op.restDia != null && op.restDia !== '';
     put('geo', csec('Restmaterialbearbeitung', on, v => ed(x => (x.restDia = v ? (x.restDia || Math.max(2 * (t?.dia || 6), 10)) : null))));
     if (on) put('geo', N('Vorheriger Werkzeug-Ø', 'restDia', { min: 0.1 }), h('p', { class: 'hint' }, 'Nur das bearbeiten, was ein größerer Fräser in Ecken stehen gelassen hat.'));
@@ -8035,6 +8035,9 @@ function motionStudy(jointId) {
 let drawingCache = null;
 // picking on the drawing sheet: 'dim' (two corner points → a dimension) or 'detail' (centre of a detail view)
 let dwPick = { mode: null, pts: [] };
+// the detail views of a drawing with their view keys: the first one of older drawings is 'detail', the others 'det<id>'
+const drawingDetails = d => [...(d.detail ? [{ ...d.detail, key: 'detail' }] : []), ...(d.details || []).map(t => ({ ...t, key: 'det' + t.id }))];
+const drawingDetailRef = (d, key) => (key === 'detail' ? d.detail : (d.details || []).find(t => 'det' + t.id === key));
 // Axes of the cylindrical faces for the centre lines of a drawing: one entry per axis line (faces around the
 // same line are merged), with its extent along the axis and the largest radius.
 function drawingAxes(bodies) {
@@ -8085,6 +8088,7 @@ function renderDrawing(rebuild = false) {
     let mass = '';
     try { mass = bodies.length ? `${String(f2(bodies.reduce((a, b) => a + bodyProps(b).volume, 0) / 1000 * mat.density)).replace('.', ',')} g` : ''; } catch { /* skip */ }
     const section = d.section ? drawingSection(bodies, d) : null;
+    const sectionX = d.sectionX ? drawingSection(bodies, d, 'x') : null;
     // parts list: one line per body name (same name = same part, counted)
     let parts = null;
     if (d.partsList) {
@@ -8098,7 +8102,7 @@ function renderDrawing(rebuild = false) {
       }
       parts = [...by.values()];
     }
-    drawingCache = { key, sectionY: section?.y, ...makeDrawing(bodies, { ...d, section, parts, axes: d.centerLines === false ? [] : drawingAxes(bodies), threads: getModel().threads || [], userDims: d.userDims || [], detail: d.detail || null, title: { name: p.name, material: mat.label, mass, ...d.title } }) };
+    drawingCache = { key, sectionY: section?.y, sectionXv: sectionX?.x, ...makeDrawing(bodies, { ...d, section, sectionX, details: drawingDetails(d), parts, axes: d.centerLines === false ? [] : drawingAxes(bodies), threads: getModel().threads || [], userDims: d.userDims || [], detail: null, title: { name: p.name, material: mat.label, mass, ...d.title } }) };
   }
   const placed = placedDrawingSvg(drawingCache.svg, d.offsets);
   root.replaceChildren();
@@ -8110,8 +8114,11 @@ function renderDrawing(rebuild = false) {
     sec('ANSICHTEN'),
     ...Object.entries(DRAW_VIEWS).map(([k, v]) => row(v.label, chk(d.views?.[k] !== false, on => ed(x => { x.views ||= {}; x.views[k] = on; })))),
     row('Verdeckte Kanten', chk(d.hidden !== false, v => ed(x => (x.hidden = v)))),
-    row('Vorderansicht als Schnitt A–A', chk(!!d.section, v => ed(x => (x.section = v)))),
+    row(`Vorderansicht als Schnitt${drawingCache.sections?.front ? ` ${drawingCache.sections.front}–${drawingCache.sections.front}` : ''}`, chk(!!d.section, v => ed(x => (x.section = v)))),
     d.section ? row('Schnittlage Y', num(d.sectionY ?? drawingCache.sectionY ?? null, v => ed(x => (x.sectionY = v)), { unit: 'mm', allowEmpty: true, ph: 'automatisch' })) : null,
+    row(`Seitenansicht als Schnitt${drawingCache.sections?.left ? ` ${drawingCache.sections.left}–${drawingCache.sections.left}` : ''}`, chk(!!d.sectionX, v => ed(x => (x.sectionX = v)))),
+    d.sectionX ? row('Schnittlage X', num(d.sectionXv ?? drawingCache.sectionXv ?? null, v => ed(x => (x.sectionXv = v)), { unit: 'mm', allowEmpty: true, ph: 'automatisch' })) : null,
+    (d.section && !drawingCache.sections?.front && d.views?.front !== false) || (d.sectionX && !drawingCache.sections?.left && d.views?.left !== false) ? h('p', { class: 'warn' }, 'Die Schnittlage liegt außerhalb des Teils – der Schnitt wird nicht gezeichnet.') : null,
     d.offsets && Object.keys(d.offsets).length ? h('div', { class: 'btns' }, btn('Ansichten zurücksetzen', () => ed(x => delete x.offsets))) : null,
     row('Bemaßung', chk(d.dims !== false, v => ed(x => (x.dims = v)))),
     row('Mittellinien', chk(d.centerLines !== false, v => ed(x => (x.centerLines = v)))),
@@ -8125,7 +8132,7 @@ function renderDrawing(rebuild = false) {
       btn(dwPick.mode === 'datum' ? 'Kante im Blatt anklicken …' : 'Bezug hinzufügen', () => { dwPick = dwPick.mode === 'datum' ? { mode: null, pts: [] } : { mode: 'datum', pts: [] }; renderDrawing(); }, dwPick.mode === 'datum' ? 'on' : '')),
     h('p', { class: 'hint' }, 'Eigene Maße und Hinweise lassen sich im Blatt mit der Maus ziehen (Abstand der Maßlinie, Winkel der Hinweislinie, Radius des Winkelbogens). Zwei Ecken anklicken = Längenmaß. Einen Kreisrand in der Draufsicht anklicken = Durchmesser (bzw. Radius). Winkel: erst die Ecke, dann je einen Eckpunkt auf beiden Schenkeln. Fase: beide Enden der schrägen Kante – ergibt z. B. 2×45°. Im Textfeld hinter jedem Maß steht ein Zusatz wie ±0,1, H7 oder 4×.'),
     ...(d.userDims || []).map((dm, i) => h('div', { class: 'dw-dim' },
-      h('span', null, `${{ front: 'Vorne', top: 'Oben', left: 'Links' }[dm.view] || dm.view}: ${dm.kind === 'note' ? 'Hinweis' : dm.kind === 'surf' ? 'Oberfläche' : dm.kind === 'gdt' ? 'Toleranz' : dm.kind === 'datum' ? 'Bezug' : dm.kind === 'ang' ? 'Winkel ' + f2((() => { let w = Math.atan2(dm.b[1] - dm.v[1], dm.b[0] - dm.v[0]) - Math.atan2(dm.a[1] - dm.v[1], dm.a[0] - dm.v[0]); while (w > Math.PI) w -= 2 * Math.PI; while (w < -Math.PI) w += 2 * Math.PI; return (Math.abs(w) * 180) / Math.PI; })()) + '°' : dm.kind === 'dia' ? 'Ø' + f2(2 * dm.r) : dm.kind === 'rad' ? 'R' + f2(dm.r) : f2(dm.kind === 'h' ? Math.abs(dm.a[0] - dm.b[0]) : dm.kind === 'v' ? Math.abs(dm.a[1] - dm.b[1]) : Math.hypot(dm.a[0] - dm.b[0], dm.a[1] - dm.b[1])) + ' mm'}`),
+      h('span', null, `${{ front: 'Vorne', top: 'Oben', left: 'Links' }[dm.view] || (drawingCache.details?.find(t => t.key === dm.view) ? 'Detail ' + drawingCache.details.find(t => t.key === dm.view).letter : dm.view)}: ${dm.kind === 'note' ? 'Hinweis' : dm.kind === 'surf' ? 'Oberfläche' : dm.kind === 'gdt' ? 'Toleranz' : dm.kind === 'datum' ? 'Bezug' : dm.kind === 'ang' ? 'Winkel ' + f2((() => { let w = Math.atan2(dm.b[1] - dm.v[1], dm.b[0] - dm.v[0]) - Math.atan2(dm.a[1] - dm.v[1], dm.a[0] - dm.v[0]); while (w > Math.PI) w -= 2 * Math.PI; while (w < -Math.PI) w += 2 * Math.PI; return (Math.abs(w) * 180) / Math.PI; })()) + '°' : dm.kind === 'dia' ? 'Ø' + f2(2 * dm.r) : dm.kind === 'rad' ? 'R' + f2(dm.r) : f2(dm.kind === 'h' ? Math.abs(dm.a[0] - dm.b[0]) : dm.kind === 'v' ? Math.abs(dm.a[1] - dm.b[1]) : Math.hypot(dm.a[0] - dm.b[0], dm.a[1] - dm.b[1])) + ' mm'}`),
       dm.kind === 'gdt' ? Object.assign(sel([['pos', 'Position'], ['flat', 'Ebenheit'], ['straight', 'Geradheit'], ['round', 'Rundheit'], ['cyl', 'Zylinderform'], ['par', 'Parallelität'], ['perp', 'Rechtwinkligkeit'], ['angle', 'Neigung'], ['conc', 'Koaxialität'], ['sym', 'Symmetrie'], ['run', 'Rundlauf']], dm.sym || 'pos', v => ed(x => (x.userDims[i].sym = v))), { title: 'Toleranzart', style: 'width:92px' }) : null,
       dm.kind === 'surf' ? Object.assign(sel([['m', 'spanend'], ['any', 'beliebig'], ['none', 'ohne Abtrag']], dm.sym || 'm', v => ed(x => (x.userDims[i].sym = v))), { title: 'Fertigungsverfahren', style: 'width:92px' }) : null,
       Object.assign(txt(['note', 'surf', 'gdt', 'datum'].includes(dm.kind) ? dm.text || '' : dm.txt || '', v => ed(x => { if (['note', 'surf', 'gdt', 'datum'].includes(dm.kind)) x.userDims[i].text = v; else x.userDims[i].txt = v; })), { placeholder: { surf: 'Ra 3,2', note: 'Text', gdt: '0,05 A', datum: 'A' }[dm.kind] || '±0,1 / H7', title: { surf: 'Rauheitsangabe', note: 'Text des Hinweises', gdt: 'Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B', datum: 'Bezugsbuchstabe' }[dm.kind] || 'Zusatz hinter der Maßzahl (Toleranz, Passung, Anzahl)', style: 'width:64px' }),
@@ -8135,13 +8142,21 @@ function renderDrawing(rebuild = false) {
         ? num(dm.ang ?? 45, v => ed(x => (x.userDims[i].ang = v ?? 45)), { unit: '°' })
         : num(dm.off ?? 16, v => ed(x => (x.userDims[i].off = v ?? 16)), { unit: 'Abst.', min: 2 }),
       h('button', { class: 'gx', title: 'Maß löschen', onclick: () => ed(x => x.userDims.splice(i, 1)) }, '✕'))),
-    sec('DETAILANSICHT'),
-    d.detail
-      ? h('div', null,
-        row('Vergrößerung', sel([[2, '2×'], [3, '3×'], [4, '4×'], [5, '5×']], d.detail.factor || 2, v => ed(x => (x.detail.factor = +v)))),
-        row('Radius', num(d.detail.r, v => ed(x => (x.detail.r = v || 10)), { unit: 'mm', min: 1 })),
-        h('div', { class: 'btns' }, btn('Neu platzieren', () => { dwPick = { mode: 'detail', pts: [] }; renderDrawing(); }), btn('Entfernen', () => ed(x => delete x.detail), 'danger')))
-      : h('div', { class: 'btns' }, btn(dwPick.mode === 'detail' ? 'Mitte im Blatt anklicken …' : 'Detail hinzufügen', () => { dwPick = dwPick.mode === 'detail' ? { mode: null, pts: [] } : { mode: 'detail', pts: [] }; renderDrawing(); }, dwPick.mode === 'detail' ? 'on' : '')),
+    sec('DETAILANSICHTEN'),
+    ...drawingDetails(d).map(dt => h('div', null,
+      h('p', { class: 'hint', style: 'margin:6px 0 2px;font-weight:600' }, `Detail ${drawingCache.details?.find(t => t.key === dt.key)?.letter || ''} (${{ front: 'Vorderansicht', top: 'Draufsicht', left: 'Seitenansicht' }[dt.view] || dt.view})`),
+      row('Vergrößerung', sel([[2, '2×'], [3, '3×'], [4, '4×'], [5, '5×'], [10, '10×']], dt.factor || 2, v => ed(x => (drawingDetailRef(x, dt.key).factor = +v)))),
+      row('Radius', num(dt.r, v => ed(x => (drawingDetailRef(x, dt.key).r = v || 10)), { unit: 'mm', min: 1 })),
+      h('div', { class: 'btns' },
+        btn(dwPick.mode === 'detail' && dwPick.key === dt.key ? 'Mitte im Blatt anklicken …' : 'Neu platzieren', () => { dwPick = dwPick.mode === 'detail' && dwPick.key === dt.key ? { mode: null, pts: [] } : { mode: 'detail', key: dt.key, pts: [] }; renderDrawing(); }, dwPick.mode === 'detail' && dwPick.key === dt.key ? 'on' : ''),
+        btn('Entfernen', () => ed(x => {
+          if (dt.key === 'detail') delete x.detail; else x.details = (x.details || []).filter(t => 'det' + t.id !== dt.key);
+          // its own dimensions and its place on the sheet go with it
+          if (x.userDims) x.userDims = x.userDims.filter(u => u.view !== dt.key);
+          if (x.offsets) delete x.offsets[dt.key];
+        }), 'danger')))),
+    h('div', { class: 'btns' }, btn(dwPick.mode === 'detail' && !dwPick.key ? 'Mitte im Blatt anklicken …' : 'Detail hinzufügen', () => { dwPick = dwPick.mode === 'detail' && !dwPick.key ? { mode: null, pts: [] } : { mode: 'detail', pts: [] }; renderDrawing(); }, dwPick.mode === 'detail' && !dwPick.key ? 'on' : '')),
+    drawingDetails(d).length ? h('p', { class: 'hint' }, 'Maße, Hinweise und Toleranzen lassen sich auch in einer Detailansicht setzen – sie zeigen die wahren Größen.') : null,
     sec('STÜCKLISTE'),
     row('Stückliste auf dem Blatt', chk(!!d.partsList, v => ed(x => (x.partsList = v)))),
     d.partsList ? row('Positionsnummern', chk(!!d.balloons, v => ed(x => (x.balloons = v)))) : null,
@@ -8160,20 +8175,21 @@ function renderDrawing(rebuild = false) {
 
 // Schnitt A–A: the bodies cut by a plane parallel to XZ; keeps the half behind it (seen from the front)
 // and the cut faces as outlines (x, z) for the hatching.
-function drawingSection(bodies, d) {
-  const box = new THREE.Box3();
+// With axis 'x' the same for the side view: a plane parallel to YZ, seen from the left (outlines as (-y, z)).
+function drawingSection(bodies, d, axis = 'y') {
+  const box = new THREE.Box3(), ai = axis === 'x' ? 0 : 1;
   for (const b of bodies) { b.geometry.computeBoundingBox(); box.union(b.geometry.boundingBox); }
-  let y = d.sectionY;
+  let y = axis === 'x' ? d.sectionXv : d.sectionY;
   if (!Number.isFinite(+y) || y === null || y === '') {
     // automatically through the holes closest to the middle (the most telling cut), else through the middle
-    const mid = (box.min.y + box.max.y) / 2;
+    const mid = (box.min[axis] + box.max[axis]) / 2;
     const ys = [];
-    for (const b of bodies) for (const e of b.shape.edges) if (e.geomType === 'CIRCLE' && e.isClosed) { const c = e.boundingBox.center; ys.push(c[1]); }
+    for (const b of bodies) for (const e of b.shape.edges) if (e.geomType === 'CIRCLE' && e.isClosed) { const c = e.boundingBox.center; ys.push(c[ai]); }
     y = ys.length ? ys.reduce((a, v) => (Math.abs(v - mid) < Math.abs(a - mid) ? v : a), ys[0]) : mid;
   }
   y = +y;
-  if (!(y > box.min.y + 1e-4 && y < box.max.y - 1e-4)) return null;
-  const plane = new OC.Plane([0, y, 0], [1, 0, 0], [0, 1, 0]);
+  if (!(y > box.min[axis] + 1e-4 && y < box.max[axis] - 1e-4)) return null;
+  const plane = axis === 'x' ? new OC.Plane([y, 0, 0], [0, 1, 0], [1, 0, 0]) : new OC.Plane([0, y, 0], [1, 0, 0], [0, 1, 0]);
   const halves = [], polys = [];
   const L = window.ClipperLib, S = 1000;
   for (const b of bodies) {
@@ -8184,12 +8200,12 @@ function drawingSection(bodies, d) {
     halves.push({ shape: half, ...mb });
     // triangles of the faces lying in the cut plane, merged into clean outlines
     const cutFaces = new Set();
-    half.faces.forEach((fc, i) => { const bb = fc.boundingBox.bounds; if (Math.abs(bb[0][1] - y) < 1e-4 && Math.abs(bb[1][1] - y) < 1e-4) cutFaces.add(i); });
+    half.faces.forEach((fc, i) => { const bb = fc.boundingBox.bounds; if (Math.abs(bb[0][ai] - y) < 1e-4 && Math.abs(bb[1][ai] - y) < 1e-4) cutFaces.add(i); });
     const idx = mb.geometry.index.array, P = mb.geometry.attributes.position.array;
     const tris = [];
     for (let t = 0; t < mb.faceOf.length; t++) {
       if (!cutFaces.has(mb.faceOf[t])) continue;
-      const tri = [0, 1, 2].map(k => { const v = idx[t * 3 + k]; return { X: Math.round(P[v * 3] * S), Y: Math.round(P[v * 3 + 2] * S) }; });
+      const tri = [0, 1, 2].map(k => { const v = idx[t * 3 + k]; return { X: Math.round((axis === 'x' ? -P[v * 3 + 1] : P[v * 3]) * S), Y: Math.round(P[v * 3 + 2] * S) }; });
       if (L.Clipper.Orientation(tri) === false) tri.reverse();
       tris.push(tri);
     }
@@ -8200,7 +8216,7 @@ function drawingSection(bodies, d) {
     c.Execute(L.ClipType.ctUnion, out, L.PolyFillType.pftNonZero, L.PolyFillType.pftNonZero);
     polys.push(out.map(path => path.map(q => [q.X / S, q.Y / S])));
   }
-  return halves.length ? { y, bodies: halves, polys } : null;
+  return halves.length ? { y, x: y, bodies: halves, polys } : null;
 }
 
 // views moved by the user: their groups get a shift
@@ -8242,11 +8258,20 @@ function enableViewDrag(sheet, d, ed) {
   svg.addEventListener('click', e => {
     if (!dwPick.mode) return;
     const q = toView(toMM(e));
-    if (!q || q.k === 'iso' || q.k === 'detail') return status('Bitte in die Vorder-, Drauf- oder Seitenansicht klicken.');
+    const inDetail = !!q && /^det/.test(q.k);
+    if (!q || q.k === 'iso') return status('Bitte in die Vorder-, Drauf- oder Seitenansicht (oder in eine Detailansicht) klicken.');
     if (dwPick.mode === 'detail') {
+      if (inDetail) return status('Die Mitte eines Details liegt in der Vorder-, Drauf- oder Seitenansicht.');
+      const key = dwPick.key, c = [+q.u.toFixed(3), +q.v.toFixed(3)];
       dwPick = { mode: null, pts: [] };
-      return ed(x => (x.detail = { view: q.k, c: [+q.u.toFixed(3), +q.v.toFixed(3)], r: +(12 / q.x.s).toFixed(2), factor: 2 }));
+      return ed(x => {
+        const old = key && drawingDetailRef(x, key);
+        // moved to another place: the dimensions set in it no longer fit
+        if (old) { Object.assign(old, { view: q.k, c }); if (x.userDims) x.userDims = x.userDims.filter(u => u.view !== key); }
+        else x.details = [...(x.details || []), { id: Date.now().toString(36), view: q.k, c, r: +(12 / q.x.s).toFixed(2), factor: 2 }];
+      });
     }
+    if (inDetail && (dwPick.mode === 'surf' || dwPick.mode === 'datum')) return status('Oberflächenzeichen und Bezüge bitte in der Vorder-, Drauf- oder Seitenansicht setzen.');
     // surface symbol: on the nearest edge of the view (its tip sits on the line, turned to stand on it)
     if (dwPick.mode === 'surf' || dwPick.mode === 'datum') {
       const datum = dwPick.mode === 'datum';

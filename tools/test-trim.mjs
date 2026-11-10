@@ -49,3 +49,32 @@ x=extendAt([arc,{id:'L',type:'poly',pts:[[-10,-3],[10,-3]]}],[4.9,0.3],0.4); ok(
   const at = ref => { const i = +ref.split(':p')[1]; return JSON.stringify(pts[i]); };
   ok('Rechteck: Maße und Ecke wandern mit', out.length === 3 && at(out[2].refs[0]) === '[0,0]', JSON.stringify(out.map(c => c.id + ':' + c.refs.join('~'))));
 }
+
+// slots, rounded rectangles and filleted polylines are taken apart into lines and arcs
+{
+  const { explodeEntity } = await import('../js/trim.js');
+  const slot = { id: 'S', type: 'slot', cx: 0, cy: 0, len: 20, w: 6, rot: 0 };
+  const cutL = { id: 'L', type: 'poly', pts: [[0, -10], [0, 10]] };
+  ok('Langloch zerlegt: 2 Bögen + 2 Linien', explodeEntity(slot).length === 4 && explodeEntity(slot).filter(x => x.curve === 'arc').length === 2);
+  // trim the right half of the upper side: the upper line ends at x = 0, the right arc stays whole
+  let t = trimAt([slot, cutL], [5, 3], 0.3);
+  const lines = t.add.filter(x => !x.curve), arcs = t.add.filter(x => x.curve === 'arc');
+  ok('Langloch: obere Seite rechts gestutzt', t.remove[0] === 'S' && arcs.length === 2 && lines.length === 2 && lines.some(l => r(l.pts) === '[[0,3],[-10,3]]'), r(lines.map(l => l.pts)));
+  ok('Langloch: rotes Stück ist die halbe Seite', r(t.piece) === '[[10,3],[0,3]]', r(t.piece));
+  // the end arc of the slot, cut by a line across it
+  t = trimAt([slot, { id: 'M', type: 'poly', pts: [[5, 0], [20, 0]] }], [12.1, 2.1], 0.3);
+  ok('Langloch: halber Endbogen entfernt', t.add.filter(x => x.curve === 'arc').length === 2 && t.add.length === 4 && t.piece.every(q => q[1] > -1e-6 && q[0] > 9.99), r(t.piece.slice(0, 2)));
+  // rounded rectangle
+  const rr = { id: 'R', type: 'rect', x: 0, y: 0, w: 20, h: 10, r: 2 };
+  ok('Gerundetes Rechteck zerlegt: 4 Bögen + 4 Linien', explodeEntity(rr).length === 8);
+  t = trimAt([rr, { id: 'L', type: 'poly', pts: [[10, -5], [10, 15]] }], [14, 0], 0.3);
+  ok('Gerundetes Rechteck: Unterkante gestutzt', t.add.length === 8 && t.add.some(l => !l.curve && r(l.pts) === '[[2,0],[10,0]]'), r(t.add.filter(l => !l.curve).map(l => l.pts)));
+  // filleted polyline
+  const fp = { id: 'P', type: 'poly', closed: false, pts: [[0, 0], [10, 0], [10, 10]], radii: { 1: 2 } };
+  t = trimAt([fp, { id: 'L', type: 'poly', pts: [[4, -3], [4, 3]] }], [1, 0], 0.3);
+  ok('Linienzug mit Abrundung: Anfang gestutzt, Bogen bleibt', t.add.length === 3 && t.add.filter(x => x.curve === 'arc').length === 1 && t.add.some(l => !l.curve && r(l.pts) === '[[4,0],[8,0]]'), r(t.add.map(l => l.pts)));
+  // a plain line next to a slot is still trimmed itself
+  t = trimAt([slot, cutL], [0, 6], 0.3);
+  ok('Linie neben Langloch: die Linie wird gestutzt', t.remove[0] === 'L' && t.add.length === 1, r(t.add.map(l => l.pts)));
+  ok('Ellipse bleibt nicht stutzbar', trimAt([{ id: 'E', type: 'ellipse', cx: 0, cy: 0, rx: 5, ry: 3 }], [5, 0], 0.3)?.unsupported === true);
+}

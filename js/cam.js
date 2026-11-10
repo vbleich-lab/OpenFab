@@ -1108,11 +1108,29 @@ function genPocket(op, t, P, h, project) {
   const g = opGeometry(op, project);
   const paths = Array.isArray(op.entities) ? g.items.map(i => i.poly) : g.regions.flatMap(r => [r.outer, ...r.holes]);
   const so = t.dia * (+op.stepover || t.stepover);
-  const rings = pocketRings(unionEvenOdd(paths.map(toC)), t.dia / 2 + (+op.stockToLeave || 0), so);
+  const region = unionEvenOdd(paths.map(toC)), stl = +op.stockToLeave || 0;
+  const rest = +op.restDia > t.dia;
+  let rings;
+  if (rest) {
+    // rest machining: only where a cutter of the previous diameter left material (corners, narrow places).
+    // The cutter centre stays inside the pocket's own offset and within reach of that material; the rings
+    // run from the wall towards the side the previous cutter has already cleared.
+    const allowed = offsetPaths(region, -(t.dia / 2 + stl));
+    if (!allowed.length) throw new Error('Werkzeug zu groß für die Tasche');
+    const R1 = +op.restDia / 2 + stl;
+    const reached = offsetPaths(offsetPaths(region, -R1), R1 + 0.02);
+    const material = reached.length ? clip(region, reached, 'ctDifference') : region;
+    if (!material.length) throw new Error('Kein Restmaterial – der vorige Fräser erreicht schon alles');
+    const band = clip(allowed, offsetPaths(material, t.dia / 2), 'ctIntersection');
+    rings = [];
+    for (let cur = band, guard = 0; cur.length && guard < 3000; guard++) { rings.push(cur.map(fromC)); cur = offsetPaths(cur, -so); }
+    if (!rings.length) throw new Error('Kein Restmaterial – der vorige Fräser erreicht schon alles');
+  } else rings = pocketRings(region, t.dia / 2 + stl, so);
   if (!rings.length) throw new Error('Werkzeug zu groß für die Tasche');
   const lv = levels(h.top, h.bottom, +op.stepdown || t.stepdown);
   if (!lv.length) throw new Error('Unterkante liegt über der Oberkante');
   clearRings(P, rings, lv, t, op, so, h.top);
+  if (rest) return { rest: true };
   if (!op.ctrlCycle) return {};
   // "Steuerungszyklus": rectangular / circular pockets go to the control's own pocket cycle (the moves here
   // stay for the simulation and for controls without one)

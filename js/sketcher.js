@@ -186,6 +186,9 @@ export class Sketcher {
 
   onDown(e) {
     this.down = [e.clientX, e.clientY, e.button];
+    this.swipe = null;
+    // trim by swiping (Fusion): hold the button and drag across everything that should go
+    if (this.active && this.tool === 'trim' && e.button === 0) { this.swipe = { on: false, n: 0 }; return; }
     if (!this.active || this.tool !== 'select' || e.button !== 0) return;
     const p = this.localPoint(e);
     if (!p) return;
@@ -200,6 +203,8 @@ export class Sketcher {
     if (!this.active || !this.down) return;
     const [x, y, b] = this.down;
     this.down = null;
+    if (this.swipe?.on) { const n = this.swipe.n; this.swipe = null; this.hooks.status?.(n ? `${n} Stück(e) gestutzt` : 'Stutzen: nichts überfahren'); return; }
+    this.swipe = null;
     if (this.drag) {
       const ents = this.override;
       this.drag = null;
@@ -259,10 +264,26 @@ export class Sketcher {
       this.hooks.tip(c ? `Klicken: ${this.tool === 'fillet' ? 'Abrundung R' : 'Fase '}${Array.isArray(v) ? v.join('/') : v} an dieser Ecke` : 'Ecke anklicken (Linienzug, Rechteck, zwei Linien) · Esc beendet', e);
       return;
     }
+    if (this.tool === 'trim' && this.swipe && this.down && (this.swipe.on || Math.hypot(e.clientX - this.down[0], e.clientY - this.down[1]) >= 5)) {
+      // everything the mouse passes over goes: tested along the way from the last position, so fast moves miss nothing
+      const sw = this.swipe, from = sw.last || p, tol = this.vp.worldPerPixel() * 3;
+      sw.on = true;
+      const L = Math.hypot(p[0] - from[0], p[1] - from[1]), n = Math.min(200, Math.max(1, Math.ceil(L / (tol * 1.5))));
+      for (let i = 1; i <= n; i++) {
+        const q = [from[0] + ((p[0] - from[0]) * i) / n, from[1] + ((p[1] - from[1]) * i) / n];
+        const r = trimAt(this.entities, q, tol);
+        if (r && !r.unsupported && this.trimClick(q, tol)) sw.n++;
+      }
+      sw.last = p;
+      this.cur = null;
+      this.drawPreview();
+      this.hooks.tip('Loslassen beendet das Stutzen', e);
+      return;
+    }
     if (this.tool === 'trim' || this.tool === 'extend') {
       this.cur = p;
       this.drawPreview();
-      this.hooks.tip(this.tool === 'trim' ? 'Klicken: rot markiertes Stück entfernen' : 'Klicken: Ende bis zur nächsten Kante verlängern', e);
+      this.hooks.tip(this.tool === 'trim' ? 'Klicken: rot markiertes Stück entfernen · gedrückt ziehen: alles Überfahrene stutzen' : 'Klicken: Ende bis zur nächsten Kante verlängern', e);
       return;
     }
     this.rawCur = this.snap(p);
@@ -758,10 +779,10 @@ export class Sketcher {
   }
 
   // ---------- Stutzen / Verlängern ----------
-  trimClick(p) {
-    const r = trimAt(this.entities, p, this.vp.worldPerPixel() * 8);
-    if (!r) return;
-    if (r.unsupported) { this.hooks.status?.('Stutzen geht bei Linien, Rechtecken, Polygonen, Bögen und Kreisen.'); return; }
+  trimClick(p, tol = this.vp.worldPerPixel() * 8) {
+    const r = trimAt(this.entities, p, tol);
+    if (!r) return false;
+    if (r.unsupported) { this.hooks.status?.('Stutzen geht bei Linien, Rechtecken, Polygonen, Langlöchern, Bögen und Kreisen (nicht bei Ellipsen, Splines und Text).'); return false; }
     const gone = new Set(r.remove);
     this.selection = [];
     this.selected = null;
@@ -774,6 +795,7 @@ export class Sketcher {
     });
     this.cur = null;
     this.drawPreview();
+    return true;
   }
 
   extendClick(p) {
