@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="290" height="56" viewBox="0 0 290 56" role="img" aria-label="Spendier mir einen Kaffee">
+  <rect width="290" height="56" rx="12" fill="#ffdd33"/>
+  <g fill="none" stroke="#1c2025" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 22h22v12a9 9 0 0 1-9 9h-4a9 9 0 0 1-9-9z" fill="#fff"/>
+    <path d="M44 25h3a5 5 0 0 1 0 10h-3"/>
+    <path d="M28 10c-2 3 2 4 0 7M36 10c-2 3 2 4 0 7"/>
+  </g>
+  <text x="66" y="35" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#1c2025">Spendier mir einen Kaffee</text>
+</svg>

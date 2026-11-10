@@ -6,6 +6,22 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 
 > **Status: Release Candidate 2 (v1.0.0-rc.2).** Der Funktionsumfang ist vollständig für 1.0. Bitte NC-Programme vor dem ersten Einsatz an der Maschine immer im Probelauf prüfen (siehe [Grenzen](#bekannte-grenzen)).
 
+![Konstruktion über die Zeitachse, danach Fräsbahnen und Simulation mit Materialabtrag](docs/media/demo.gif)
+
+*Von der Skizze zum fertigen Teil: Konstruktion Schritt für Schritt, danach Werkzeugwege und Simulation.*
+
+---
+
+## Bilder
+
+| Konstruktion | Skizze |
+|---|---|
+| ![Parametrisches 3D-Modell mit Browser und Zeitachse](docs/media/01-konstruktion.png) | ![Skizze mit Abhängigkeiten und Bemaßungen](docs/media/02-skizze.png) |
+| **Fertigung: Werkzeugwege** | **Simulation mit Materialabtrag** |
+| ![Fräsbahnen für Planen, Tasche, Bohren und Kontur](docs/media/03-fertigung.png) | ![Simulation der Fräsbearbeitung](docs/media/04-simulation.png) |
+| **Drehen** | **Rendern** |
+| ![Drehteil mit Schrupp-, Schlicht-, Einstech- und Gewindebahnen](docs/media/05-drehen.png) | ![Rendering im Fotostudio](docs/media/06-rendern.png) |
+
 ---
 
 ## Funktionen
@@ -156,3 +172,11 @@ Standardmäßig rechnet OpenFab mit **OpenCascade** (über replicad/WebAssembly)
 OpenFab steht unter der **GNU General Public License v3.0 oder später**, siehe [LICENSE](LICENSE).
 
 Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen, siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+## Unterstützen
+
+OpenFab ist kostenlos und entsteht in der Freizeit. Wenn dir das Programm hilft, freue ich mich über einen Kaffee:
+
+<a href="https://www.paypal.com/donate/?business=vbleich%40gmail.com&currency_code=EUR&item_name=OpenFab"><img src="docs/media/kaffee-button.svg" alt="Spendier mir einen Kaffee (PayPal)" height="48"></a>

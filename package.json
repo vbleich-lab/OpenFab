@@ -12,7 +12,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . OpenFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=OpenFab --win32metadata.FileDescription=\"OpenFab CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=/rust/openfab-kernel --ignore=^/[.]claude --ignore=^/[.]git",
+    "build": "electron-packager . OpenFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=OpenFab --win32metadata.FileDescription=\"OpenFab CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=^/docs --ignore=/rust/openfab-kernel --ignore=^/[.]claude --ignore=^/[.]git",
     "build:web": "node tools/build-web.mjs",
     "build:kernel": "node tools/build-kernel.mjs",
     "test:kernel": "node tools/test-rust-kernel.mjs",
