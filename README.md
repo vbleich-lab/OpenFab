@@ -211,4 +211,4 @@ Bundled libraries come under their own licenses, see [THIRD_PARTY_NOTICES.md](TH
 
 OpenFab is free and made in my spare time. If the program helps you, I am happy about a coffee:
 
-<a href="https://www.paypal.com/donate/?business=vbleich%40gmail.com&currency_code=EUR&item_name=OpenFab"><img src="docs/media/kaffee-button.svg" alt="Buy me a coffee (PayPal)" height="48"></a>
+<a href="https://paypal.me/VitalijBleich"><img src="docs/media/kaffee-button.svg" alt="Buy me a coffee (PayPal)" height="48"></a>

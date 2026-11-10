@@ -203,4 +203,4 @@ Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen, siehe [THIRD_PAR
 
 OpenFab ist kostenlos und entsteht in der Freizeit. Wenn dir das Programm hilft, freue ich mich über einen Kaffee:
 
-<a href="https://www.paypal.com/donate/?business=vbleich%40gmail.com&currency_code=EUR&item_name=OpenFab"><img src="docs/media/kaffee-button.svg" alt="Spendier mir einen Kaffee (PayPal)" height="48"></a>
+<a href="https://paypal.me/VitalijBleich"><img src="docs/media/kaffee-button.svg" alt="Spendier mir einen Kaffee (PayPal)" height="48"></a>
