@@ -1,5 +1,5 @@
 // ViewCube: a small labelled cube that mirrors the main camera orientation.
-// Faces, edges and corners can be clicked (26 directions, like Fusion); arrows around
+// Faces, edges and corners can be clicked (26 directions); arrows around
 // the cube turn the view by 90° and roll it.
 import * as THREE from 'three';
 import { t as tr } from './i18n.js';

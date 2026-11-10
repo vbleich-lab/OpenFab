@@ -2,8 +2,8 @@
 
 ## Unveröffentlicht
 
-### Sprachen: Englisch, Russisch und Chinesisch
-- Die Oberfläche gibt es jetzt auf **Deutsch, Englisch, Russisch und Chinesisch**. Beim ersten Start richtet sie sich nach der Sprache des Browsers (unbekannte Sprachen: Englisch); umstellen unter Voreinstellungen → Einheiten- und Wertanzeige → Sprache.
+### Sprachen: Englisch und Chinesisch
+- Die Oberfläche gibt es jetzt auf **Deutsch, Englisch und Chinesisch**. Beim ersten Start richtet sie sich nach der Sprache des Browsers (unbekannte Sprachen: Englisch); umstellen unter Voreinstellungen → Einheiten- und Wertanzeige → Sprache.
 - Die Texte werden beim Anzeigen übersetzt (Wörterbücher in `js/lang/`), auch Meldungen mit Zahlen und Namen, Tooltips, die Würfelbeschriftung und die exportierte Zeichnung, das Einrichteblatt und die Werkzeugliste. Was keine Übersetzung hat, bleibt deutsch; Kommentare im NC-Programm sind immer deutsch.
 - Neue Werkzeuge: `node tools/i18n-extract.mjs` sammelt die Texte aus dem Quelltext, `node tools/i18n-build.mjs merge` baut die Wörterbücher, `npm run test:i18n` prüft sie.
 

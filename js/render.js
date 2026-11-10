@@ -1,4 +1,4 @@
-// RENDERN workspace (like Fusion's Render): scene settings (environment, exposure, background, ground with
+// RENDERN workspace (Render): scene settings (environment, exposure, background, ground with
 // shadow and reflection) and an in-canvas render that gets smoother frame by frame: every frame the camera is
 // shifted by a fraction of a pixel and the key light moves a little, the frames are averaged — this gives
 // clean edges and soft shadows.

@@ -71,7 +71,7 @@ export function jointValues(asm, j, values = {}, depth = 0) {
   return out;
 }
 
-// Fusion-like snapping: the child's joint origin (point p, normal n) is moved onto the parent's; the normals
+// common CAD/CAM-like snapping: the child's joint origin (point p, normal n) is moved onto the parent's; the normals
 // face each other (surfaces meet), or point the same way with "Umkehren". Then shift along / turn about the axis.
 export function alignMatrix(j) {
   const pc = new THREE.Vector3(...j.cO.p), nc = new THREE.Vector3(...j.cO.n).normalize();

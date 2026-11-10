@@ -149,7 +149,7 @@ export function migrate(p) {
   return p;
 }
 
-// Command dialogs (Fusion-style OK / Abbrechen): remember the undo depth when a
+// Command dialogs (common CAD/CAM-style OK / Abbrechen): remember the undo depth when a
 // dialog opens and roll back to it on cancel.
 export const undoDepth = () => undoStack.length;
 export function revertTo(depth) {

@@ -27,7 +27,7 @@ OpenFab is a parametric 3D CAD program with integrated CAM. Parts are designed w
 | **Turning** | **Rendering** |
 | ![Turned part with roughing, finishing, grooving and threading passes](docs/media/05-drehen.png) | ![Rendering in a photo studio](docs/media/06-rendern.png) |
 
-The screenshots show the German interface. The interface is available in **English, German, Russian and Chinese**.
+The screenshots show the German interface. The interface is available in **English, German and Chinese**.
 
 ---
 
@@ -73,7 +73,7 @@ The screenshots show the German interface. The interface is available in **Engli
 - **Control cycles** instead of computed paths: drilling and pocket cycles, studs, bolt circles and grids, turning roughing cycle and threading cycle
 
 ### User interface
-- **Languages**: English, German, Russian and Chinese (Preferences → Units and value display → Language; the first start follows the browser language)
+- **Languages**: English, German and Chinese (Preferences → Units and value display → Language; the first start follows the browser language)
 - Marking menu (right click), ViewCube, keyboard shortcuts (e.g. Q press/pull, F fillet, M move, I measure, X construction line)
 - Several documents in tabs, versions on save; import of STEP, IGES, STL, OBJ and DXF, tool libraries and post processors (.cps)
 
@@ -117,6 +117,7 @@ OpenFab writes programs that move real machines. A wrong program can destroy too
 - The post processors are tested against the programming rules of the controls, **but they have not run on real machines**. M codes, tool changes, tilting, cycles and the C axis depend on the machine and must be adapted to yours.
 - Work origin, tool lengths, fixtures and travel limits are the operator's responsibility.
 - OpenFab is provided without any warranty (GPL-3.0, sections 15 and 16). You use it at your own risk.
+- **Liability (German law):** OpenFab is given away free of charge. As far as the law allows, the author is liable only for intent and gross negligence (as for a gift, §§ 521, 523, 524 BGB); any further liability is excluded.
 
 ---
 
@@ -203,7 +204,9 @@ By default OpenFab computes with **OpenCascade** (through replicad / WebAssembly
 
 OpenFab is licensed under the **GNU General Public License v3.0 or later**, see [LICENSE](LICENSE).
 
-Bundled libraries come under their own licenses, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Bundled libraries come under their own licenses, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); the license texts are in [`licenses/`](licenses).
+
+Names of controls, machines and other software (Heidenhain, Fanuc, Sinumerik, Okuma, LinuxCNC, GRBL and others) are trademarks of their owners. They are used only to say what OpenFab's output and import functions are meant for; OpenFab is not affiliated with or endorsed by any of them.
 
 ---
 

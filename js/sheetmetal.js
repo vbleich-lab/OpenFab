@@ -77,7 +77,7 @@ function chainMid(t, r, k, chain) {
   return out;
 }
 
-// Corners between flanges (Fusion "Ecke"): with f.corner === 'closed' a flange whose neighbour on a convex corner
+// Corners between flanges ("Ecke"): with f.corner === 'closed' a flange whose neighbour on a convex corner
 // is bent as well runs on to the angle bisector of the corner, leaving the gap f.cornerGap between the two.
 // Per flange end: null (open: shortened by the relief) or { V, m, g, out } - V the corner, m the unit normal of
 // the bisector pointing away from this flange, out the edge direction beyond V.
@@ -261,7 +261,7 @@ export function flatPattern(poly, f) {
     const sa = side(en.a, A), sb = side(en.b, B);
     rects.push(ensureCCW([...sa.slice().reverse(), ...sb]));
   }
-  // corner relief where the two bend zones of a closed corner cross (Fusion: round / square, or none)
+  // corner relief where the two bend zones of a closed corner cross (round / square, or none)
   for (const q of cornerReliefs(edges, ends, f, firstBA)) reliefs.push(q.poly);
   // union through Clipper (integer scale like cam.js)
   const L = window.ClipperLib, S = 1000;

@@ -71,7 +71,7 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 - **Steuerungszyklen** statt ausgerechneter Bahnen: Bohr- und Taschenzyklen, Zapfen, Lochkreise und -raster, Dreh-Schruppzyklus und Gewindezyklus
 
 ### Bedienung
-- **Sprachen**: Deutsch, Englisch, Russisch und Chinesisch (Voreinstellungen → Einheiten- und Wertanzeige → Sprache; beim ersten Start nach der Sprache des Browsers)
+- **Sprachen**: Deutsch, Englisch und Chinesisch (Voreinstellungen → Einheiten- und Wertanzeige → Sprache; beim ersten Start nach der Sprache des Browsers)
 - Markierungsmenü (Rechtsklick), ViewCube, Tastenkürzel (z. B. Q Drücken/Ziehen, F Verrundung, M Verschieben, I Messen, X Konstruktionslinie)
 - Mehrere Dokumente in Tabs, Versionsstände beim Speichern; Import von STEP, IGES, STL, OBJ und DXF, Werkzeugbibliotheken und Postprozessoren (.cps)
 
@@ -177,6 +177,7 @@ OpenFab erzeugt Programme, die echte Maschinen bewegen. Ein falsches Programm ka
 - Die Postprozessoren sind gegen die Programmierregeln der Steuerungen getestet, **aber nicht an echten Maschinen gelaufen**. M-Codes, Werkzeugwechsel, Schwenken, Zyklen und C-Achse sind maschinenabhängig und müssen an die eigene Maschine angepasst werden.
 - Nullpunkt, Werkzeuglängen, Spannmittel und Verfahrwege liegen in der Verantwortung des Bedieners.
 - OpenFab wird ohne jede Gewährleistung bereitgestellt (GPL-3.0, Abschnitte 15 und 16). Die Nutzung erfolgt auf eigene Gefahr.
+- **Haftung:** OpenFab wird unentgeltlich überlassen. Soweit gesetzlich zulässig, haftet der Autor nur für Vorsatz und grobe Fahrlässigkeit (wie bei einer Schenkung, §§ 521, 523, 524 BGB); jede weitergehende Haftung ist ausgeschlossen.
 
 ---
 
@@ -195,7 +196,9 @@ OpenFab erzeugt Programme, die echte Maschinen bewegen. Ein falsches Programm ka
 
 OpenFab steht unter der **GNU General Public License v3.0 oder später**, siehe [LICENSE](LICENSE).
 
-Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen, siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen, siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); die Lizenztexte liegen in [`licenses/`](licenses).
+
+Namen von Steuerungen, Maschinen und anderer Software (Heidenhain, Fanuc, Sinumerik, Okuma, LinuxCNC, GRBL und andere) sind Marken ihrer Inhaber. Sie werden nur genannt, um zu sagen, wofür Ausgabe und Import von OpenFab gedacht sind; OpenFab steht mit keinem dieser Unternehmen in Verbindung.
 
 ---
 

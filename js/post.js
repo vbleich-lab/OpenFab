@@ -646,7 +646,7 @@ class Writer {
   }
 }
 
-// ---------- post properties (like the "Postprozessor-Eigenschaften" in Fusion) ----------
+// ---------- post properties (like the "Postprozessor-Eigenschaften" in CAD programs) ----------
 export const COOLANT_MODES = { off: 'Aus', flood: 'Flutkühlung', mist: 'Minimalmenge (Nebel)', air: 'Luft außen', airThrough: 'Luft durch Spindel', through: 'Innenkühlung (durch Werkzeug)', floodAir: 'Flut + Luft außen' };
 export const POST_PROP_GROUPS = [
   ['prefs', 'Einstellungen'], ['coolant', 'Kühlmittel (M-Codes)'], ['retract', 'Sicherer Rückzug und Referenzposition'],
@@ -1102,7 +1102,7 @@ export function runPost(def, project, gen, opts = {}) {
     }
     if (!done) {
       if (c && c.type === 'tap') warnings.push(`${op.name}: Steuerung/Postprozessor ohne Gewindebohrzyklus – als Vorschubbewegung ausgegeben (nur mit Ausgleichsfutter!)`);
-      // arc fitting follows the tolerance of the operation (Fusion: "Toleranz")
+      // arc fitting follows the tolerance of the operation ("Toleranz")
       const tolA = Math.min(0.05, Math.max(0.001, (+op.tolerance || 0.01) / 2));
       // helices only where the post can write them (helix template, or an arc template with Z)
       const helixOk = !!(def.helixCW && def.helixCCW) || (/\{Z/.test(def.arcCW || '') && /\{Z/.test(def.arcCCW || ''));

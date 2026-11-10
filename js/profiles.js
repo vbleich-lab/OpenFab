@@ -100,7 +100,7 @@ export function entityOutlines(e) {
 }
 
 // Polyline with sketch fillets (e.radii) and chamfers (e.chamfers): see sketchcorner.js.
-// The stored vertex stays the (virtual) sharp corner, like Fusion.
+// The stored vertex stays the (virtual) sharp corner.
 export const filletedPts = e => cornerPts(e);
 
 // Circle through three points (null when they are collinear).
@@ -113,7 +113,7 @@ export function circle3(a, b, c) {
   return { cx, cy, r: Math.hypot(a[0] - cx, a[1] - cy) };
 }
 
-// 3-point arc: start, point on the arc, end (like Fusion's "3-Punkt-Bogen").
+// 3-point arc: start, point on the arc, end ("3-Punkt-Bogen").
 export function arcPts(a, m, b) {
   const c = circle3(a, m, b);
   if (!c) return [a, b];
@@ -163,7 +163,7 @@ export function curvePts(e) {
   return hasCorners(e) ? cornerPts(e) : e.pts.map(p => [+p[0], +p[1]]);
 }
 
-// Open lines, arcs and splines whose ends meet form closed profiles (like Fusion).
+// Open lines, arcs and splines whose ends meet form closed profiles (like common CAD/CAM).
 // Returns [{ id: 'chain:a+b+c', ids, poly }].
 export function chainLoops(entities, tol = 0.01) {
   const curves = entities

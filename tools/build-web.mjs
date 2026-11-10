@@ -9,7 +9,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'dist', 'OpenFab-Browser');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
-const COPY = ['index.html', 'manifest.webmanifest', 'css', 'js', 'vendor', 'icons', 'LICENSE', 'THIRD_PARTY_NOTICES.md'];
+const COPY = ['index.html', 'manifest.webmanifest', 'css', 'js', 'vendor', 'icons', 'licenses', 'LICENSE', 'THIRD_PARTY_NOTICES.md'];
 // large and only needed for IGES: cached when first used instead of on install
 const LAZY = ['vendor/opencascade-full/'];
 

@@ -1,4 +1,4 @@
-// User preferences (like Fusion's "Einstellungen"), stored per browser/app.
+// User preferences ("Einstellungen"), stored per browser/app.
 const KEY = 'openfab.settings.v1';
 
 export const DEFAULTS = {

@@ -2,5 +2,6 @@
  "⚠ Jedes NC-Programm vor dem ersten Lauf prüfen: an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang) oder in einem externen NC-Simulator. Die Simulation hier ersetzt das nicht – Nutzung auf eigene Gefahr, ohne Gewährleistung.": "⚠ Check every NC program before its first run: on the machine in a dry run (single block, reduced rapid) or in an external NC simulator. The simulation here does not replace that – use at your own risk, without warranty.",
  "ARBEITSBEREICH": "WORKSPACE",
  "KONSTRUKTION": "DESIGN",
- "Werkzeugnummer(n) {0} > Magazinplätze ({1})": "Tool number(s) {0} > magazine pockets ({1})"
+ "Werkzeugnummer(n) {0} > Magazinplätze ({1})": "Tool number(s) {0} > magazine pockets ({1})",
+ "Ohne „Modelliert“ wird das Gewinde nur dargestellt (schnell). Modelliert wird die Gewindeform wirklich ausgeschnitten, z. B. für 3D-Druck. Bohrung für M8 = Ø6,8.": "Without “Modeled” the thread is only displayed (fast). When modeled, the thread form is actually cut, e.g. for 3D printing. Hole for M8 = Ø6,8."
 }

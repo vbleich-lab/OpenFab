@@ -199,9 +199,9 @@ const turnSim = new TurnSim(vp.sim);
 // ---------- floating windows ----------
 const wm = new WindowManager($('#main'));
 wm.add($('#winBrowser'), B => ({ x: 8, y: 8, w: 250, h: Math.min(440, Math.round(B.h * 0.6)) }));
-// below the view cube, like Fusion's dialogs on the right
+// below the view cube like the usual dialogs on the right
 wm.add($('#winProps'), B => ({ x: Math.max(8, B.w - 348), y: 136, w: 340, h: Math.max(200, B.h - 210) }));
-// docked along the bottom edge like Fusion's timeline
+// docked along the bottom edge like the usual timeline
 wm.add($('#winTimeline'), B => ({ x: 0, y: Math.max(8, B.h - 62), w: B.w, h: 62, dock: 'bottom' }));
 wm.add($('#winTools'), B => ({ x: Math.max(8, Math.round((B.w - 960) / 2)), y: 36, w: Math.min(960, B.w - 16), h: Math.min(580, B.h - 60) }));
 wm.add($('#winMachines'), B => ({ x: Math.max(8, Math.round((B.w - 820) / 2)), y: 50, w: Math.min(820, B.w - 16), h: Math.min(560, B.h - 70) }));
@@ -505,7 +505,7 @@ const MATERIALS = {
   wood: { label: 'Holz (Buche)', density: 0.72, color: '#c89b6d' },
   mdf: { label: 'MDF', density: 0.75, color: '#b08b5b' },
 };
-// Fusion-like appearance library: colour + surface (metal, gloss, clear coat, transparency)
+// common CAD/CAM-like appearance library: colour + surface (metal, gloss, clear coat, transparency)
 const APPEARANCES = {
   alu_polished: { group: 'Metall', label: 'Aluminium poliert', color: '#d9dee3', metalness: 1, roughness: 0.12 },
   alu_satin: { group: 'Metall', label: 'Aluminium satiniert', color: '#c3ccd5', metalness: 0.85, roughness: 0.32 },
@@ -546,7 +546,7 @@ const bodyMeta = id => state.project.bodyMeta?.[id] || {};
 const bodyLabel = id => { const b = getModel().bodies.find(x => x.id === id); return b ? bodyName(b) : id; };
 const bodyName = b => bodyMeta(b.id).name || b.name;
 const bodyMats = new Map();
-// ---------- analysis (Fusion: Zebra, Formschräge) ----------
+// ---------- analysis (Zebra, Formschräge) ----------
 const analysis = { mode: null, dir: [0, 0, 1], min: 1 };
 const zebraMat = new THREE.ShaderMaterial({
   uniforms: { stripes: { value: 7 } },
@@ -679,7 +679,7 @@ vp.canvas.addEventListener('drop', e => {
 });
 
 // ---------- press / pull (Q) ----------
-// Fusion "Drücken/Ziehen": a planar face is pushed or pulled (face extrusion), an edge is rounded.
+// common CAD/CAM "Drücken/Ziehen": a planar face is pushed or pulled (face extrusion), an edge is rounded.
 function startPressPull() {
   if (!getModel().bodies.length) return status('Kein Körper vorhanden.');
   state.pick = { mode: 'presspull' };
@@ -739,7 +739,7 @@ const matEdgeGhost = new THREE.LineBasicMaterial({ color: 0x1c2530, transparent:
 const matEdgeSel = new THREE.LineBasicMaterial({ color: 0x9fdcff, depthTest: false, transparent: true });
 const matMeasure = new THREE.LineBasicMaterial({ color: 0xff7a00, depthTest: false, transparent: true });
 
-// ---------- face selection (highlighted like in Fusion) ----------
+// ---------- face selection (highlighted like in CAD programs) ----------
 const matFaceSel = new THREE.MeshBasicMaterial({ color: 0x9fdcff, transparent: true, opacity: 0.88, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const matFaceHover = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 const _tri = new THREE.Triangle(), _fq = new THREE.Vector3(), _fp = new THREE.Vector3();
@@ -902,7 +902,7 @@ function faceNormal(body, fid) {
   }
   return sum.normalize();
 }
-// Fusion "Kette": a clicked edge selects the closed boundary loop of the face it bounds that looks most towards the tool
+// common CAD/CAM "Kette": a clicked edge selects the closed boundary loop of the face it bounds that looks most towards the tool
 const EDGE_OPS = ['contour', 'chamfer', 'trace', 'pocket', 'adaptive'];
 let chainCache = { key: null, map: new Map() };
 function edgeChain(ref, up) {
@@ -947,7 +947,7 @@ function facesGeometry(refs) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   return g;
 }
-// the bodies without the ignored faces (Fusion: "Ignorieren")
+// the bodies without the ignored faces ("Ignorieren")
 function bodiesWithoutFaces(bodies, refs) {
   const drop = new Set(refs.map(r => faceAt(r)).filter(Boolean).map(fa => fa.body.id + ':' + fa.fid));
   const pts = [];
@@ -975,7 +975,7 @@ function polyTubes(pts, mat, closed = true) {
   return g;
 }
 
-// ---------- CAM geometry from picked model faces (Fusion: select faces / holes) ----------
+// ---------- CAM geometry from picked model faces (select faces / holes) ----------
 const HOLE_OPS = ['drill', 'bore', 'thread', 'circular'];
 const isHoleOp = op => !!op && (HOLE_OPS.includes(op.type) || (op.type === 'probe' && ['bore', 'boss'].includes(op.probeMode)));
 const SURF_FACE_OPS = ['flow3d', 'morph3d']; // any face (curved too), machined over its outline
@@ -1189,7 +1189,7 @@ function rebuildScene() {
   const selRefs = selectedEdgeRefs();
   applySection();
   drawMeshes();
-  // Fusion "Flacher Zustand": the sheet metal part is shown developed, with its bend lines
+  // common CAD/CAM "Flacher Zustand": the sheet metal part is shown developed, with its bend lines
   const flatShown = drawFlatPattern();
   for (const [bi, b] of flatShown ? [] : m.bodies.entries()) {
     if (state.hiddenBodies.has(b.id)) continue;
@@ -1213,7 +1213,7 @@ function rebuildScene() {
       void pts; void pos;
     }
   }
-  // selected faces in blue (whole face, like Fusion)
+  // selected faces in blue (whole face)
   vp.clear(hoverGroup);
   hoverKey = null;
   const shown = new Set();
@@ -1309,7 +1309,7 @@ function rebuildScene() {
   if (state.workspace === 'render') studio.apply(renderSettings(), m.box);
 }
 
-// ----- RENDERN: scene settings (Fusion: "Szeneneinstellungen") -----
+// ----- RENDERN: scene settings ("Szeneneinstellungen") -----
 function propsRender(b) {
   setTitle('SZENENEINSTELLUNGEN');
   const s = renderSettings();
@@ -1353,7 +1353,7 @@ function saveRenderImage() {
   });
 }
 
-// Construction planes: translucent squares like Fusion's orange planes.
+// Construction planes: translucent squares like the usual orange planes.
 const matPlane = new THREE.MeshBasicMaterial({ color: 0xe8a33a, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
 const matPlaneSel = new THREE.MeshBasicMaterial({ color: 0x0696d7, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
 const matPlaneEdge = new THREE.LineBasicMaterial({ color: 0xc27c12 });
@@ -1475,7 +1475,7 @@ function axisCylClick(e, meshes, m) {
   const at = t => ci.loc.map((v, i) => +(v + ci.dir[i] * t).toFixed(4));
   editFeature(id, f => { f.pts = [at(ci.t0), at(ci.t1)]; f.r = +ci.r.toFixed(4); });
 }
-// ---------- extrude manipulator (Fusion: arrow on the profile + value box) ----------
+// ---------- extrude manipulator (arrow on the profile + value box) ----------
 // The arrow sits on the end face of the extrusion; dragging it along the sketch normal changes the
 // distance, the box at its tip takes a typed value (also parameters / formulas).
 let exGiz = null, exDrag = null;
@@ -1686,7 +1686,7 @@ vp.canvas.addEventListener('pointerdown', e => {
   addEventListener('pointerup', up, true);
 }, true);
 
-// Origin planes while choosing a sketch plane (Fusion: three labelled squares at the origin;
+// Origin planes while choosing a sketch plane (three labelled squares at the origin;
 // the one under the mouse turns blue, a click starts the sketch on it).
 const planeTexCache = {};
 function planeTexture(label, hover) {
@@ -1730,7 +1730,7 @@ function drawOriginPlanes() {
     quad.userData = { originPlane: name };
     vp.paths.add(quad);
   }
-  // axes and origin point, like Fusion's origin while picking
+  // axes and origin point like the usual origin while picking
   for (const [d, col] of [[[1, 0, 0], 0xe5484d], [[0, 1, 0], 0x40c057], [[0, 0, 1], 0x2a8fff]]) {
     const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(...d).multiplyScalar(s * 1.15)]), new THREE.LineBasicMaterial({ color: col, depthTest: false, transparent: true }));
     l.renderOrder = 7;
@@ -1800,7 +1800,7 @@ function sketchOverlay(sk) {
   }
   g.userData.skOverlay = true;
   const wpp = vp.worldPerPixel();
-  // selection, picked edges of the dimension tool and the edge under the mouse: thick bands like Fusion
+  // selection, picked edges of the dimension tool and the edge under the mouse: thick bands
   const band = (refs, color, px) => {
     const selPts = [], tris = [];
     const seg = (a, b) => {
@@ -1843,7 +1843,7 @@ function sketchOverlay(sk) {
     const n = [-dir[1], dir[0]], s = 8 * wpp, w = 2.6 * wpp;
     dimLines.push(V(tip, 0.06), V([tip[0] - dir[0] * s + n[0] * w, tip[1] - dir[1] * s + n[1] * w], 0.06), V(tip, 0.06), V([tip[0] - dir[0] * s - n[0] * w, tip[1] - dir[1] * s - n[1] * w], 0.06));
   };
-  // Fusion-style dimension with extension lines, placed where the user dragged it (base + lp)
+  // common CAD/CAM-style dimension with extension lines, placed where the user dragged it (base + lp)
   const placedDim = (c, lp) => {
     const base = dimBase(H, c);
     const label = add2(base, lp);
@@ -1992,7 +1992,7 @@ function drawCam() {
   axes.position.set(o.x, o.y, o.z);
   grp.add(axes);
   if (sim.open && !$('#simPaths').checked) return;
-  // like Fusion: a selected operation shows only its own toolpath, the setup (or nothing) shows all
+  //: a selected operation shows only its own toolpath, the setup (or nothing) shows all
   const selOp = state.sel?.kind === 'op' ? state.sel.id : null;
   const mk = r => Math.max(0.35, vp.worldPerPixel() * 4 || 0.6);
   for (const op of g.ops) {
@@ -2036,9 +2036,9 @@ function tbtn(icon, label, onClick, cls = '', title = '') {
   return b;
 }
 const gbtn = (glyph, label, onClick, title) => h('button', { class: 'tbtn gl', onclick: onClick, title: title || label }, h('b', { class: 'glyph-ic' }, glyph), h('span', null, label));
-// Like Fusion: a group shows its main tools; the label opens a dropdown with all of them.
+// Like a group shows its main tools; the label opens a dropdown with all of them.
 const GROUP_VISIBLE = { VERWALTEN: 4, 'EINFÜGEN': 4, ERSTELLEN: 7, 'ÄNDERN': 6, 'ABHÄNGIGKEITEN': 8, SKIZZE: 8, KONSTRUKTION: 3, '2D-FRÄSEN': 6, '3D-FRÄSEN': 5, 'FLÄCHE ERSTELLEN': 7 };
-// Which commands sit in the toolbar is up to the user (⋮ in the group dropdown), like Fusion.
+// Which commands sit in the toolbar is up to the user (⋮ in the group dropdown).
 // The buttons of a group are placed by fillGroup() once the tab is known.
 function tgroup(label, ...items) {
   items = items.filter(Boolean);
@@ -2127,7 +2127,7 @@ function openToolDrop(g) {
   document.body.append(toolDrop);
   document.addEventListener('pointerdown', onDropOutside, true);
 }
-// the small menu behind ⋮ (Fusion: pin to toolbox / shortcuts, change keyboard shortcut)
+// the small menu behind ⋮ (pin to toolbox / shortcuts, change keyboard shortcut)
 function openPinMenu(row, g, b) {
   document.querySelector('.tdrop-sub')?.remove();
   for (const x of toolDrop.querySelectorAll('.tdrop-row.on')) x.classList.remove('on');
@@ -2203,7 +2203,7 @@ function editShortcut(b) {
   field.focus();
 }
 
-// Toolbar tabs per workspace (like Fusion: SOLID, SURFACE, SHEET METAL, UTILITIES / MILLING, TURNING ...)
+// Toolbar tabs per workspace (SOLID, SURFACE, SHEET METAL, UTILITIES / MILLING, TURNING ...)
 const uiTab = { design: 'VOLUMENKÖRPER', cam: 'FRÄSEN', render: 'RENDERN' };
 function toolbarTabs() {
   const tabs = {};
@@ -2382,7 +2382,7 @@ function renderToolbar() {
   for (const g of t.querySelectorAll('.tgroup')) g.dataset.ready = '1';
 }
 
-// ---------- browser tree (Fusion-style) ----------
+// ---------- browser tree (common CAD/CAM-style) ----------
 const SVG = {
   folder: '<svg viewBox="0 0 16 16"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z" fill="#e8b84a" stroke="#b8862a" stroke-width=".8"/></svg>',
   doc: '<svg viewBox="0 0 16 16"><path d="M3 1.5h7l3 3v10H3z" fill="#fff" stroke="#6b7785" stroke-width=".9"/><path d="M5 7h6M5 9.5h6M5 12h4" stroke="#0696d7" stroke-width=".9"/></svg>',
@@ -2425,7 +2425,7 @@ function toggleOpen(key) {
 }
 
 // One browser row. `open` (true/false) shows an expand arrow; `eye` a visibility toggle.
-// operation icon with a status badge (Fusion: generated / warning / error / switched off)
+// operation icon with a status badge (generated / warning / error / switched off)
 const OP_ICON = { face: 'face', contour: 'contour', pocket: 'pocket', adaptive: 'adaptive', chamfer: 'deburr3d', drill: 'drill', bore: 'bore', thread: 'thread', trace: 'trace', rough3d: 'rough3d',
   parallel3d: 'parallel3d', contour3d: 'flow3d', horizontal3d: 'flat3d', steep3d: 'ramp3d', scallop3d: 'morph3d', spiral3d: 'morphspiral3d', radial3d: 'geodesic3d', project3d: 'project', adaptive3d: 'adaptive3d',
   pocket3d: 'pocket3d', flat3d: 'flat3d', ramp3d: 'ramp3d', pencil3d: 'pencil3d', morphspiral3d: 'morphspiral3d', blend3d: 'blend3d', guidemorph3d: 'guidemorph3d', corner3d: 'corner3d', flow3d: 'flow3d',
@@ -2724,7 +2724,7 @@ function renderTree() {
   t.parentElement.scrollTop = scroll;
 }
 
-// ---------- timeline (Fusion-style) ----------
+// ---------- timeline (common CAD/CAM-style) ----------
 const category = f => (f.type === 'sketch' ? 'sketch' : ['plane', 'axis', 'point'].includes(f.type) ? 'construct' : f.type === 'meshimport' || f.type === 'meshop' ? 'meshf' : SOLID_SOURCES.includes(f.type) || f.type === 'pattern' || f.type === 'mirror' ? 'solid' : 'modify');
 const featureIcon = f => ICONS[{ emboss: 'emboss', pattern: f.kind === 'circ' ? 'patternCirc' : f.kind === 'path' ? 'patternPath' : 'patternRect', chamfer: 'edgechamfer', plane: { angle: 'planeAngle', mid: 'planeMid', '3pt': 'plane3pt', tangent: 'planeTangent' }[f.kind] || 'plane', axis: { cyl: 'axisCyl', planes: 'axisPlanes' }[f.kind] || 'axis2pt', point: 'cpoint', meshimport: 'mesh', meshop: 'mesh_' + f.kind }[f.type] || f.type] || ICONS.extrude;
 
@@ -2861,7 +2861,7 @@ function setTitle(t) { $('#propsTitle').textContent = t; }
 const editFeature = (id, fn) => commit(p => fn(p.features.find(f => f.id === id)));
 const editOp = (id, fn) => commit(p => fn(p.cam.ops.find(o => o.id === id)));
 
-// Fusion-style command dialog: a feature or operation opened in the panel gets
+// common CAD/CAM-style command dialog: a feature or operation opened in the panel gets
 // OK / Abbrechen. Abbrechen rolls back every change made while it was open
 // (and removes a feature that was just created).
 let dlg = { key: null, depth: 0 };
@@ -2899,7 +2899,7 @@ $('#propsCancel').onclick = dialogCancel;
 
 function renderProps() {
   const t = dialogTarget();
-  // Fusion: the properties window only appears while something is selected (strategy, setup, feature, sketch …)
+  // the properties window only appears while something is selected (strategy, setup, feature, sketch …)
   const pw = wm.get('winProps');
   const wantProps = !!(t || state.sketchId || state.sel || state.workspace === 'render');
   if (pw && !!pw.s.hidden === wantProps) { pw.s.hidden = !wantProps; pw.clamp(true); }
@@ -2942,7 +2942,7 @@ function renderProps() {
   }
 }
 
-// Fusion-style tabs at the top of the operation / setup dialog
+// common CAD/CAM-style tabs at the top of the operation / setup dialog
 const tabSvg = body => `<svg viewBox="0 0 24 24">${body}</svg>`;
 const SETUP_TABS = [
   ['setup', 'Setup', '<svg viewBox="0 0 24 24" class="colored"><path d="M3 15l6-3 6 3-6 3z" fill="#d7e3ee"/><path d="M3 15v4l6 3v-4z" fill="#9db7cf"/><path d="M15 15v4l-6 3v-4z" fill="#6f93b6"/><path d="M10 8l6-3 6 3-6 3z" fill="#7cc4ff"/><path d="M10 8v5l6 3v-5z" fill="#2a8fd6"/><path d="M22 8v5l-6 3v-5z" fill="#1c6fb0"/></svg>'],
@@ -3041,7 +3041,7 @@ function propsBody(b, body) {
       num(state.project.assembly?.placements?.[body.id]?.[k] || 0, v => commit(pp => { pp.assembly ||= { placements: {}, joints: [] }; pp.assembly.placements ||= {}; (pp.assembly.placements[body.id] ||= {})[k] = v; }), { unit: k[0] === 'd' ? 'mm' : '°' }))),
     sec('PHYSIKALISCHE EIGENSCHAFTEN'),
     pr ? h('div', { class: 'stats' },
-      // a surface body has no volume or mass (Fusion shows only its area)
+      // a surface body has no volume or mass (shows only its area)
       ...(body.surface ? [h('span', null, 'Art'), h('b', null, 'Flächenkörper (ohne Dicke)')] : [
         h('span', null, 'Volumen'), h('b', null, `${f2(pr.volume / 1000)} cm³`),
         h('span', null, 'Masse'), h('b', null, `${f2((pr.volume / 1000) * mat.density)} g`)]),
@@ -3449,7 +3449,7 @@ function propsThread(b, f, ed) {
     f.full === false ? row('Länge', num(f.length, v => ed(x => (x.length = v)), { unit: 'mm', min: 0.1 })) : null,
     row('Vom anderen Ende', chk(f.flip, v => ed(x => (x.flip = v)))),
     row('Modelliert', chk(f.modeled, v => ed(x => (x.modeled = v)))),
-    h('p', { class: 'hint' }, 'Wie in Fusion: ohne „Modelliert“ wird das Gewinde nur dargestellt (schnell). Modelliert wird die Gewindeform wirklich ausgeschnitten, z. B. für 3D-Druck. Bohrung für M8 = Ø6,8.'),
+    h('p', { class: 'hint' }, 'Ohne „Modelliert“ wird das Gewinde nur dargestellt (schnell). Modelliert wird die Gewindeform wirklich ausgeschnitten, z. B. für 3D-Druck. Bohrung für M8 = Ø6,8.'),
   );
 }
 
@@ -3506,7 +3506,7 @@ async function importCAD(file) {
   }
 }
 
-// ---------- EINFÜGEN (Fusion: Aufkleber, Ansichtsbereich, SVG, DXF, Netz, Komponente, Schraube, Mit Gelenken duplizieren, Ableitung) ----------
+// ---------- EINFÜGEN (Aufkleber, Ansichtsbereich, SVG, DXF, Netz, Komponente, Schraube, Mit Gelenken duplizieren, Ableitung) ----------
 // a file chooser without a fixed <input> in the page
 function chooseFile(accept) {
   return new Promise(res => {
@@ -4339,7 +4339,7 @@ function propsCombine(b, f, ed) {
   );
 }
 
-// ---------- setup dialog (like Fusion's "Setup" command dialog) ----------
+// ---------- setup dialog ("Setup" command dialog) ----------
 const SETUP_PICKS = ['wcsZ', 'wcsX', 'wcsY', 'origX', 'origY', 'origZ', 'origXY', 'setupBodies', 'fixtures'];
 const PICK_ICON = '<svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 1.5v11l3-3 2 4.5 2-1-2-4.3h4.2z" fill="currentColor"/></svg>';
 const fsec = t => h('div', { class: 'sec fsec' }, t);
@@ -4501,7 +4501,7 @@ function boxPointPicker(anchor, cur, onPick) {
   setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!pop.contains(ev.target)) { pop.remove(); removeEventListener('pointerdown', off, true); } }, true));
 }
 
-// selection button like Fusion: arrow icon, "Auswählen" or the count, ✕ clears
+// selection button: arrow icon, "Auswählen" or the count, ✕ clears
 function pickButton(mode, setup, count, label, clear) {
   const active = state.pick?.mode === mode && state.pick.id === setup.id;
   return h('div', { class: 'pickctl' },
@@ -4509,7 +4509,7 @@ function pickButton(mode, setup, count, label, clear) {
     count && clear ? h('button', { class: 'pickclr', title: 'Auswahl entfernen', onclick: clear }, '✕') : null);
 }
 
-// icon + select, like Fusion's drop-downs with symbols
+// icon + select like the usual drop-downs with symbols
 const iconSelect = (icon, options, value, onChange) => h('div', { class: 'isel' }, h('span', { class: 'isel-ic', html: icon }), sel(options, value, onChange));
 
 const SETUP_ICONS = {
@@ -4672,7 +4672,7 @@ function propsSetup(b) {
         break;
       }
     }
-    // material and the resulting size (Fusion: "Rohteilmaterial", "Rohteilbemaßungen")
+    // material and the resulting size ("Rohteilmaterial", "Rohteilbemaßungen")
     const MATS = allMaterials(), matName = MATS[s.stockMaterial]?.name;
     b.append(fsec('Rohteilmaterial'),
       row('Rohteilmaterial', h('button', { class: 'btn', title: 'Material wählen', onclick: e => ctxMenu(e.clientX, e.clientY, [
@@ -4738,7 +4738,7 @@ function addSetup() {
   select('setup', id);
 }
 
-// 3+2-Schruppen: Fusion tilts the tool for one operation; here it gets its own setup with that orientation
+// 3+2-Schruppen: common CAD/CAM tilts the tool for one operation; here it gets its own setup with that orientation
 function add32Rough() {
   const cur = state.project.cam.setups.find(x => x.id === activeSetupId());
   if (!cur || cur.kind === 'turn') return status('3+2-Schruppen braucht ein Fräs-Setup.');
@@ -4790,7 +4790,7 @@ const TOOLS_FOR = {
   default: t => ['flat', 'ball', 'torus', 'facemill'].includes(t.type),
 };
 
-// ---------- operation dialog (Fusion layout: Werkzeug · Werkzeugausrichtung · Geometrie · Höhen · Durchgänge · Verknüpfung) ----------
+// ---------- operation dialog (layout: Werkzeug · Werkzeugausrichtung · Geometrie · Höhen · Durchgänge · Verknüpfung) ----------
 const OP_TABS = [
   ['tool', 'Werkzeug', tabSvg('<path d="M9 3h6v5l-1 2v11h-4V10L9 8z"/><path d="M10 13l4-2M10 16l4-2M10 19l4-2"/>')],
   ['orient', 'Werkzeugausrichtung', '<svg viewBox="0 0 24 24" class="colored"><path d="M5 19V6" stroke="#4dabf7" stroke-width="2"/><path d="M5 19h13" stroke="#ff6b6b" stroke-width="2"/><path d="M5 19l9-6" stroke="#51cf66" stroke-width="2"/><path d="M15 3h5v4" fill="none" stroke="#e9ecef" stroke-width="1.6"/><path d="M14 9l5-5" stroke="#e9ecef" stroke-width="1.6"/></svg>'],
@@ -4805,7 +4805,7 @@ const COMP_TYPES = [['computer', 'Im Computer'], ['control', 'An Steuerung'], ['
 const RAPID_MODES = [['preserve', 'Eilgangbewegungen beibehalten'], ['clearance', 'Eilgang nur auf Rückzugs-/Sicherheitshöhe'], ['highFeed', 'Hohen Vorschub statt Eilgang']];
 const PICK_IC = '<svg viewBox="0 0 16 16" width="13" height="13"><path d="M4 1.5v11l3-2.6 2 4.4 1.8-.8-2-4.3 4-.3z" fill="currentColor"/></svg>';
 
-// section headed by a checkbox (Fusion: "☐ Haltestege"); content only when it is on
+// section headed by a checkbox ("☐ Haltestege"); content only when it is on
 const csec = (label, on, set, disabled = false) => h('label', { class: 'csec' + (on ? ' on' : '') + (disabled ? ' dis' : '') }, h('input', { type: 'checkbox', checked: !!on, disabled, onchange: e => set(e.target.checked) }), h('span', null, label));
 const toolLabel = x => `#${x.number} - Ø${f2(x.dia)}mm ${TOOL_TYPES[x.type] || x.type} (${x.name})`;
 
@@ -4836,7 +4836,7 @@ function pickToolForOp(op) {
   document.body.append(back);
 }
 
-// faces / edges for the machining boundary and for face groups (Fusion: "Auswahl" in the face manager)
+// faces / edges for the machining boundary and for face groups ("Auswahl" in the face manager)
 function opFacePick(e, meshes, m) {
   const op = camOp(state.pick.id);
   if (!op) return;
@@ -4901,7 +4901,7 @@ function opPointPick(e, meshes) {
   editOp(op.id, o => { o.entryPts = [...(o.entryPts || []), [+q.x.toFixed(3), +q.y.toFixed(3)]]; });
 }
 
-// ----- Fusion "Flächen-Manager": face groups that are machined, avoided, ignored or treated as fixtures -----
+// ----- common CAD/CAM "Flächen-Manager": face groups that are machined, avoided, ignored or treated as fixtures -----
 const FG_ACTIONS = {
   avoid: ['Vermeiden', 'Das Werkzeug vermeidet diese Flächen, während es in der Nähe liegende Flächen bearbeitet, und hält die Sicherheitsabstände ein.', '<svg viewBox="0 0 20 20"><rect x="2" y="13" width="16" height="4" fill="#e03131"/><path d="M12 2h3v7h-3z" fill="#ced4da"/><path d="M12 9h3l-1.5 2z" fill="#adb5bd"/></svg>'],
   machine: ['Bearbeiten', 'Das Werkzeug schneidet in Richtung der ausgewählten Flächen, bis es die angegebenen Aufmaße erreicht.', '<svg viewBox="0 0 20 20"><rect x="2" y="13" width="16" height="4" fill="#40c057"/><path d="M8.5 2h3v8h-3z" fill="#ced4da"/><path d="M8.5 10h3L10 12z" fill="#adb5bd"/></svg>'],
@@ -4939,7 +4939,7 @@ function faceManager(put, op, ed, N) {
   put('geo', h('div', { class: 'stats' },
     h('span', null, sg && sg.action !== 'machine' ? 'Radialer Sicherheitsabstand' : 'Gesamtes radiales Rohteilaufmaß'), h('b', null, `${f2(sg && sg.action !== 'machine' ? +sg.radial || 0 : totR)} mm`),
     h('span', null, sg && sg.action !== 'machine' ? 'Axialer Sicherheitsabstand' : 'Gesamtes axiales Rohteilaufmaß'), h('b', null, `${f2(sg && sg.action !== 'machine' ? +sg.axial || 0 : totA)} mm`)));
-  // editor of one group (Fusion: the "FLÄCHEN" box)
+  // editor of one group (the "FLÄCHEN" box)
   const eg = groups.find(g => g.id === ui.edit);
   if (eg) {
     const picking = state.pick?.mode === 'facegroup' && state.pick.id === op.id && state.pick.key === eg.id;
@@ -5086,7 +5086,7 @@ function propsOp(b, op) {
       row('Werkzeugeinschluss', sel([['inside', 'Werkzeug innerhalb der Begrenzung'], ['center', 'Werkzeugmitte auf der Begrenzung'], ['outside', 'Werkzeug außerhalb der Begrenzung']], op.toolContain || (bm === 'silhouette' ? 'outside' : 'center'), v => ed(x => (x.toolContain = v)))),
       N('Zusätzlicher Versatz', 'boundaryOffset'));
   }
-  // Fusion "Rohteildefinition" for 3D roughing
+  // common CAD/CAM "Rohteildefinition" for 3D roughing
   if (['rough3d', 'adaptive3d', 'pocket3d'].includes(op.type)) {
     const sf = op.stockFrom || (op.restDia ? 'prevTool' : 'setup');
     put('geo', sec('Rohteildefinition'),
@@ -5513,7 +5513,7 @@ function propsOp(b, op) {
   ));
 }
 
-// ---------- VERWALTEN (Fusion: Formfräser, Volumenhalter, Bibliotheken, Task-Manager, Vorgaben) ----------
+// ---------- VERWALTEN (Formfräser, Volumenhalter, Bibliotheken, Task-Manager, Vorgaben) ----------
 // a plain modal window with a body and buttons in the footer
 function modalWin(title, width = 720) {
   const back = h('div', { class: 'modal-back' });
@@ -5885,7 +5885,7 @@ function openMachiningTime(setupId) {
   draw();
 }
 
-// ----- Schnittdaten-Rechner (Fusion: feeds and speeds from the tool, the material and the strategy) -----
+// ----- Schnittdaten-Rechner (feeds and speeds from the tool, the material and the strategy) -----
 // Richtwerte für Hartmetall: Vc aus der Materialbibliothek, Zahnvorschub nach Werkstoffgruppe und Ø,
 // Zustellungen nach Strategie. Begrenzt auf Drehzahl und Vorschub der Maschine.
 const MAT_GROUP = { alu: 'nf', alu7075: 'nf', brass: 'nf', copper: 'nf', steel: 'steel', cast: 'steel', steelTool: 'hard', stainless: 'hard', titanium: 'hard', pom: 'plastic', pa: 'plastic', pe: 'plastic', wood: 'soft', mdf: 'soft', foam: 'soft' };
@@ -6327,7 +6327,7 @@ $('#postFileInput').addEventListener('change', async e => {
   } catch (err) { alert('Import fehlgeschlagen: ' + err.message); }
 });
 
-// ---------- tool library window (Fusion layout: libraries | tools + cutting data | filter/info) ----------
+// ---------- tool library window (layout: libraries | tools + cutting data | filter/info) ----------
 const TOOL_ICON = { probe: '⌖', flat: '▮', torus: '▯', facemill: '▬', ball: '◖', chamfer: '▼', drill: '⏷', tap: '⫶', ream: '┃', thread: '≣', turn: '◣', groove: '▭', tthread: '⋚' };
 const TOOL_MATERIALS = [['carbide', 'Hartmetall (HM)'], ['hss', 'HSS'], ['hsse', 'HSS-E (Cobalt)'], ['ceramics', 'Keramik'], ['pcd', 'PKD (Diamant)'], ['cermet', 'Cermet']];
 const tl = { lib: 'doc', sel: new Set(), anchor: null, sort: { key: 'dia', dir: 1 }, search: '', libSearch: '', filter: { types: new Set(), dmin: null, dmax: null, used: false, vendor: '' }, tab: 'info', clip: [], preset: 'default', openNodes: new Set(['user', 'local', 'samples']) };
@@ -6396,12 +6396,12 @@ function openToolLibrary() {
   const w = wm.get('winTools');
   w.show(true);
   const B = wm.bounds();
-  // Fusion's tool library is a big window
+  // the usual tool library is a big window
   if (w.s.w < Math.min(1200, B.w - 40) && !w.s.max) { Object.assign(w.s, { x: 10, y: 10, w: Math.min(1500, B.w - 20), h: B.h - 20 }); w.apply(); wm.save(); }
   renderToolLib();
 }
 
-// ---- drawing like Fusion's tool preview (side view with holder, scale bar) ----
+// ---- drawing like the usual tool preview (side view with holder, scale bar) ----
 function toolSvg(t, big = false) {
   const ns = 'http://www.w3.org/2000/svg';
   const W = 260, H = big ? 380 : 330;
@@ -6411,7 +6411,7 @@ function toolSvg(t, big = false) {
   const add = (tag, attrs, parent = svg) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.append(e); return e; };
   const dia = +t.dia || 1, shaft = toolShaft(t), flute = toolFlute(t), stick = toolStick(t), len = toolLen(t), shoulder = toolShoulder(t);
   const holderD = +(t.holderDia ?? defaultHolderDia(t)), holderL = Math.max(20, holderD * 1.4);
-  // like Fusion: the tool fills the view, the holder is only shown at its lower end
+  //: the tool fills the view, the holder is only shown at its lower end
   const totalH = stick + Math.min(holderL, stick * 0.35 + 4);
   const s = Math.min((H - 60) / totalH, (W - 60) / Math.max(shaft, dia) / 1.6);
   const cx = W / 2, tipY = H - 40, X = v => cx + v * s, Y = v => tipY - v * s;
@@ -6454,7 +6454,7 @@ function toolSvg(t, big = false) {
   return svg;
 }
 
-// ---- tool edit dialog (Fusion layout: form | 3D view | profile view) ----
+// ---- tool edit dialog (layout: form | 3D view | profile view) ----
 const SAMPLE_HOLDERS = [
   { id: 'h1', number: 0, type: 'holder', name: 'SK40 Spannzangenfutter ER32', dia: 50, holder: { segments: [{ h: 6, d1: 32, d2: 32 }, { h: 30, d1: 42, d2: 50 }, { h: 20, d1: 63, d2: 63 }] } },
   { id: 'h2', number: 0, type: 'holder', name: 'SK40 Spannzangenfutter ER16', dia: 32, holder: { segments: [{ h: 6, d1: 22, d2: 22 }, { h: 40, d1: 28, d2: 40 }, { h: 20, d1: 63, d2: 63 }] } },
@@ -6476,7 +6476,7 @@ function toolIcon(t, w = 22, h = 30) {
   return svg;
 }
 
-// "Neues Werkzeug": catalog with icons, like Fusion
+// "Neues Werkzeug": catalog with icons
 function openNewToolPicker(onPick) {
   const back = h('div', { class: 'modal-back' });
   const close = () => back.remove();
@@ -7012,7 +7012,7 @@ function fitView() {
 
 function insertFeature(f) {
   commit(p => {
-    // like Fusion: a sketch consumed by a feature is hidden
+    //: a sketch consumed by a feature is hidden
     const sk = f.sketch && p.features.find(s => s.id === f.sketch);
     if (sk) sk.hidden = true;
     if (state.rollback != null) { p.features.splice(state.rollback, 0, f); state.rollback++; if (state.rollback >= p.features.length) state.rollback = null; }
@@ -7215,7 +7215,7 @@ function createFeature(type, extra = {}) {
   if (type === 'extrude' || type === 'revolve' || type === 'hole') {
     const sk = pickSketch();
     if (!sk && type === 'extrude' && hasBodies) {
-      // no sketch: extrude faces of the body (Fusion lets you pick a face as the profile)
+      // no sketch: extrude faces of the body (lets you pick a face as the profile)
       f = { ...base, source: 'faces', faces: [], extent: 'one', distance: 5, distance2: 5, op: 'auto' };
       insertFeature(f);
       select('feature', id);
@@ -7476,7 +7476,7 @@ function applyConstraint(type) {
   sketcher.hooks.changed();
 }
 
-// Fusion: D starts the dimension tool (a fitting selection is used right away)
+// D starts the dimension tool (a fitting selection is used right away)
 function addDimension() {
   if (!state.sketchId) return;
   sketcher.setTool('dim');
@@ -7506,7 +7506,7 @@ function applyDimEdit(cid, text) {
   if (rc.value === v) return refreshSketchOverlay();
   commitSketch(state.sketchId, sk => { sk.constraints.find(x => x.id === cid).value = v; });
 }
-// drag a dimension label to a new place (Fusion: dimensions can be pulled away from the geometry)
+// drag a dimension label to a new place (dimensions can be pulled away from the geometry)
 function startDimDrag(ev, c, sk) {
   const el = ev.currentTarget, sx = ev.clientX, sy = ev.clientY;
   let moved = false;
@@ -7631,7 +7631,7 @@ function projectFaceAt(evt) {
   status(`${loops.length} Kontur(en) projiziert`);
 }
 
-// Sketch fillet / chamfer (like Fusion): corners of polylines and rectangles, and corners where two separate lines
+// Sketch fillet / chamfer (like common CAD/CAM): corners of polylines and rectangles, and corners where two separate lines
 // meet (they are joined into one polyline). 0 removes the rounding / chamfer.
 // Toolbar: with corner points selected, those are changed at once; otherwise the tool starts and the corners are
 // clicked one by one (hover shows the result)
@@ -7762,7 +7762,7 @@ function placeSelectedBody() {
   status('Position im Eigenschaften-Fenster unter „Komponente“ eintragen.');
 }
 
-// Gelenk like Fusion: click a joint origin on the moving component, then one on the component it is joined to.
+// Gelenk: click a joint origin on the moving component, then one on the component it is joined to.
 // Snap points: hole / shaft (axis end), circle on a flat face (its centre), else the face centre.
 function addJoint() {
   const bodies = getModel().bodies;
@@ -7834,7 +7834,7 @@ function jointPickClick(e, meshes, m) {
   status(turning ? 'Drehgelenk angelegt – mit dem Regler bewegen.' : 'Starres Gelenk angelegt – Art im Dialog ändern (Dreh-, Schiebe-, Zylindergelenk).');
 }
 
-// Gelenkursprung (Fusion: joint origin): a snap point with direction saved on a body, ahead of the joint
+// Gelenkursprung (joint origin): a snap point with direction saved on a body, ahead of the joint
 function addJointOrigin() {
   if (state.pick?.mode === 'jorigin') { state.pick = null; showBanner(null); return renderAll(); }
   if (!getModel().bodies.length) return status('Zuerst einen Körper erstellen.');
@@ -7970,7 +7970,7 @@ function jointCollides(j, values) {
     return interference(placedBodies(values)).some(r => (moving.has(r.a.id) !== moving.has(r.b.id)) && r.volume > 1e-3);
   } catch { return false; }
 }
-// joint symbol (Fusion: a ring around the joint axis with a short axis line), drawn where the joint sits
+// joint symbol (a ring around the joint axis with a short axis line), drawn where the joint sits
 function drawJointGlyphs() {
   const asm = state.project.assembly;
   if (state.workspace !== 'design' || !asm) return;
@@ -8074,7 +8074,7 @@ function renderDrawing(rebuild = false) {
   const p = state.project;
   const d = { sheet: 'A3', scale: 'auto', hidden: true, dims: true, views: { front: true, top: true, left: true, iso: true }, title: {}, ...(p.drawing || {}) };
   const ed = fn => commit(pp => { pp.drawing ||= { ...d }; fn(pp.drawing); });
-  // components where the assembly puts them (joints, placements), like Fusion's drawings of assemblies
+  // components where the assembly puts them (joints, placements) like the usual drawings of assemblies
   const asm = state.project.assembly;
   const bodies = getModel().bodies.filter(b => !state.hiddenBodies.has(b.id)).map(b => {
     if (!hasAssembly(asm)) return b;
@@ -8263,7 +8263,7 @@ function placedDrawingSvg(svg, offsets = {}) {
   return svg.replace(/<g data-view="(\w+)">/g, (m, k) => { const o = offsets?.[k]; return o ? `<g data-view="${k}" transform="translate(${(+o.dx).toFixed(2)} ${(+o.dy).toFixed(2)})">` : m; });
 }
 
-// drag a view on the sheet (Fusion: views are moved with the mouse); saved when released
+// drag a view on the sheet (views are moved with the mouse); saved when released
 function enableViewDrag(sheet, d, ed) {
   const svg = sheet.querySelector('svg');
   if (!svg) return;
@@ -9023,10 +9023,10 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Enter' && dialogTarget()) { e.preventDefault(); dialogOk(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'F6') { e.preventDefault(); return fitView(); }
-  // Fusion: F = Verrundung in KONSTRUKTION; elsewhere F still fits the view
+  // F = Verrundung in KONSTRUKTION; elsewhere F still fits the view
   if (k === 'f' && !(state.workspace === 'design' && !state.sketchId)) return fitView();
   if (k === 'v' && !state.sketchId) {
-    // Fusion: V toggles visibility of the selected body or sketch
+    // V toggles visibility of the selected body or sketch
     if (state.sel?.kind === 'body') return setBodyHidden([state.sel.id], !state.hiddenBodies.has(state.sel.id));
     const f = state.sel?.kind === 'feature' && feature(state.sel.id);
     if (f?.type === 'sketch') return setSketchesHidden([f.id], !f.hidden);
@@ -9151,7 +9151,7 @@ function applySettings() {
 
 const SM_ACTIONS = [['search', 'Befehl suchen'], ['fit', 'Einpassen'], ['home', 'Startansicht'], ['top', 'Ansicht oben'], ['front', 'Ansicht vorne'], ['right', 'Ansicht rechts'], ['menu', 'Markierungsmenü'], ['none', 'Keine Funktion']];
 
-// Preferences like Fusion's "Voreinstellungen": category tree on the left, grouped
+// Preferences like the usual "Voreinstellungen": category tree on the left, grouped
 // options on the right, changes take effect with "Übernehmen" or "OK".
 // Row: [key, label, help, kind, options]; kind: bool | num | color | text | list | posts | machines
 const PREF_TREE = [
@@ -9385,7 +9385,7 @@ function openSettings(page) {
       for (const [key, label, help, kind, opt] of rows) {
         if (key.startsWith('__')) { const r = special(key); if (r) grp.append(r); continue; }
         if (kind === 'bool') {
-          // Fusion style: check box in front of the text
+          // common CAD/CAM style: check box in front of the text
           grp.append(h('label', { class: 'prefs-row prefs-check' }, control(key, kind, opt), h('span', null, label), info(help)));
         } else {
           grp.append(h('div', { class: 'prefs-row' }, h('label', null, label, info(help)),
@@ -9551,7 +9551,7 @@ function openSmCalibration(onClose) {
   requestAnimationFrame(loop);
 }
 
-// ---------- marking menu (right click without dragging, like Fusion) ----------
+// ---------- marking menu (right click without dragging) ----------
 let rDown = null;
 $('#viewport').addEventListener('pointerdown', e => { if (e.button === 2) rDown = { x: e.clientX, y: e.clientY, t: performance.now() }; });
 $('#viewport').addEventListener('contextmenu', e => e.preventDefault());
@@ -9599,7 +9599,7 @@ function openMarkingMenu(x, y) {
   const R = 105;
   const run = fn => () => { closeMarkingMenu(); fn(); };
   const mm = h('div', { class: 'mm' }, h('div', { class: 'mm-center', onclick: closeMarkingMenu }));
-  // like Fusion: N, NE, E, SE, S, SW, W, NW
+  //: N, NE, E, SE, S, SW, W, NW
   ring.slice(0, 8).forEach((it, i) => {
     const a = -Math.PI / 2 + (i * Math.PI) / 4;
     const b = h('button', { class: 'mm-item', html: (ICONS[it.icon] || '') + `<span>${it.label}</span>`, onclick: run(it.fn) });
@@ -9717,7 +9717,7 @@ function sketchMirror() {
   status('Spiegeln: über die Spiegelachse fahren (Vorschau) und klicken. Esc beendet.');
 }
 
-// Sketch pattern (Fusion: "Rechteckige Anordnung" / "Runde Anordnung" in a sketch).
+// Sketch pattern ("Rechteckige Anordnung" / "Runde Anordnung" in a sketch).
 function sketchPattern(kind) {
   const { ents } = selectedSketchEntities();
   if (!ents.length) return status('Muster: zuerst Skizzenelemente wählen (Auswahl, Umschalt für mehrere).');
@@ -9761,7 +9761,7 @@ async function sketchXform(kind, data) {
   done();
 }
 
-// ---------- designs: data panel, document tabs, versions (like Fusion) ----------
+// ---------- designs: data panel, document tabs, versions (like common CAD/CAM) ----------
 const TABS_KEY = 'openfab.tabs.v1';
 let openTabs = (() => { try { return (JSON.parse(localStorage.getItem(TABS_KEY)) || []).filter(t => t && t.id); } catch { return []; } })();
 const saveTabs = () => { try { localStorage.setItem(TABS_KEY, JSON.stringify(openTabs)); } catch { /* storage unavailable */ } };
@@ -9972,7 +9972,7 @@ $('#commentAdd').onclick = async () => {
 $('#dataBtn').onclick = () => toggleData();
 $('#saveBtn').onclick = () => saveVersionCmd();
 
-// ---------- meshes (Fusion: NETZ workspace) – edited as triangles, never converted to B-rep ----------
+// ---------- meshes (NETZ workspace) – edited as triangles, never converted to B-rep ----------
 const MESH_OPS = { transform: 'Netz verschieben/drehen', cut: 'Ebenenschnitt', reduce: 'Reduzieren', smooth: 'Glätten', repair: 'Reparieren', flip: 'Normalen umkehren', split: 'Körper trennen' };
 const MESH_UNITS = { mm: 1, cm: 10, m: 1000, in: 25.4 };
 vp.meshes = new THREE.Group();
@@ -10173,7 +10173,7 @@ function drawMeshes() {
     const mesh = new THREE.Mesh(mb.geometry, mat);
     mesh.userData = { meshBody: mb.id, cached: true };
     vp.meshes.add(mesh);
-    // triangle edges when selected (like Fusion's mesh display), open edges in red
+    // triangle edges when selected (mesh display), open edges in red
     if (selected && mb.mesh.idx.length < 600000) {
       const w = new THREE.LineSegments(new THREE.WireframeGeometry(mb.geometry), matMeshWire);
       vp.meshes.add(w);
@@ -10200,7 +10200,7 @@ vp.canvas.addEventListener('pointerup', e => {
   if (hit && (!bhit || hit.distance < bhit.distance)) select('mesh', hit.object.userData.meshBody);
 });
 
-// ---------- Postprozess dialog (like Fusion: settings + operations, post properties) ----------
+// ---------- Postprozess dialog (settings + operations, post properties) ----------
 let outDir = null; // FileSystemDirectoryHandle chosen as output folder
 const fsDb = () => new Promise((res, rej) => { const r = indexedDB.open('openfab.fs', 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 (async () => { try { const d = await fsDb(); const q = d.transaction('h').objectStore('h').get('out'); q.onsuccess = () => { outDir = q.result || null; }; } catch { /* no IndexedDB */ } })();
@@ -10221,7 +10221,7 @@ async function writeOutput(name, code) {
   return 'heruntergeladen';
 }
 
-// ----- NC-Editor with backplot (Fusion: NC program preview) -----
+// ----- NC-Editor with backplot (NC program preview) -----
 // Lines with colours and numbers; clicking a line (or moving the slider) shows where the tool is at that line
 // in the 3D view and draws the path travelled so far.
 function parseNcPositions(code, heidenhain, toolRad = null) {

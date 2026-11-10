@@ -234,7 +234,7 @@ function finishTool(t, raw) {
   if (type === 'turn') tool.noseRadius = t.cornerR > 0 ? r3(t.cornerR) : 0.4;
   if (type === 'groove') tool.width = t.width > 0 ? r3(t.width) : dia;
   if (type === 'tap') tool.feed = tool.plunge = r3(tool.rpm * tool.pitch);
-  // descriptive data like in Fusion's tool library
+  // descriptive data like in the usual tool library
   for (const k of ['vendor', 'productId', 'productLink', 'material', 'coolant']) if (t[k]) tool[k] = String(t[k]).slice(0, 120);
   for (const k of ['length', 'shaftDia', 'shoulderLen']) if (t[k] > 0) tool[k] = r3(t[k]);
   if (t.cw === false) tool.cw = false;

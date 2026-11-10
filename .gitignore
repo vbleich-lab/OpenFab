@@ -13,3 +13,4 @@ rust/openfab-kernel/target/
 Thumbs.db
 desktop.ini
 .DS_Store
+tools/i18n/parked/

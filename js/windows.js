@@ -1,4 +1,4 @@
-// Floating panel windows (Fusion-style): drag by the title bar, resize from any
+// Floating panel windows (common CAD/CAM-style): drag by the title bar, resize from any
 // edge or corner, collapse to the title bar, maximize, close. The layout is
 // remembered per browser.
 

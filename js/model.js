@@ -126,7 +126,7 @@ function extrudeTool(sk, f) {
   return fuseAll(solids);
 }
 
-// Extrude planar faces of the bodies (Fusion: a face as the profile), along their outward normal
+// Extrude planar faces of the bodies (a face as the profile), along their outward normal
 function faceExtrudeTool(f, bodies) {
   const d = +f.distance;
   if (!d) fail('Abstand ist 0');
@@ -353,7 +353,7 @@ export function cylinderInfo(bodies, p) {
   try { return cylinderAt(bodies, p); } catch { return null; }
 }
 
-// All cylindrical faces of the bodies (for picking holes from above, like Fusion).
+// All cylindrical faces of the bodies (for picking holes from above).
 export function cylinderFaces(bodies) {
   const oc = R.getOC();
   const out = [];
@@ -400,7 +400,7 @@ function simplifyLoop(pts, tol) {
   return out.length >= 3 ? out : pts;
 }
 
-// ---------- Flächen (surface bodies: open shells, like Fusion's surface workspace) ----------
+// ---------- Flächen (surface bodies: open shells like the usual surface workspace) ----------
 export const SURFACE_TYPES = ['surfextrude', 'surfrevolve', 'patch', 'offsetsurf', 'surfloft', 'fill'];
 // true when a shape holds at least one closed solid (bodies without one are surface bodies)
 export function hasSolid(shape) {
@@ -564,7 +564,7 @@ function curvedRound(e, fa, fb, r, s) {
     return R.measureVolume(sw) < 0 ? R.cast(sw.wrapped.Reversed()) : sw;
   } catch { return null; }
 }
-// Aufdicken: fill the gap at outer corners between two picked faces with a round (like Fusion's arc join)
+// Aufdicken: fill the gap at outer corners between two picked faces with a round (arc join)
 function thickenCorners(faces, off) {
   const fills = [];
   const r = Math.abs(off), s = Math.sign(off);
@@ -600,7 +600,7 @@ function pickedEdges(refs, bodies) {
   return out;
 }
 const P3 = p => [p.x, p.y, p.z];
-// Verlängern: the surface grows past the picked edges, tangent to the surface (Fusion: "Tangential")
+// Verlängern: the surface grows past the picked edges, tangent to the surface ("Tangential")
 function extendSurface(f, bodies) {
   const d = +f.distance;
   if (!(d > 0)) fail('Abstand fehlt');
@@ -1008,7 +1008,7 @@ export function patternAxis(f, features = []) {
   if (f.axis && !['x', 'y', 'z'].includes(f.axis) && !ca) fail('Konstruktionsachse fehlt');
   return ca ? { c: ca.o, d: ca.d } : { c: [+f.cx || 0, +f.cy || 0, +f.cz || 0], d: { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[f.axis || 'z'] };
 }
-// Pattern along a sketch path (Fusion "Muster entlang Pfad"): one placement per copy, relative to the path start.
+// Pattern along a sketch path ("Muster entlang Pfad"): one placement per copy, relative to the path start.
 // → [{ tr: [x,y,z], rot: { deg, c, axis } | null }] for copies 1…n-1
 export function pathPlacements(f, features = []) {
   const ps = features.find(x => x.id === f.pathSketch);
@@ -1174,12 +1174,12 @@ function runFeature(f, ctx) {
     else if (f.type === 'rib') tool = ribTool(f, sketches);
     else tool = primitiveTool(f);
     let op = f.type === 'hole' ? 'cut' : f.type === 'emboss' ? (f.mode === 'deboss' ? 'cut' : 'join') : f.op, target = f.target;
-    // faces pulled outwards add material to their body, pushed inwards they cut (Fusion: "Automatisch")
+    // faces pulled outwards add material to their body, pushed inwards they cut ("Automatisch")
     if (faceInfo) {
       if (!op || op === 'auto') op = +f.distance < 0 && f.extent !== 'sym' ? 'cut' : 'join';
       if (!target) target = faceInfo.body;
     }
-    // thicken joins / cuts the body whose faces were picked (Fusion does the same)
+    // thicken joins / cuts the body whose faces were picked (does the same)
     if (f.type === 'thicken' && !target) target = bodiesWithPoints(bodies, f.faces || [])[0]?.b.id;
     tools[f.id] = { tool: tool.clone(), op, target };
     applyOp(bodies, tool, op, f.id, target);
@@ -1294,7 +1294,7 @@ export function meshBody(shape, K = activeKernel()) {
 }
 
 // upTo: number of features to replay (rollback); null = all.
-// ---------- timeline cache (like Fusion: only the edited feature and what follows is recomputed) ----------
+// ---------- timeline cache (only the edited feature and what follows is recomputed) ----------
 // After every feature a snapshot of the bodies, feature tools, threads and results is kept, keyed by the
 // timeline up to that feature (and the kernel). Snapshots hold copies; restoring copies them again, because
 // many kernel operations consume their input shapes.
@@ -1557,7 +1557,7 @@ export function sketchVisual(sketch, { active = false, selectedId = null, dark =
       if (o.pts.length < 2) continue;
       const pts = o.pts.map(p => new THREE.Vector3(p[0], p[1], z));
       if (o.closed) pts.push(pts[0].clone());
-      // like Fusion: under-defined geometry is blue, fully defined is black/white
+      //: under-defined geometry is blue, fully defined is black/white
       const base = active ? (constrained ? (dark ? 0xe6edf3 : 0x1d2733) : dark ? 0x5aaaf0 : 0x1f6fd1) : o.closed ? (dark ? 0xe0b25a : 0x7a5a1e) : dark ? 0x9aa7b4 : 0x8a96a3;
       const col = e.id === selectedId ? 0x0696d7 : e.cons ? (dark ? 0xff9a3c : 0xe07000) : base;
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), e.cons ? consMat(col, active) : lineMat(col, active));

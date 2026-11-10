@@ -5,7 +5,7 @@
 //
 // The German original of everything translated is remembered: code that reads a text back from the page uses
 // deText(el) / deAttr(el, name).
-export const LANGS = { de: 'Deutsch', en: 'English', ru: 'Русский', zh: '中文' };
+export const LANGS = { de: 'Deutsch', en: 'English', zh: '中文' };
 const KEY = 'openfab.lang';
 
 function detect() {
