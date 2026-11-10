@@ -200,7 +200,16 @@ export function holeProfile(f) {
   return prof;
 }
 
+// A tapped hole ("Gewindebohrung"): the size decides the diameter – the hole is the tap drill (core) hole.
+export function tappedHole(f) {
+  if (!f.tapped) return null;
+  const t = THREAD_SIZES.find(x => x[0] === f.threadSize) || THREAD_SIZES.find(x => x[0] === 'M8');
+  return { name: t[0], D: t[1], P: t[2], core: t[3] };
+}
+
 function holeTool(sk, f) {
+  const tap = tappedHole(f);
+  if (tap) f = { ...f, dia: tap.core };
   const b = basis(sk);
   const circles = sk.entities.filter(e => e.type === 'circle' && (!Array.isArray(f.points) || f.points.includes(e.id)));
   if (!circles.length) fail('Keine Kreise als Bohrungsmittelpunkte in der Skizze');
@@ -1135,6 +1144,22 @@ function runFeature(f, ctx) {
       const sk = sketches[f.sketch];
       if (!sk) fail('Skizze fehlt');
       tool = f.type === 'extrude' ? extrudeTool(sk, f) : f.type === 'revolve' ? revolveTool(sk, f, ctx.features) : holeTool(sk, f);
+      // tapped holes carry their thread (drawn as a cosmetic thread, named in drawings): it starts below a
+      // counterbore / countersink and runs as deep as given, or down the whole hole
+      const tap = f.type === 'hole' && tappedHole(f);
+      if (tap) {
+        const bs = basis(sk), n = bs.n.toArray(), d = n.map(v => -v);
+        const skip = f.kind === 'cbore' ? +f.cbDepth || 0 : f.kind === 'csink' ? Math.max(0, ((+f.csDia || 0) - tap.core) / 2 / Math.tan((((+f.csAngle || 90) / 2) * Math.PI) / 180)) : 0;
+        for (const c of sk.entities.filter(e => e.type === 'circle' && (!Array.isArray(f.points) || f.points.includes(e.id)))) {
+          const o = toWorld(bs, c.cx, c.cy).toArray(), start = o.map((v, i) => v + d[i] * skip);
+          // how far the material goes below the start (through holes): the far side of the bodies' boxes
+          let far = 0;
+          for (const bd of bodies) { try { const [lo, hi] = bd.shape.boundingBox.bounds; for (const x of [lo[0], hi[0]]) for (const y of [lo[1], hi[1]]) for (const z of [lo[2], hi[2]]) far = Math.max(far, (x - start[0]) * d[0] + (y - start[1]) * d[1] + (z - start[2]) * d[2]); } catch { /* no box */ } }
+          const full = f.through ? far : Math.max(0, (+f.depth || 0) - skip);
+          const L = +f.threadDepth > 0 ? Math.min(+f.threadDepth, full || +f.threadDepth) : full;
+          if (L > 1e-6) ctx.threads.push({ id: f.id, name: `${tap.name}×${tap.P}`, c: start, d, r: tap.core / 2, L, P: tap.P, outside: false });
+        }
+      }
     } else if (f.type === 'loft') tool = loftTool(f, sketches);
     else if (f.type === 'freeform') tool = freeformTool(f);
     else if (f.type === 'sheet') {

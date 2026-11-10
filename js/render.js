@@ -11,7 +11,45 @@ export const ENVIRONMENTS = {
   sky: 'Himmel',
   neutral: 'Neutral grau',
 };
-export const RENDER_DEFAULTS = { env: 'studio', exposure: 1, background: 'env', bgColor: '#e9edf1', ground: true, shadows: true, reflection: 0.25, lightAz: 35, lightEl: 55, samples: 128, dof: 0 };
+export const RENDER_DEFAULTS = { env: 'studio', exposure: 1, background: 'studio', bgColor: '#e9edf1', ground: true, shadows: true, reflection: 0.12, lightAz: 35, lightEl: 55, samples: 128, dof: 0 };
+
+// Studio backdrop per environment: a soft vertical gradient behind the part (top, middle, bottom of the picture)
+// and the colour of the floor spot under it. The floor fades out towards its rim, so no horizon line shows.
+const BACKDROPS = {
+  studio: { top: '#aeb7c0', mid: '#dfe4e9', bot: '#f4f6f8', floor: 0xffffff },
+  dark: { top: '#08090b', mid: '#1b1f24', bot: '#343a41', floor: 0x4a5159 },
+  warm: { top: '#4a3d31', mid: '#a8937b', bot: '#dccdb9', floor: 0xefe3d2 },
+  neutral: { top: '#5d656d', mid: '#9aa2aa', bot: '#c6ccd2', floor: 0xdde2e7 },
+  sky: null, // the sky itself is the backdrop
+};
+function backdropTexture(b) {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 256;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, b.top); gr.addColorStop(0.55, b.mid); gr.addColorStop(1, b.bot);
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// soft dark spot under the part: it sits on the floor instead of floating above it
+function contactTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(0.45, 'rgba(0,0,0,0.38)'); gr.addColorStop(0.8, 'rgba(0,0,0,0.08)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+// opaque in the middle, gone at the rim
+function fadeTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, '#fff'); gr.addColorStop(0.35, '#fff'); gr.addColorStop(0.7, '#555'); gr.addColorStop(1, '#000');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
 
 // a light room for each environment, rendered into an environment map
 function envScene(kind) {
@@ -79,12 +117,16 @@ export class RenderStudio {
     this.stage = new THREE.Group();
     this.floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0, transparent: true }));
     this.floor.renderOrder = -2;
+    this.fade = null;
+    this.backdrops = {};
     this.catcher = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.5 }));
     this.catcher.receiveShadow = true;
     this.catcher.renderOrder = -1;
     this.mirror = new THREE.Group();
-    this.stage.add(this.mirror, this.floor, this.catcher);
-    this.light = new THREE.DirectionalLight(0xffffff, 2.2);
+    this.contact = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: contactTexture(), transparent: true, depthWrite: false, toneMapped: false }));
+    this.contact.renderOrder = -1;
+    this.stage.add(this.mirror, this.floor, this.catcher, this.contact);
+    this.light = new THREE.DirectionalLight(0xffffff, 3.2);
     this.light.castShadow = true;
     this.light.shadow.mapSize.set(2048, 2048);
     this.light.shadow.bias = -0.0004;
@@ -158,20 +200,31 @@ export class RenderStudio {
     if (!this.active) return;
     const sc = this.vp.scene, s = this.s;
     sc.environment = this.env(s.env);
-    if (s.background === 'env') { sc.background = this.env(s.env); sc.backgroundBlurriness = 0.45; }
-    else { sc.background = new THREE.Color(s.bgColor); sc.backgroundBlurriness = 0; }
-    this.vp.renderer.toneMappingExposure = +s.exposure || 1;
+    // backdrop: studio gradient (default), the blurred environment, or one colour
+    const drop = s.background === 'studio' ? BACKDROPS[s.env] : null;
+    if (drop) { sc.background = (this.backdrops[s.env] ||= backdropTexture(drop)); sc.backgroundBlurriness = 0; }
+    else if (s.background === 'color') { sc.background = new THREE.Color(s.bgColor); sc.backgroundBlurriness = 0; }
+    else { sc.background = this.env(s.env); sc.backgroundBlurriness = 0.45; }
+    // a little under the neutral exposure: the bright studio rooms would wash the part out
+    this.vp.renderer.toneMappingExposure = (+s.exposure || 1) * 0.82;
     const b = this.box.isEmpty() ? new THREE.Box3(new THREE.Vector3(-50, -50, 0), new THREE.Vector3(50, 50, 50)) : this.box;
     const size = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
     const R = Math.max(size.x, size.y, size.z, 1);
     const z0 = b.min.z - R * 0.002;
-    const W = R * 200; // far beyond the view: the floor's edge must not show
+    // studio backdrop: a floor spot that fades out; otherwise a floor far beyond the view (its edge must not show)
+    const W = drop ? R * 14 : R * 200;
     for (const m of [this.floor, this.catcher]) { m.scale.set(W, W, 1); m.position.set(c.x, c.y, z0); }
+    const fm = this.floor.material, fadeMap = drop ? (this.fade ||= fadeTexture()) : null;
+    if (fm.alphaMap !== fadeMap) { fm.alphaMap = fadeMap; fm.needsUpdate = true; }
+    fm.depthWrite = !drop;
     this.catcher.position.z = z0 + R * 0.0005;
+    this.contact.scale.set(size.x * 1.45 + R * 0.1, size.y * 1.45 + R * 0.1, 1);
+    this.contact.position.set(c.x, c.y, z0 + R * 0.001);
+    this.contact.visible = !!s.ground && !!s.shadows;
     this.floor.visible = this.catcher.visible = !!s.ground;
     this.mirror.visible = !!s.ground && +s.reflection > 0;
     // the floor takes the background colour so it fades into it; the reflection shows through it
-    this.floor.material.color.set(s.background === 'env' ? ({ dark: 0x1c2024, sky: 0x8d8a83, warm: 0x6e5f4f }[s.env] || 0xc9cfd5) : s.bgColor);
+    this.floor.material.color.set(drop ? drop.floor : s.background === 'color' ? s.bgColor : ({ dark: 0x1c2024, sky: 0x8d8a83, warm: 0x6e5f4f }[s.env] || 0xc9cfd5));
     this.floor.material.opacity = 1 - Math.min(0.9, +s.reflection || 0);
     this.light.castShadow = !!s.shadows;
     this.catcher.visible = !!s.ground && !!s.shadows;

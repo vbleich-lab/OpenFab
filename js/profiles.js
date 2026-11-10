@@ -209,6 +209,24 @@ export function translateEntity(e, dx, dy) {
   return c;
 }
 
+// Mirror image of an entity about the line through a and b (without id; null for kinds that cannot be mirrored).
+// A mirrored polyline runs the other way round, so its corner numbers (fillets, chamfers) are turned too;
+// a rectangle becomes a closed polyline.
+export function mirrorEntity(e, a, b) {
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
+  const M = ([x, y]) => { const t = (x - a[0]) * ux + (y - a[1]) * uy, px = a[0] + t * ux, py = a[1] + t * uy; return [+(2 * px - x).toFixed(4), +(2 * py - y).toFixed(4)]; };
+  const axDeg = (Math.atan2(uy, ux) * 180) / Math.PI;
+  const { id: _id, ...c } = JSON.parse(JSON.stringify(e));
+  if (e.type === 'poly') {
+    const rev = (o, f = v => v) => (o ? Object.fromEntries(Object.entries(o).map(([k, v]) => [e.pts.length - 1 - +k, f(v)])) : undefined);
+    return { ...c, pts: e.pts.map(p => M(p.map(Number))).reverse(), radii: rev(e.radii), chamfers: rev(e.chamfers, v => (Array.isArray(v) ? [v[1], v[0]] : v)) };
+  }
+  if (e.type === 'circle') { const [cx, cy] = M([+e.cx, +e.cy]); return { type: 'circle', cx, cy, r: e.r, ...(e.cons ? { cons: true } : {}) }; }
+  if (e.type === 'rect') return { type: 'poly', closed: true, pts: [[+e.x, +e.y], [+e.x + +e.w, +e.y], [+e.x + +e.w, +e.y + +e.h], [+e.x, +e.y + +e.h]].map(M).reverse(), ...(e.cons ? { cons: true } : {}) };
+  if (e.type === 'ngon' || e.type === 'slot' || e.type === 'ellipse') { const [cx, cy] = M([+e.cx, +e.cy]); return { ...c, cx, cy, rot: +(2 * axDeg - (+e.rot || 0)).toFixed(4) }; }
+  return null;
+}
+
 export function rotateEntity(e, deg, [ox, oy] = [0, 0]) {
   const a = (deg * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
   const R = ([x, y]) => [ox + (x - ox) * ca - (y - oy) * sa, oy + (x - ox) * sa + (y - oy) * ca];

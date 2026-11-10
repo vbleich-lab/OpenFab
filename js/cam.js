@@ -464,6 +464,48 @@ function opGeometry(op, project, allowEmpty = false) {
   return { sk, X, items, ...buildRegions(items) };
 }
 
+// Sketch curves for milling with a driven tool on the lathe (turning axis = model Z), as tool centre paths:
+//  - sketch plane across the axis (on the face): kind 'face', points [x, y] on the part, z of the plane
+//  - sketch plane along the axis: kind 'wrap', points [s, z] with s = way around the cylinder from the angle phi
+//    the plane faces (it is wrapped onto the diameter)
+// op.side: 'on' (cutter centre on the curve), 'inside' / 'outside' (closed curves, cutter beside it).
+function liveCurves(op, project, toolR) {
+  const sk = project.features.find(f => f.id === op.sketch && f.type === 'sketch');
+  if (!sk) throw new Error('Keine Skizze als Geometrie gewählt');
+  const b = basis(sk), n = b.n.clone().normalize();
+  const face = Math.abs(Math.abs(n.z) - 1) < 1e-6, along = Math.abs(n.z) < 1e-6;
+  if (!face && !along) throw new Error('Die Skizze muss quer zur Drehachse (Planfläche) oder längs zu ihr (zum Abwickeln) liegen');
+  // horizontal direction in a plane along the axis: the way the angle grows at phi
+  const hx = -n.y, hy = n.x, foot = b.o.clone();
+  if (along) { const d = b.o.x * n.x + b.o.y * n.y; foot.set(d * n.x, d * n.y, 0); }
+  const map = ([u, v]) => { const p = toWorld(b, u, v); return face ? [p.x, p.y] : [(p.x - foot.x) * hx + (p.y - foot.y) * hy, p.z]; };
+  let curves = sk.entities
+    .filter(e => !e.cons && (!Array.isArray(op.entities) || op.entities.includes(e.id)))
+    .flatMap(e => entityOutlines(e))
+    .filter(o => o.pts.length >= 2)
+    .map(o => ({ pts: o.pts.map(map), closed: !!o.closed }));
+  if (!curves.length) throw new Error('Keine Kurven in der Skizze');
+  const side = op.side || 'on', off = toolR + (+op.stockToLeave || 0);
+  if (op.type === 'tpocket') {
+    // pocket: offset rings of the closed curves (islands by even-odd), from the inside out
+    const closed = curves.filter(c => c.closed && c.pts.length >= 3);
+    if (!closed.length) throw new Error('Die Tasche braucht geschlossene Konturen');
+    const so = Math.max(0.05, 2 * toolR * (+op.stepover > 0 ? +op.stepover : 0.45));
+    const rings = pocketRings(unionEvenOdd(closed.map(c => toC(c.pts))), off, so);
+    if (!rings.length) throw new Error('Werkzeug zu groß für die Tasche');
+    curves = rings.slice().reverse().flat().filter(l => l.length >= 3).map(pts => ({ pts, closed: true }));
+    return { kind: face ? 'face' : 'wrap', curves, so, z: face ? b.o.z : null, phi: null, dist: null };
+  }
+  if (side !== 'on') {
+    const closed = curves.filter(c => c.closed && c.pts.length >= 3);
+    if (!closed.length) throw new Error('„Innen/Außen“ braucht geschlossene Konturen – offene Kurven mit „Auf der Kurve“ fräsen');
+    const loops = offsetPaths(unionEvenOdd(closed.map(c => toC(c.pts))), side === 'inside' ? -off : off).map(fromC).filter(l => l.length >= 3);
+    if (!loops.length) throw new Error('Werkzeug zu groß für die Kontur');
+    curves = loops.map(pts => ({ pts, closed: true }));
+  }
+  return { kind: face ? 'face' : 'wrap', curves, z: face ? b.o.z : null, phi: along ? (Math.atan2(n.y, n.x) * 180) / Math.PI : null, dist: along ? Math.hypot(foot.x, foot.y) : null };
+}
+
 // Z levels of everything the sketch's features touch (extrude ends, hole bottoms).
 function featureZs(op, project, stock) {
   const sk = project.features.find(f => f.id === op.sketch);
@@ -555,6 +597,10 @@ export function opHeights(op, project, stock, setup) {
   return { top: out.top, bottom: out.bottom + axial, edge, auto: spec.bottom.from === 'auto', retract: Math.max(out.retract, out.top), safe: Math.max(out.safe, out.retract, out.top), feed: out.feed };
 }
 
+// Surface a control cycle starts from: the top of the feature (hole, pocket edge) when it lies above the bottom,
+// otherwise the top height of the operation (a sketch without depth: the cut runs from the top height down to it).
+const cycleTop = h => (h.edge != null && h.edge - h.bottom > 1e-6 && h.edge <= h.top + 1e-6 ? h.edge : h.top);
+
 function levels(top, bottom, step) {
   if (top - bottom < 1e-6) return [];
   step = step > 0 ? step : top - bottom;
@@ -563,6 +609,23 @@ function levels(top, bottom, step) {
   while (z - step > bottom + 1e-6) { z -= step; out.push(+z.toFixed(4)); }
   out.push(bottom);
   return out;
+}
+
+// The loop started at its point closest to p – anywhere on its outline, not only at a vertex (the point is
+// inserted). Offset rings of a pocket are then exactly one stepover apart at the link.
+function rotateNearestOn(loop, p) {
+  let bi = 0, bt = 0, bd = Infinity;
+  for (let i = 0; i < loop.length; i++) {
+    const a = loop[i], b = loop[(i + 1) % loop.length], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+    const u = L2 > 1e-18 ? Math.max(0, Math.min(1, ((p.x - a[0]) * dx + (p.y - a[1]) * dy) / L2)) : 0;
+    const d = (a[0] + u * dx - p.x) ** 2 + (a[1] + u * dy - p.y) ** 2;
+    if (d < bd - 1e-12) { bd = d; bi = i; bt = u; }
+  }
+  const a = loop[bi], b = loop[(bi + 1) % loop.length];
+  if (bt < 1e-6) return [...loop.slice(bi), ...loop.slice(0, bi)];
+  if (bt > 1 - 1e-6) { const j = (bi + 1) % loop.length; return [...loop.slice(j), ...loop.slice(0, j)]; }
+  const q = [a[0] + bt * (b[0] - a[0]), a[1] + bt * (b[1] - a[1])];
+  return [q, ...loop.slice(bi + 1), ...loop.slice(0, bi + 1)];
 }
 
 function rotateNearest(loop, p) {
@@ -970,7 +1033,7 @@ function genContour(op, t, P, h, project) {
   const removal = Math.max(0.5, offsets[0] - base);
   return {
     studCycle: {
-      pockets: fit.shapes.map(s => ({ ...s, kind: s.kind === 'circ' ? 'circ' : 'rect', blank: removal })), top: h.edge ?? h.top, bottom: h.bottom,
+      pockets: fit.shapes.map(s => ({ ...s, kind: s.kind === 'circ' ? 'circ' : 'rect', blank: removal })), top: cycleTop(h), bottom: h.bottom,
       stepdown: lv.length > 1 ? Math.abs(lv[0] - lv[1]) || (h.top - h.bottom) : h.top - h.bottom, stl, overlap: Math.min(1.9999, Math.max(0.1, (nr ? rs : t.dia * 0.4) / (t.dia / 2))),
       climb, feed: fFinal, plunge: t.plunge, clear: P.clear, toolR: t.dia / 2,
     },
@@ -1026,9 +1089,11 @@ function clearRings(P, rings, lv, t, op, so, zTop) {
     for (const ring of ordered) {
       for (let loop of ring) {
         if (op.direction === 'conventional') loop = loop.slice().reverse();
-        if (P.p) loop = rotateNearest(loop, P.p);
+        // the next ring starts where it is closest: one stepover away, so the cutter stays down and crosses
+        // only material this ring removes anyway (a longer link could clip a wall, so it retracts instead)
+        if (P.p) loop = rotateNearestOn(loop, P.p);
         const [sx, sy] = loop[0];
-        const near = P.p && Math.abs(P.p.z - z) < 1e-6 && Math.hypot(P.p.x - sx, P.p.y - sy) <= so * 1.05 + 1e-3;
+        const near = P.p && Math.abs(P.p.z - z) < 1e-6 && Math.hypot(P.p.x - sx, P.p.y - sy) <= so + 0.01;
         if (near) P.feed(sx, sy, z, t.feed);
         else P.enterLoop(loop, zPrev + 0.5, z, t, op.rampType === 'plunge' ? 0 : +op.ramp);
         P.loopPass(loop, z, t.feed);
@@ -1055,7 +1120,7 @@ function genPocket(op, t, P, h, project) {
   if (fit.why) return { pocketCycle: null, pocketCycleWhy: fit.why };
   return {
     pocketCycle: {
-      pockets: fit.shapes, top: h.edge ?? h.top, bottom: h.bottom, stepdown: +op.stepdown || t.stepdown, stl: +op.stockToLeave || 0,
+      pockets: fit.shapes, top: cycleTop(h), bottom: h.bottom, stepdown: +op.stepdown || t.stepdown, stl: +op.stockToLeave || 0,
       overlap: Math.min(1.9999, Math.max(0.1, so / (t.dia / 2))), climb: op.direction !== 'conventional', feed: t.feed, plunge: t.plunge, clear: P.clear,
       helix: !(op.rampType === 'plunge'), ramp: +op.ramp || 3, toolR: t.dia / 2,
     },
@@ -1210,7 +1275,7 @@ function genDrill(op, t, P, h, project) {
   }
   return {
     cycle: {
-      type, pts: holes.map(c => c.p), top: h.edge ?? h.top, bottom: h.bottom, clear: P.clear,
+      type, pts: holes.map(c => c.p), top: cycleTop(h), bottom: h.bottom, clear: P.clear,
       peck: peck > 0 ? peck : h.top - h.bottom, dwell, pitch, feed, rpm: t.rpm, left: op.hand === 'left',
     },
     holeOrder: { n: holes.length, len: ord.len, before: ord.before, nearest: ord.nearest },
@@ -1257,7 +1322,7 @@ function genThread(op, t, P, h, project) {
     const N = 72;
     // right-hand internal thread, climb milling: counter-clockwise while rising
     const dir = (rightHand ? 1 : -1) * (external ? -1 : 1);
-    const zTop = h.edge ?? h.top;
+    const zTop = cycleTop(h);
     if (external) P.moveAbove(cx + R + t.dia, cy); else P.moveAbove(cx, cy);
     P.feed(P.p.x, P.p.y, h.bottom, t.plunge);
     P.feed(cx + R, cy, h.bottom, t.feed / 2);
@@ -1744,16 +1809,35 @@ function genCircular(op, t, P, h, project) {
   for (const { p: [cx, cy], r } of holes) {
     const R = r - t.dia / 2 - (+op.stockToLeave || 0);
     if (R <= 0) throw new Error(`Kreistasche Ø${+(2 * r).toFixed(2)} ist zu klein für Fräser Ø${t.dia}`);
+    // entry: down a helix smaller than the cutter (no core is left, the centre of the cutter does not have to
+    // cut); "Eintauchen" as plunge keeps the straight plunge at the centre
+    const rampDeg = op.rampType === 'plunge' ? 0 : +op.ramp > 0 ? +op.ramp : 3;
+    const rh = Math.min(R, 0.45 * t.dia), helix = rampDeg > 0 && rh >= 0.05;
+    let a = 0;
     for (const [i, z] of lv.entries()) {
-      if (i === 0) P.plungeAt(cx, cy, z, t.plunge); else { P.feed(cx, cy, P.p.z, t.feed); P.feed(cx, cy, z, t.plunge); }
-      // Archimedean spiral out to the wall, then one full circle on size
-      let a = 0;
-      for (let rr = 0; rr < R; ) {
-        a += dir * (Math.PI / 36);
-        rr = Math.min(R, (so * Math.abs(a)) / (2 * Math.PI));
-        P.feed(cx + rr * Math.cos(a), cy + rr * Math.sin(a), z, t.feed);
+      const at = (rr, z2, f) => P.feed(cx + rr * Math.cos(a), cy + rr * Math.sin(a), z2, f);
+      let r0 = 0;
+      if (!helix) {
+        if (i === 0) P.plungeAt(cx, cy, z, t.plunge); else { P.feed(cx, cy, P.p.z, t.feed); P.feed(cx, cy, z, t.plunge); }
+        a = 0;
+      } else {
+        const sx = cx + rh * Math.cos(a), sy = cy + rh * Math.sin(a);
+        if (i === 0) P.plungeAt(sx, sy, Math.min(h.top + 0.5, P.clear), t.plunge); else P.feed(sx, sy, P.p.z, t.feed);
+        const zFrom = P.p.z, drop = zFrom - z;
+        const turns = Math.min(200, Math.max(1, Math.ceil(drop / (2 * Math.PI * rh * Math.tan((rampDeg * Math.PI) / 180))))), steps = turns * 72;
+        for (let k = 1; k <= steps; k++) { a += dir * (Math.PI / 36); at(rh, zFrom - (drop * k) / steps, t.helixFeed ?? t.feed); }
+        // one turn on the level flattens what the helix left
+        if (rh < R - 1e-6) for (let k = 1; k <= 72; k++) { a += dir * (Math.PI / 36); at(rh, z, t.feed); }
+        r0 = rh;
       }
-      for (let k = 1; k <= 72; k++) { const b = a + (dir * k * Math.PI) / 36; P.feed(cx + R * Math.cos(b), cy + R * Math.sin(b), z, t.feed); }
+      // Archimedean spiral out to the wall, then one full circle on size
+      const a0 = a;
+      for (let rr = r0; rr < R; ) {
+        a += dir * (Math.PI / 36);
+        rr = Math.min(R, r0 + (so * Math.abs(a - a0)) / (2 * Math.PI));
+        at(rr, z, t.feed);
+      }
+      for (let k = 1; k <= 72; k++) { a += dir * (Math.PI / 36); at(R, z, t.feed); }
     }
     P.feed(cx, cy, P.p.z, t.feed);
     P.retract();
@@ -2855,6 +2939,46 @@ function genProbe(op, t, P, project) {
   return { probe: res };
 }
 
+// Drops the points of plain feed moves that lie on the straight line between their neighbours (offset rings and
+// heightmap passes come with many of them): the path stays the same within tol, the program gets shorter and
+// the machine does not have to chew through blocks of a few hundredths. Points on arcs stay (their sag is far
+// above tol), so arc fitting in the post still finds them. Moves with compensation, leads, dwell or rotary
+// values are left alone.
+const LEAN_KEYS = new Set(['t', 'x', 'y', 'z', 'f']);
+const isPlainFeed = m => { if (m.t !== 'f') return false; for (const k in m) if (!LEAN_KEYS.has(k)) return false; return true; };
+export function leanMoves(moves, tol = 0.0005) {
+  const n = moves.length;
+  if (n < 3) return moves;
+  const keep = new Uint8Array(n).fill(1);
+  const tol2 = tol * tol;
+  let i = 1;
+  while (i < n) {
+    if (!isPlainFeed(moves[i])) { i++; continue; }
+    let j = i;
+    while (j + 1 < n && isPlainFeed(moves[j + 1]) && moves[j + 1].f === moves[i].f) j++;
+    // chain: the point before the run, then the run; Douglas-Peucker between its ends
+    if (j > i && Number.isFinite(moves[i - 1].x)) {
+      for (let k = i; k < j; k++) keep[k] = 0;
+      const stack = [[i - 1, j]];
+      while (stack.length) {
+        const [a, b] = stack.pop();
+        if (b - a < 2) continue;
+        const A = moves[a], B = moves[b], ux = B.x - A.x, uy = B.y - A.y, uz = B.z - A.z, L2 = ux * ux + uy * uy + uz * uz;
+        let worst = -1, wd = tol2;
+        for (let k = a + 1; k < b; k++) {
+          const q = moves[k], vx = q.x - A.x, vy = q.y - A.y, vz = q.z - A.z;
+          const u = L2 > 1e-18 ? Math.max(0, Math.min(1, (vx * ux + vy * uy + vz * uz) / L2)) : 0;
+          const dx = vx - u * ux, dy = vy - u * uy, dz = vz - u * uz, d = dx * dx + dy * dy + dz * dz;
+          if (d > wd) { wd = d; worst = k; }
+        }
+        if (worst >= 0) { keep[worst] = 1; stack.push([a, worst], [worst, b]); }
+      }
+    }
+    i = j + 1;
+  }
+  return moves.filter((_, k) => keep[k]);
+}
+
 export function generateOp(op, project, stock, ctx) {
   let t = project.cam.tools.find(x => x.id === op.tool);
   if (!t) throw new Error('Kein Werkzeug gewählt');
@@ -2943,7 +3067,8 @@ function generateOpInner(op, project, stock, ctx, t, s) {
     case 'probe': extra = genProbe(op, t, P, project); break;
   }
   P.end();
-  const moves = rapidMode(P.m, op, h);
+  // a quarter of the operation's tolerance: arc fitting in the post (half of it) still accepts the thinned arcs
+  const moves = leanMoves(rapidMode(P.m, op, h), Math.min(0.002, Math.max(0.0002, (+op.tolerance || 0.01) / 4)));
   return { moves, heights: h, tool: t, ...extra, ...stats(moves, ctx.rapid) };
 }
 
@@ -2972,6 +3097,125 @@ function rapidMode(moves, op, h) {
     if (mode === 'clearance' && m.z >= Math.min(h.retract, h.safe) - 1e-6) return m;
     return { ...m, t: 'f', f: hf, highFeed: true };
   });
+}
+
+// ---------- links over the remaining material ("Kürzester sicherer Weg") ----------
+// The material as it stands while the setup is machined: a height field (top of stock or model per cell, never
+// below the model), cut by every feed move. Cells count as cut only where the tool surely was, so the field
+// errs on the side of more material.
+class StockField {
+  constructor(stock, model) {
+    const res = this.res = Math.max(0.3, Math.min(1, Math.max(stock.maxX - stock.minX, stock.maxY - stock.minY) / 250));
+    this.minX = stock.minX; this.minY = stock.minY;
+    const nx = this.nx = Math.max(2, Math.round((stock.maxX - stock.minX) / res) + 1), ny = this.ny = Math.max(2, Math.round((stock.maxY - stock.minY) / res) + 1);
+    const G = this.G = new Float32Array(nx * ny), M = this.M = new Float32Array(nx * ny).fill(-Infinity);
+    const h2 = res / 2;
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const x = stock.minX + i * res, y = stock.minY + j * res, k = j * nx + i;
+      // the highest of the cell: its centre and corners (stock shapes and the model are sampled coarser or finer)
+      let top = -Infinity, mt = -Infinity;
+      for (const [dx, dy] of [[0, 0], [-h2, -h2], [h2, -h2], [-h2, h2], [h2, h2]]) {
+        top = Math.max(top, stockTopAt(stock, Math.min(stock.maxX, Math.max(stock.minX, x + dx)), Math.min(stock.maxY, Math.max(stock.minY, y + dy))));
+        if (model) {
+          const mi = Math.round((x + dx - model.minX) / model.res), mj = Math.round((y + dy - model.minY) / model.res);
+          for (let b = Math.max(0, mj - 1); b <= Math.min(model.ny - 1, mj + 1); b++) for (let a = Math.max(0, mi - 1); a <= Math.min(model.nx - 1, mi + 1); a++) mt = Math.max(mt, model.h[b * model.nx + a]);
+        }
+      }
+      M[k] = mt;
+      G[k] = Math.max(top, mt);
+    }
+  }
+  // cutting profile of a tool: height above its tip at distance d from the axis
+  static profile(tool) {
+    const R = Math.max(0.05, (+tool.dia || 1) / 2), half = ((+tool.angle || 90) / 2) * (Math.PI / 180), tip = (+tool.tip || 0) / 2, cr = Math.min(R, +tool.cornerRadius || 0);
+    if (tool.type === 'ball') return d => R - Math.sqrt(Math.max(0, R * R - d * d));
+    if (tool.type === 'chamfer' || tool.type === 'drill' || tool.type === 'center' || tool.type === 'spot') return d => Math.max(0, d - tip) / Math.tan(half);
+    if (cr > 0) return d => (d <= R - cr ? 0 : cr - Math.sqrt(Math.max(0, cr * cr - (d - (R - cr)) ** 2)));
+    return () => 0;
+  }
+  cutMove(a, b, tool) {
+    const { res, nx, ny, G, M, minX, minY } = this, R = Math.max(0.05, (+tool.dia || 1) / 2);
+    let st = this.stamps?.get(tool);
+    if (!st) {
+      // only cells that lie inside the tool with half a cell to spare: the edge of the cut stays standing
+      const prof = StockField.profile(tool), rc = Math.ceil(R / res), offs = [];
+      for (let dj = -rc; dj <= rc; dj++) for (let di = -rc; di <= rc; di++) { const d = Math.hypot(di * res, dj * res) + res * 0.75; if (d <= R) offs.push(di, dj, prof(d)); }
+      (this.stamps ||= new Map()).set(tool, (st = offs));
+    }
+    const L = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z), n = Math.max(1, Math.ceil(L / (res * 0.5)));
+    for (let q = 0; q <= n; q++) {
+      const x = a.x + ((b.x - a.x) * q) / n, y = a.y + ((b.y - a.y) * q) / n, z = a.z + ((b.z - a.z) * q) / n;
+      const ci = Math.round((x - minX) / res), cj = Math.round((y - minY) / res);
+      for (let o = 0; o < st.length; o += 3) {
+        const i = ci + st[o], j = cj + st[o + 1];
+        if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
+        const k = j * nx + i, v = Math.max(z + st[o + 2], M[k]);
+        if (v < G[k]) G[k] = v;
+      }
+    }
+  }
+  // highest material under a tool of radius rad travelling straight from a to b
+  maxAlong(ax, ay, bx, by, rad) {
+    const { res, nx, ny, G, minX, minY } = this, rr = rad + res, rc = Math.ceil(rr / res);
+    const L = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.ceil(L / (res * 0.5)));
+    let top = -Infinity;
+    for (let q = 0; q <= n; q++) {
+      const x = ax + ((bx - ax) * q) / n, y = ay + ((by - ay) * q) / n;
+      const ci = Math.round((x - minX) / res), cj = Math.round((y - minY) / res);
+      for (let dj = -rc; dj <= rc; dj++) for (let di = -rc; di <= rc; di++) {
+        const i = ci + di, j = cj + dj;
+        if (i < 0 || j < 0 || i >= nx || j >= ny || Math.hypot(di * res, dj * res) > rr + res) continue;
+        if (G[j * nx + i] > top) top = G[j * nx + i];
+      }
+    }
+    return top;
+  }
+}
+
+// Retracts between two cuts go only as high as the material left on the way needs (plus the safe distance)
+// instead of up to the retract height: [up, across, down] runs of rapids are rewritten, everything else stays.
+// The field is cut along the way, so material this operation has already removed counts as gone.
+function shortLinks(moves, tool, field, safeDist, linkZ) {
+  const out = [], n = moves.length;
+  const R = Math.max(0.05, (+tool.dia || 1) / 2);
+  let saved = 0, links = 0;
+  let i = 0;
+  while (i < n) {
+    const m = moves[i], prev = out[out.length - 1];
+    if (m.t !== 'r' || !prev || !Number.isFinite(prev.x)) {
+      if (prev && m.t !== 'r' && Number.isFinite(m.x) && Number.isFinite(prev.x) && m.a == null) field.cutMove(prev, m, tool);
+      out.push(m); i++;
+      continue;
+    }
+    // run of rapids from A (= prev) to B
+    let j = i;
+    while (j + 1 < n && moves[j + 1].t === 'r') j++;
+    const A = prev, B = moves[j], run = moves.slice(i, j + 1);
+    const zTop = Math.max(...run.map(q => q.z));
+    // shape: straight up at A, across at the top, straight down at B (nothing else is touched)
+    const plain = Object.keys(B).every(k => 'txyz'.includes(k)) && run.every((q, k) => {
+      const p0 = k ? run[k - 1] : A, dxy = Math.hypot(q.x - p0.x, q.y - p0.y);
+      return dxy < 1e-6 || (Math.abs(q.z - zTop) < 1e-6 && Math.abs(p0.z - zTop) < 1e-6);
+    });
+    const dist = Math.hypot(B.x - A.x, B.y - A.y);
+    if (plain && j + 1 < n && zTop >= linkZ - 1e-6 && dist > 1e-6 && A.z < zTop - 1e-6) {
+      const need = field.maxAlong(A.x, A.y, B.x, B.y, R + 0.5) + safeDist;
+      // a straight feed down follows at B: it may start right above the material instead of at B's height
+      const nx = moves[j + 1], plunge = nx.t === 'f' && Math.hypot(nx.x - B.x, nx.y - B.y) < 1e-6 && nx.z < B.z - 1e-6;
+      const zh = Math.max(A.z, plunge ? nx.z : B.z, need);
+      if (Number.isFinite(zh) && zh < zTop - 0.5) {
+        if (zh > A.z + 1e-6) out.push({ t: 'r', x: A.x, y: A.y, z: zh });
+        out.push({ t: 'r', x: B.x, y: B.y, z: zh });
+        if (B.z < zh - 1e-6) out.push({ t: 'r', x: B.x, y: B.y, z: B.z });
+        saved += 2 * (zTop - zh) - 0; links++;
+        i = j + 1;
+        continue;
+      }
+    }
+    for (const q of run) out.push(q);
+    i = j + 1;
+  }
+  return { moves: out, links, saved };
 }
 
 // Material left after a milling setup, as a height field in that setup's frame: the stock shape cut by
@@ -3067,7 +3311,7 @@ export function generateSetup(project, allBodies, setup, prevGen = null, modelKe
   const bodies = setupBodies(allBodies, setup);
   if (setup.kind === 'turn') {
     const m = findMachine(project, setup.machine);
-    return generateTurnSetup(project, bodies, setup, m, m?.rapid || RAPID_FEED);
+    return generateTurnSetup(project, bodies, setup, m, m?.rapid || RAPID_FEED, { curves: (op, toolR) => liveCurves(op, project, toolR) });
   }
   T = setupMatrix(setup);
   const results = new Map();
@@ -3090,6 +3334,17 @@ export function generateSetup(project, allBodies, setup, prevGen = null, modelKe
   const { ops: _o, ncPrograms: _n, ...camRest } = project.cam;
   let chain = modelKey == null ? null : hashStr(modelKey + '|' + (prevGen?.cacheKey || '') + '|' + JSON.stringify(camRest) + '|' + JSON.stringify(project.features) + '|' + JSON.stringify(machine || null));
   let hits = 0;
+  // the material while the setup is machined (built when an operation asks for it): cut by the operations so far
+  let field = null;
+  const fieldUpTo = k => {
+    field ||= Object.assign(new StockField(stock, ctx.heightmap()), { done: 0 });
+    for (let q = field.done; q < k; q++) {
+      const r = results.get(ops[q].id);
+      if (!r || r.error || r.disabled || !r.moves?.length || !r.tool || r.rotary) continue;
+      for (let w = 1; w < r.moves.length; w++) if (r.moves[w].t !== 'r' && Number.isFinite(r.moves[w - 1].x)) field.cutMove(r.moves[w - 1], r.moves[w], r.tool);
+    }
+    field.done = Math.max(field.done, k);
+  };
   for (const op of ops) {
     if (chain) chain = hashStr(chain + opJson(op));
     if (op.enabled === false) { results.set(op.id, { moves: [], disabled: true }); continue; }
@@ -3100,6 +3355,13 @@ export function generateSetup(project, allBodies, setup, prevGen = null, modelKe
       const t0 = performance.now();
       ctx.prior = ops.slice(0, ops.indexOf(op)).map(o => results.get(o.id)).filter(Boolean);
       res = generateOp(op, project, stock, ctx);
+      // "Kürzester sicherer Weg": needs the material as it stands before this operation
+      if (op.retractPolicy === 'stock' && res.moves?.length && res.tool && !res.rotary && op.type !== 'probe' && !(setup.fixtures || []).length) {
+        fieldUpTo(ops.indexOf(op));
+        const sl = shortLinks(res.moves, res.tool, field, Math.max(0.2, +(op.safeDist ?? 1)), res.heights?.retract ?? stock.top);
+        field.done = ops.indexOf(op) + 1; // shortLinks has cut this operation into the field
+        if (sl.links) { res.moves = sl.moves; Object.assign(res, stats(res.moves, ctx.rapid), { shortLinks: { n: sl.links, saved: sl.saved } }); }
+      }
       res.calcMs = performance.now() - t0;
     } catch (err) {
       res = { error: err.message, moves: [] };

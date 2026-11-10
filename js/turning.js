@@ -6,6 +6,8 @@ import { MeshBVH } from 'three-mesh-bvh';
 export const TURN_OPS = {
   tface: 'Plandrehen', trough: 'Längsschruppen', tfinish: 'Konturschlichten',
   tgroove: 'Einstechen', tthread: 'Gewindedrehen', tpart: 'Abstechen', tdrill: 'Bohren (Drehachse)', tbore: 'Innendrehen',
+  tlive: 'Bohren angetrieben (C-Achse)', tslot: 'Nut angetrieben (C-Achse)', tflat: 'Schlüsselflächen (C-Achse)',
+  tcontour: 'Kontur Planfläche (C-Achse)', twrap: 'Kontur Mantelfläche (C-Achse)', tpocket: 'Tasche Planfläche (C-Achse)',
 };
 export const TURN_TOOL_TYPES = { turn: 'Drehmeißel (außen)', groove: 'Stechmeißel', tthread: 'Gewindedrehmeißel', drill: 'Bohrer', turnbore: 'Bohrstange (Drehen - Bohren)' };
 
@@ -141,6 +143,18 @@ class LPath {
   rapid(x, z) { this.m.push({ t: 'r', x, y: 0, z }); this.p = { x, z }; }
   feed(x, z, f) { this.m.push({ t: 'f', x, y: 0, z, f }); this.p = { x, z }; }
   thread(x, z, f, pitch) { this.m.push({ t: 't', x, y: 0, z, f, pitch }); this.p = { x, z }; }
+  // driven tool with the spindle as C axis: the tool stays in the XZ plane of the machine at radius xr, the part
+  // is turned to c (degrees). x/y are the position on the part (for display and simulation).
+  live(t, xr, c, z, dir, f) {
+    const a = (c * Math.PI) / 180;
+    this.m.push({ t, x: xr * Math.cos(a), y: xr * Math.sin(a), z, xr, c, live: dir, ...(f ? { f } : {}) });
+    this.p = { x: xr, z };
+  }
+  // driven axial tool moving in the plane across the axis (polar interpolation X/C): x, y on the part
+  polar(t, x, y, z, f, tag) {
+    this.m.push({ t, x, y, z, xr: Math.hypot(x, y), c: +((Math.atan2(y, x) * 180) / Math.PI).toFixed(4), live: 'ax', polar: true, ...(f ? { f } : {}), ...(tag ? { [tag]: true } : {}) });
+    this.p = { x: Math.hypot(x, y), z };
+  }
 }
 
 // Drops points within tol of the straight move that replaces them (Douglas-Peucker: every dropped point is checked
@@ -431,14 +445,259 @@ function genTurnOp(op, t, st, prof, ctx = {}) {
       P.rapid(st.r + 1, z); P.feed(-0.5, z, t.plunge); P.rapid(st.r + 1, z);
       break;
     }
+    case 'tlive': {
+      // drilling with a driven tool: axial (along Z into the face, off centre) or radial (along X into the
+      // diameter); the spindle positions the part as C axis
+      const radial = op.dir === 'radial', R = sh.R, angs = liveAngles(op);
+      const depth = +op.depth, pk = +op.peck || 0, f = t.plunge || t.feed;
+      if (!angs.length) throw new Error('Keine Bohrposition – Anzahl oder Winkel angeben');
+      if (!(depth > 0)) throw new Error('Bohrtiefe angeben');
+      const dir = radial ? 'rad' : 'ax';
+      // a hole from `from` to `to` along the feed axis (pos = the value of the other axis)
+      const hole = (c, pos, from, to, surface) => {
+        const at = v => (radial ? [v, c, pos] : [pos, c, v]);
+        P.live('r', ...at(from), dir);
+        for (let cur = from; cur > to + 1e-9;) {
+          const nx = pk > 0 ? Math.max(to, Math.min(cur, surface) - pk) : to; // the first peck counts from the surface
+          P.live('f', ...at(nx), dir, f);
+          cur = nx;
+          if (cur > to + 1e-9) { P.live('r', ...at(from), dir); P.live('r', ...at(cur + 0.5), dir); }
+        }
+        P.live('r', ...at(from), dir);
+      };
+      if (radial) {
+        if (op.z == null || op.z === '') throw new Error('Position Z der Querbohrung angeben');
+        const z = +op.z;
+        if (z > st.modelTop - R + 1e-6 || z < st.modelBottom + R - 1e-6) throw new Error('Position Z liegt nicht am Teil');
+        // surface: the largest radius under the drill; before any turning the stock is still there
+        let surf = 0;
+        for (let d = -R; d <= R + 1e-9; d += prof.dz) surf = Math.max(surf, prof.at(z + d));
+        if (!ctx.turned) surf = Math.max(surf, st.r);
+        if (depth > 2 * surf + 1) throw new Error(`Bohrtiefe ${depth} mm ist größer als der Durchmesser ${+(2 * surf).toFixed(2)} mm`);
+        const rIn = surf + 1;
+        P.live('r', clearX, angs[0], clearZ, dir);
+        P.live('r', clearX, angs[0], z, dir);
+        for (const c of angs) hole(c, z, rIn, surf - depth, surf);
+        P.live('r', clearX, angs[angs.length - 1], z, dir);
+        P.live('r', clearX, angs[angs.length - 1], clearZ, dir);
+      } else {
+        const rad = (+op.pitchDia || 0) / 2;
+        if (!(rad > 0)) throw new Error('Lochkreis-Ø angeben (Bohrungen auf der Drehachse: „Bohren“)');
+        if (rad + R > st.r + 1e-6) throw new Error('Lochkreis liegt außerhalb des Rohteils');
+        const zIn = st.top + 1;
+        P.live('r', rad, angs[0], clearZ, dir);
+        for (const c of angs) hole(c, rad, zIn, st.modelTop - depth, st.modelTop);
+        P.live('r', rad, angs[angs.length - 1], clearZ, dir);
+      }
+      break;
+    }
+    case 'tpocket': {
+      // pocket on the face with a driven end mill along Z: offset rings from the inside out, ramping down the
+      // innermost ring, the rings of a level linked without lifting (X and C together: polar interpolation)
+      const R = Math.max(0.05, (+t.dia || 0) / 2), depth = +op.depth;
+      if (!(depth > 0)) throw new Error('Tiefe angeben');
+      const G = ctx.curves?.(op, R);
+      if (!G) throw new Error('Keine Skizze als Geometrie gewählt');
+      if (G.kind !== 'face') throw new Error('Die Skizze der Tasche muss quer zur Drehachse liegen (auf der Planfläche)');
+      const zLo = st.modelTop - depth;
+      if (zLo < st.modelBottom - 1e-6) throw new Error('Tiefe ist größer als das Teil lang ist');
+      const ap = +op.stepdown > 0 ? +op.stepdown : Math.max(0.1, R), nz = Math.max(1, Math.ceil(depth / ap - 1e-9));
+      const rampDeg = op.rampType === 'plunge' ? 0 : +op.ramp > 0 ? +op.ramp : 3, tanR = Math.tan((rampDeg * Math.PI) / 180);
+      const zIn = st.top + 2, len = l => l.reduce((a, q, i) => a + Math.hypot(l[(i + 1) % l.length][0] - q[0], l[(i + 1) % l.length][1] - q[1]), 0);
+      // a loop started at its point closest to (x, y)
+      const startAt = (l, x, y) => {
+        let bi = 0, bu = 0, bd = Infinity;
+        for (let i = 0; i < l.length; i++) {
+          const a = l[i], b = l[(i + 1) % l.length], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+          const u = L2 > 1e-18 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / L2)) : 0, d = (a[0] + u * dx - x) ** 2 + (a[1] + u * dy - y) ** 2;
+          if (d < bd - 1e-12) { bd = d; bi = i; bu = u; }
+        }
+        const a = l[bi], b = l[(bi + 1) % l.length];
+        if (bu < 1e-6) return [...l.slice(bi), ...l.slice(0, bi)];
+        if (bu > 1 - 1e-6) { const j = (bi + 1) % l.length; return [...l.slice(j), ...l.slice(0, j)]; }
+        return [[a[0] + bu * (b[0] - a[0]), a[1] + bu * (b[1] - a[1])], ...l.slice(bi + 1), ...l.slice(0, bi + 1)];
+      };
+      P.rapid(clearX, zIn);
+      let cur = null; // [x, y, z] while the cutter is down
+      const lift = () => { if (cur) { P.polar('r', cur[0], cur[1], zIn); cur = null; } };
+      for (let k = 1; k <= nz; k++) {
+        const z = st.modelTop - (depth * k) / nz, zPrev = st.modelTop - (depth * (k - 1)) / nz;
+        for (const c of G.curves) {
+          const loop = cur ? startAt(c.pts, cur[0], cur[1]) : c.pts, [sx, sy] = loop[0];
+          const near = cur && Math.abs(cur[2] - z) < 1e-9 && Math.hypot(cur[0] - sx, cur[1] - sy) <= G.so + 0.01;
+          if (near) P.polar('f', sx, sy, z, t.feed, 'groove');
+          else {
+            lift();
+            // down to just above what is cut already, then along the loop on a ramp (or straight down)
+            const zFrom = (k === 1 ? st.top : zPrev) + 0.5;
+            P.polar('r', sx, sy, zIn); P.polar('r', sx, sy, zFrom);
+            const L = len(loop);
+            if (rampDeg > 0 && L > 1e-6) {
+              const turns = Math.min(50, Math.max(1, Math.ceil((zFrom - z) / tanR / L))), total = turns * L;
+              let w = 0;
+              for (let q = 0; q < turns; q++) for (let i = 1; i <= loop.length; i++) {
+                const a = loop[i - 1], b = loop[i % loop.length];
+                w += Math.hypot(b[0] - a[0], b[1] - a[1]);
+                P.polar('f', b[0], b[1], zFrom - (zFrom - z) * (w / total), t.feed, 'groove');
+              }
+            } else P.polar('f', sx, sy, z, t.plunge || t.feed, 'groove');
+          }
+          for (let i = 1; i <= loop.length; i++) P.polar('f', loop[i % loop.length][0], loop[i % loop.length][1], z, t.feed, 'groove');
+          cur = [sx, sy, z];
+        }
+        lift();
+      }
+      P.rapid(clearX, zIn);
+      break;
+    }
+    case 'tcontour': {
+      // sketch curves on the face with a driven end mill along Z (X and C together: polar interpolation)
+      const R = Math.max(0.05, (+t.dia || 0) / 2), depth = +op.depth;
+      if (!(depth > 0)) throw new Error('Tiefe angeben');
+      const G = ctx.curves?.(op, R);
+      if (!G) throw new Error('Keine Skizze als Geometrie gewählt');
+      if (G.kind !== 'face') throw new Error('Die Skizze muss quer zur Drehachse liegen (auf der Planfläche) – für den Umfang „Kontur Mantelfläche“');
+      const zTop = Math.min(st.top, Math.max(G.z, st.modelTop)), zLo = st.modelTop - depth;
+      if (zLo < st.modelBottom - 1e-6) throw new Error('Tiefe ist größer als das Teil lang ist');
+      const ap = +op.stepdown > 0 ? +op.stepdown : depth, nz = Math.max(1, Math.ceil((st.modelTop - zLo) / ap - 1e-9));
+      const zIn = st.top + 2;
+      void zTop;
+      P.rapid(clearX, zIn);
+      for (const c of G.curves) {
+        const pts = c.closed ? [...c.pts, c.pts[0]] : c.pts;
+        if (pts.some(q => Math.hypot(q[0], q[1]) > st.r + R + 20)) throw new Error('Die Kontur liegt weit außerhalb des Rohteils');
+        for (let k = 1; k <= nz; k++) {
+          const z = st.modelTop - ((st.modelTop - zLo) * k) / nz;
+          // open curves go back and forth, closed ones always the same way round
+          const seq = !c.closed && k % 2 === 0 ? pts.slice().reverse() : pts;
+          if (k === 1 || c.closed) { if (k === 1) { P.polar('r', seq[0][0], seq[0][1], zIn); P.polar('r', seq[0][0], seq[0][1], st.top + 1); } }
+          P.polar('f', seq[0][0], seq[0][1], z, t.plunge || t.feed, 'groove');
+          for (const q of seq.slice(1)) P.polar('f', q[0], q[1], z, t.feed, 'groove');
+        }
+        P.polar('r', P.m[P.m.length - 1].x, P.m[P.m.length - 1].y, zIn);
+      }
+      P.rapid(clearX, zIn);
+      break;
+    }
+    case 'twrap': {
+      // sketch curves wrapped onto the diameter with a driven end mill pointing at the axis: Z and C together
+      const R = Math.max(0.05, (+t.dia || 0) / 2), depth = +op.depth;
+      if (!(depth > 0)) throw new Error('Tiefe angeben');
+      const G = ctx.curves?.(op, R);
+      if (!G) throw new Error('Keine Skizze als Geometrie gewählt');
+      if (G.kind !== 'wrap') throw new Error('Die Skizze muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Kontur Planfläche“');
+      const zs = G.curves.flatMap(c => c.pts.map(q => q[1])), zA = Math.max(...zs), zB = Math.min(...zs);
+      if (zB < st.modelBottom - 1e-6 || zA > st.top + R + 1e-6) throw new Error('Die Kontur liegt in Z nicht am Teil');
+      let surf = 0;
+      for (let z = zB - R; z <= zA + R + 1e-9; z += prof.dz) surf = Math.max(surf, prof.at(Math.max(st.modelBottom + prof.dz, Math.min(z, st.modelTop - prof.dz))));
+      if (!ctx.turned) surf = Math.max(surf, st.r);
+      const Rw = +op.wrapDia > 0 ? +op.wrapDia / 2 : surf;
+      if (depth > surf) throw new Error(`Tiefe ${depth} mm ist größer als der Radius ${+surf.toFixed(2)} mm`);
+      const ap = +op.stepdown > 0 ? +op.stepdown : Math.max(0.1, R), n = Math.max(1, Math.ceil(depth / ap - 1e-9)), rIn = surf + 1;
+      const ang = s => +(G.phi + ((s / Rw) * 180) / Math.PI).toFixed(4);
+      ctx.cyl = Rw;
+      let first = true;
+      for (const c of G.curves) {
+        const pts = c.closed ? [...c.pts, c.pts[0]] : c.pts;
+        for (let k = 1; k <= n; k++) {
+          const x = surf - (depth * k) / n, seq = !c.closed && k % 2 === 0 ? pts.slice().reverse() : pts;
+          if (k === 1) {
+            if (first) P.live('r', clearX, ang(seq[0][0]), clearZ, 'rad');
+            P.live('r', clearX, ang(seq[0][0]), seq[0][1], 'rad');
+            P.live('r', rIn, ang(seq[0][0]), seq[0][1], 'rad');
+            first = false;
+          }
+          P.live('f', x, ang(seq[0][0]), seq[0][1], 'rad', t.plunge || t.feed);
+          for (const q of seq.slice(1)) { P.live('f', x, ang(q[0]), q[1], 'rad', t.feed); P.m[P.m.length - 1].cyl = true; }
+        }
+        const e = P.m[P.m.length - 1];
+        P.live('r', clearX, e.c, e.z, 'rad');
+      }
+      { const e = P.m[P.m.length - 1]; P.live('r', clearX, e.c, clearZ, 'rad'); }
+      break;
+    }
+    case 'tslot': {
+      // keyway along Z with a driven end mill pointing at the axis (C fixed per slot)
+      const R = Math.max(0.05, (+t.dia || 0) / 2), angs = liveAngles(op), depth = +op.depth;
+      if (!angs.length) throw new Error('Keine Nut – Anzahl oder Winkel angeben');
+      if (!(depth > 0)) throw new Error('Nuttiefe angeben');
+      if (op.zStart == null || op.zStart === '' || op.zEnd == null || op.zEnd === '') throw new Error('Start Z und Ende Z der Nut angeben');
+      const zA = Math.max(+op.zStart, +op.zEnd), zB = Math.min(+op.zStart, +op.zEnd);
+      if (zB < st.modelBottom - 1e-6 || zA > st.top + 1e-6) throw new Error('Nut liegt nicht am Teil');
+      let surf = 0;
+      for (let z = zB - R; z <= zA + R + 1e-9; z += prof.dz) surf = Math.max(surf, prof.at(Math.min(z, st.modelTop - prof.dz)));
+      if (!ctx.turned) surf = Math.max(surf, st.r);
+      if (depth > surf) throw new Error(`Nuttiefe ${depth} mm ist größer als der Radius ${+surf.toFixed(2)} mm`);
+      // open towards the face: the cutter comes in from in front of the face, otherwise it plunges at the start
+      const open = zA >= st.modelTop - 1e-6, zIn = open ? st.top + R + 1 : zA, rIn = surf + 1;
+      const ap = +op.stepdown > 0 ? +op.stepdown : Math.max(0.1, R), n = Math.max(1, Math.ceil(depth / ap - 1e-9));
+      P.live('r', clearX, angs[0], clearZ, 'rad');
+      for (const c of angs) {
+        P.live('r', clearX, c, zIn, 'rad');
+        P.live('r', rIn, c, zIn, 'rad');
+        let at = zIn;
+        for (let k = 1; k <= n; k++) {
+          const x = surf - (depth * k) / n, to = at === zIn ? zB : zIn;
+          if (open && at === zIn) P.live('r', x, c, at, 'rad'); else P.live('f', x, c, at, 'rad', t.plunge || t.feed);
+          P.live('f', x, c, to, 'rad', t.feed);
+          at = to;
+        }
+        P.live('r', clearX, c, at, 'rad');
+      }
+      P.live('r', clearX, angs[angs.length - 1], clearZ, 'rad');
+      break;
+    }
+    case 'tflat': {
+      // flats at the end of the part (wrench flats, square, hexagon) with a driven end mill along Z: the cutter
+      // passes the flat on a straight line across the axis (X and C together: polar interpolation)
+      const R = Math.max(0.05, (+t.dia || 0) / 2), angs = liveAngles(op), d = (+op.width || 0) / 2, len = +op.length;
+      if (!angs.length) throw new Error('Keine Fläche – Anzahl oder Winkel angeben');
+      if (!(d > 0)) throw new Error('Schlüsselweite angeben');
+      if (!(len > 0)) throw new Error('Länge der Flächen angeben');
+      const zLo = st.modelTop - len;
+      if (zLo < st.modelBottom - 1e-6) throw new Error('Flächen sind länger als das Teil');
+      let surf = 0;
+      for (let z = zLo; z <= st.modelTop + 1e-9; z += prof.dz) surf = Math.max(surf, prof.at(Math.min(z, st.modelTop - prof.dz)));
+      if (!ctx.turned) surf = Math.max(surf, st.r);
+      if (d >= surf - 1e-6) throw new Error(`Schlüsselweite ${2 * d} mm ist nicht kleiner als der Durchmesser ${+(2 * surf).toFixed(2)} mm`);
+      const ae = +op.stepover > 0 ? +op.stepover : Math.max(0.1, 0.8 * R), nr = Math.max(1, Math.ceil((surf - d) / ae - 1e-9));
+      const ap = +op.stepdown > 0 ? +op.stepdown : len, nz = Math.max(1, Math.ceil(len / ap - 1e-9));
+      const zIn = st.top + 2, far = surf + R + 1;
+      P.rapid(clearX, zIn);
+      for (const c of angs) {
+        const a = (c * Math.PI) / 180, ux = Math.cos(a), uy = Math.sin(a);
+        for (let kz = 1; kz <= nz; kz++) {
+          const z = st.modelTop - (len * kz) / nz;
+          for (let kr = 1; kr <= nr; kr++) {
+            // tool centre line at distance q from the axis, from outside the round to outside the round
+            const q = surf - ((surf - d) * kr) / nr + R, e = Math.sqrt(Math.max(1, far * far - q * q));
+            const pt = sgn => [q * ux - sgn * e * uy, q * uy + sgn * e * ux];
+            P.polar('r', ...pt(-1), zIn);
+            P.polar('r', ...pt(-1), z);
+            P.polar('f', ...pt(1), z, t.feed, 'flat');
+            P.polar('r', ...pt(1), zIn);
+          }
+        }
+      }
+      P.rapid(clearX, zIn);
+      break;
+    }
   }
   P.rapid(clearX, clearZ);
   return P.m;
 }
 
-const TOOL_OK = { tface: ['turn'], trough: ['turn'], tfinish: ['turn'], tgroove: ['groove'], tthread: ['tthread'], tpart: ['groove'], tdrill: ['drill', 'center', 'spot'], tbore: ['turnbore'] };
+// Angles (degrees) of the holes of a driven-tool operation: an explicit list ("0; 90; 200") or count + start angle.
+export function liveAngles(op) {
+  const list = String(op.angles ?? '').split(/[;\s]+/).map(v => v.replace(',', '.')).filter(v => v !== '').map(Number).filter(Number.isFinite);
+  if (list.length) return list.map(a => +(((a % 360) + 360) % 360).toFixed(4));
+  const n = Math.max(0, Math.min(360, Math.round(+op.count || 0))), a0 = +op.startAngle || 0;
+  return Array.from({ length: n }, (_, i) => +((((a0 + (360 * i) / n) % 360) + 360) % 360).toFixed(4));
+}
 
-export function generateTurnSetup(project, bodies, setup, machine, rapid) {
+const TOOL_OK = { tface: ['turn'], trough: ['turn'], tfinish: ['turn'], tgroove: ['groove'], tthread: ['tthread'], tpart: ['groove'], tdrill: ['drill', 'center', 'spot'], tbore: ['turnbore'], tlive: ['drill', 'center', 'spot'], tslot: ['flat', 'ball'], tflat: ['flat'], tcontour: ['flat', 'ball', 'chamfer'], twrap: ['flat', 'ball', 'chamfer'], tpocket: ['flat'] };
+
+export function generateTurnSetup(project, bodies, setup, machine, rapid, hooks = {}) {
   const results = new Map();
   const box = new THREE.Box3();
   for (const b of bodies) { b.geometry.computeBoundingBox(); box.union(b.geometry.boundingBox); }
@@ -447,7 +706,7 @@ export function generateTurnSetup(project, bodies, setup, machine, rapid) {
   const prof = turnProfile(bodies, box);
   const stock = turnStock(box, setup, prof);
   // radius of the hole drilled on the axis so far (start of internal turning)
-  let pre = 0;
+  let pre = 0, turned = false;
   for (const op of ops) {
     if (op.enabled === false) { results.set(op.id, { moves: [], disabled: true }); continue; }
     try {
@@ -456,18 +715,19 @@ export function generateTurnSetup(project, bodies, setup, machine, rapid) {
       // cutting data of the operation dialog (empty = from the tool)
       const cut = op.cut || {}, cv = k => (cut[k] != null && Number.isFinite(+cut[k]) ? +cut[k] : null);
       const t = { ...t0, ...(cv('rpm') != null ? { rpm: cv('rpm') } : {}), ...(cv('feed') != null ? { feed: cv('feed') } : {}), ...(cv('plunge') != null ? { plunge: cv('plunge') } : {}) };
-      if (TOOL_OK[op.type] && !TOOL_OK[op.type].includes(t.kind || t.type)) throw new Error(`Passendes Werkzeug wählen: ${TOOL_OK[op.type].map(k => TURN_TOOL_TYPES[k]).filter(Boolean).join(' / ')}`);
-      const tctx = { pre };
+      if (TOOL_OK[op.type] && !TOOL_OK[op.type].includes(t.kind || t.type)) throw new Error(`Passendes Werkzeug wählen: ${TOOL_OK[op.type].map(k => TURN_TOOL_TYPES[k] || { flat: 'Schaftfräser', ball: 'Kugelfräser', center: 'Zentrierbohrer', spot: 'NC-Anbohrer' }[k]).filter(Boolean).join(' / ')}`);
+      const tctx = { pre, turned, curves: hooks.curves };
       const moves = genTurnOp(op, t, stock, prof, tctx);
       if (op.type === 'tdrill') pre = Math.max(pre, (+t.dia || 0) / 2);
+      if (op.type === 'trough' || op.type === 'tfinish') turned = true;
       let len = 0, time = 0;
       for (let i = 1; i < moves.length; i++) {
         const a = moves[i - 1], b = moves[i];
-        const d = Math.hypot(b.x - a.x, b.z - a.z);
+        const d = Math.hypot(b.x - a.x, (b.y || 0) - (a.y || 0), b.z - a.z);
         len += d;
         time += (d / (b.t === 'r' ? rapid : b.f)) * 60;
       }
-      results.set(op.id, { moves, tool: t, length: len, time, heights: { top: stock.top, bottom: stock.bottom }, ...(tctx.cycle || tctx.cycleWhy ? { turnCycle: tctx.cycle || null, turnCycleWhy: tctx.cycleWhy || null } : {}) });
+      results.set(op.id, { moves, tool: t, length: len, time, heights: { top: stock.top, bottom: stock.bottom }, ...(op.type === 'tlive' ? { live: op.dir === 'radial' ? 'rad' : 'ax' } : op.type === 'tslot' ? { live: 'rad' } : op.type === 'tflat' || op.type === 'tcontour' || op.type === 'tpocket' ? { live: 'ax', polar: true } : op.type === 'twrap' ? { live: 'rad', cyl: tctx.cyl } : {}), ...(tctx.cycle || tctx.cycleWhy ? { turnCycle: tctx.cycle || null, turnCycleWhy: tctx.cycleWhy || null } : {}) });
     } catch (err) {
       results.set(op.id, { error: err.message, moves: [] });
     }
@@ -481,17 +741,52 @@ export class TurnSim {
     this.group = new THREE.Group();
     parent.add(this.group);
     this.mat = new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.6, metalness: 0.2, side: THREE.DoubleSide });
+    this.holeMat = new THREE.MeshStandardMaterial({ color: 0x3a2f1e, roughness: 0.9, metalness: 0.1 });
   }
   build(stock) {
     this.dispose();
     this.stock = stock;
     this.S = new LatheStock(stock);
+    this.holes = new Map();
+    this.flats = new Map();
+    this.marks = new Map();
     this.dirty = true;
     this.update();
   }
-  reset() { if (this.S) { this.S = new LatheStock(this.stock); this.dirty = true; this.update(); } }
+  reset() { if (this.S) { this.S = new LatheStock(this.stock); this.holes = new Map(); this.flats = new Map(); this.marks = new Map(); this.dirty = true; this.update(); } }
   cut(a, b, tool, t0, t1) {
     const res = { removed: 0 };
+    if (b.live || a.live) {
+      // driven tool: the hole is kept as its deepest tip position per place (the turned profile stays as it is)
+      if (b.live && a.live && b.t !== 'r') {
+        const rad = b.live === 'rad', v = k => a[k] + (b[k] - a[k]) * t1, R = Math.max(0.1, (+tool.dia || 1) / 2);
+        if (b.groove || b.cyl) {
+          // contour on the face or wrapped on the diameter: kept as a ribbon of the cutter's width
+          if (t1 >= 1 - 1e-9) { const key = `${a.x},${a.y},${a.z},${b.x},${b.y},${b.z}`; if (!this.marks.has(key)) { this.marks.set(key, { a, b, R, wrap: !!b.cyl }); this.dirty = true; } }
+        } else if (b.polar) {
+          // flat: the plane the cutter's side leaves, by its distance from the axis and its direction
+          const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+          if (b.flat && L > 1e-6 && t1 > 0.5) {
+            let nx = dy / L, ny = -dx / L, q = a.x * nx + a.y * ny;
+            if (q < 0) { nx = -nx; ny = -ny; q = -q; }
+            const key = `flat|${Math.round((Math.atan2(ny, nx) * 1800) / Math.PI)}`, f = this.flats.get(key);
+            if (!f || q - R < f.d - 1e-6 || b.z < f.z - 1e-6) { this.flats.set(key, { nx, ny, d: Math.min(f?.d ?? Infinity, q - R), z: Math.min(f?.z ?? Infinity, b.z) }); this.dirty = true; }
+          }
+        } else if (rad) {
+          // radial hole or keyway: the range along Z it covers and its deepest radius
+          const z0 = Math.min(a.z, v('z')), z1 = Math.max(a.z, v('z')), tip = Math.min(a.xr, v('xr'));
+          const key = `rad|${b.c}`, list = this.holes.get(key) || [];
+          let h = list.find(q => q.R === R && z0 <= q.z1 + R && z1 >= q.z0 - R);
+          if (!h) { h = { rad: true, c: b.c, z0, z1, tip, R }; list.push(h); this.holes.set(key, list); this.dirty = true; }
+          else if (z0 < h.z0 - 1e-6 || z1 > h.z1 + 1e-6 || tip < h.tip - 1e-6) { h.z0 = Math.min(h.z0, z0); h.z1 = Math.max(h.z1, z1); h.tip = Math.min(h.tip, tip); this.dirty = true; }
+        } else {
+          const key = `ax|${b.c}|${b.xr}`, tip = v('z'), list = this.holes.get(key) || [], h = list[0];
+          if (!h) { this.holes.set(key, [{ rad: false, c: b.c, pos: b.xr, tip, R }]); this.dirty = true; }
+          else if (tip < h.tip - 1e-6) { h.tip = tip; this.dirty = true; }
+        }
+      }
+      return res;
+    }
     const p = t => ({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t });
     const p0 = p(t0), p1 = p(t1);
     const steps = Math.max(1, Math.ceil(Math.hypot(p1.x - p0.x, p1.z - p0.z) / (this.S.dz * 0.7)));
@@ -507,15 +802,104 @@ export class TurnSim {
   update() {
     if (!this.dirty || !this.stock) return;
     this.dirty = false;
-    for (const c of [...this.group.children]) { this.group.remove(c); c.geometry.dispose(); }
+    for (const c of [...this.group.children]) { this.group.remove(c); c.geometry.dispose(); if (c.material !== this.mat && c.material !== this.holeMat && c.material !== this.markMat) c.material.dispose(); }
+    this.group.updateWorldMatrix(true, false);
     // profile: up the outside, back down the bore
     const { ro, ri, n, dz } = this.S, b = this.stock.bottom;
     const pts = [new THREE.Vector2(Math.max(0.001, ri[0]), b)];
     for (let i = 0; i < n; i++) pts.push(new THREE.Vector2(Math.max(0.001, ro[i], ri[i]), b + i * dz));
     for (let i = n - 1; i >= 0; i--) pts.push(new THREE.Vector2(Math.max(0.001, ri[i]), b + i * dz));
-    const g = new THREE.LatheGeometry(pts, 72);
-    g.rotateX(Math.PI / 2); // lathe axis Y -> model Z
-    this.group.add(new THREE.Mesh(g, this.mat));
+    const lathe = (list, mat) => { if (list.length < 3) return; const g = new THREE.LatheGeometry(list, 72); g.rotateX(Math.PI / 2); this.group.add(new THREE.Mesh(g, mat)); }; // lathe axis Y -> model Z
+    const flats = [...(this.flats?.values() || [])];
+    if (!flats.length) lathe(pts, this.mat);
+    else {
+      // milled flats: the part above their lower end is cut off at the flat planes (clipping) and closed by caps
+      const zf = Math.min(...flats.map(f => f.z)), k0 = Math.max(0, Math.min(n - 1, Math.round((zf - b) / dz)));
+      const ring = (i0, i1) => {
+        const q = [];
+        for (let i = i0; i <= i1; i++) q.push(new THREE.Vector2(Math.max(0.001, ro[i], ri[i]), b + i * dz));
+        for (let i = i1; i >= i0; i--) q.push(new THREE.Vector2(Math.max(0.001, ri[i]), b + i * dz));
+        return q;
+      };
+      lathe([new THREE.Vector2(Math.max(0.001, ri[0]), b), ...ring(0, k0)], this.mat);
+      const cm = this.mat.clone();
+      cm.clippingPlanes = flats.map(f => new THREE.Plane(new THREE.Vector3(-f.nx, -f.ny, 0), f.d).applyMatrix4(this.group.matrixWorld));
+      lathe(ring(k0, n - 1), cm);
+      for (const f of flats) {
+        // cap: strip on the plane between the chord ends of the outside and the bore, per z cell
+        const pos = [], idx = [];
+        const strip = sign => {
+          const base = pos.length / 3;
+          let rows = 0;
+          for (let i = k0; i < n; i++) {
+            if (!(ro[i] > f.d + 1e-6)) break;
+            const wo = Math.sqrt(ro[i] * ro[i] - f.d * f.d), wi = ri[i] > f.d ? Math.sqrt(ri[i] * ri[i] - f.d * f.d) : 0;
+            for (const w of [sign * wi, sign * wo]) pos.push(f.d * f.nx - w * f.ny, f.d * f.ny + w * f.nx, b + i * dz);
+            rows++;
+          }
+          for (let r = 0; r + 1 < rows; r++) { const o = base + 2 * r; idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }
+        };
+        strip(1); strip(-1);
+        if (!idx.length) continue;
+        const cg = new THREE.BufferGeometry();
+        cg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        cg.setIndex(idx);
+        cg.computeVertexNormals();
+        // the other flats cut this cap too
+        const capMat = this.mat.clone();
+        capMat.clippingPlanes = cm.clippingPlanes.filter((_, j) => flats[j] !== f);
+        this.group.add(new THREE.Mesh(cg, capMat));
+      }
+    }
+    const idx = z => Math.max(0, Math.min(n - 1, Math.round((z - b) / dz)));
+    // milled contours: dark ribbons just above the face / the diameter they were cut into
+    if (this.marks?.size) {
+      const pos = [], ind = [];
+      const quad = (p0, p1, p2, p3) => { const o = pos.length / 3; pos.push(...p0, ...p1, ...p2, ...p3); ind.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); };
+      const faceZ = r => { let i = n - 1; while (i > 0 && !(ro[i] > r && ri[i] < r)) i--; return b + i * dz + 0.04; };
+      for (const { a, b: e, R, wrap } of this.marks.values()) {
+        if (!wrap) {
+          const dx = e.x - a.x, dy = e.y - a.y, L = Math.hypot(dx, dy);
+          if (L < 1e-6) continue;
+          const nx2 = (-dy / L) * R, ny2 = (dx / L) * R, z0 = faceZ(Math.hypot((a.x + e.x) / 2, (a.y + e.y) / 2));
+          quad([a.x + nx2, a.y + ny2, z0], [a.x - nx2, a.y - ny2, z0], [e.x + nx2, e.y + ny2, z0], [e.x - nx2, e.y - ny2, z0]);
+        } else {
+          // on the cylinder: small steps around, the ribbon across the direction of travel
+          const dc = e.c - a.c, steps = Math.max(1, Math.ceil(Math.abs(dc) / 4));
+          const at = (c, z, off) => { const rr = ro[idx(z)] + 0.04, th = (c * Math.PI) / 180 + off[0] / rr; return [rr * Math.cos(th), rr * Math.sin(th), z + off[1]]; };
+          const rr0 = ro[idx(a.z)] + 0.04, ds = ((dc * Math.PI) / 180) * rr0, dzz = e.z - a.z, L = Math.hypot(ds, dzz);
+          if (L < 1e-6) continue;
+          const off = [(-dzz / L) * R, (ds / L) * R], neg = [-off[0], -off[1]];
+          for (let q = 0; q < steps; q++) {
+            const c0 = a.c + (dc * q) / steps, c1 = a.c + (dc * (q + 1)) / steps, z0 = a.z + (dzz * q) / steps, z1 = a.z + (dzz * (q + 1)) / steps;
+            quad(at(c0, z0, off), at(c0, z0, neg), at(c1, z1, off), at(c1, z1, neg));
+          }
+        }
+      }
+      if (ind.length) {
+        const mg = new THREE.BufferGeometry();
+        mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        mg.setIndex(ind);
+        mg.computeVertexNormals();
+        this.markMat ||= new THREE.MeshBasicMaterial({ color: 0x3a2f1e, side: THREE.DoubleSide });
+        this.group.add(new THREE.Mesh(mg, this.markMat));
+      }
+    }
+    // drilled holes and keyways: dark plugs from the tip to just above the surface they start in
+    for (const h of [...(this.holes?.values() || [])].flat()) {
+      let from;
+      if (h.rad) { from = 0; for (let i = idx(h.z0); i <= idx(h.z1); i++) from = Math.max(from, ro[i]); from += 0.04; }
+      else { let i = n - 1; while (i > 0 && !(ro[i] > h.pos && ri[i] < h.pos)) i--; from = b + i * dz + 0.04; }
+      const len = from - h.tip;
+      if (!(len > 0.05)) continue;
+      const add = cg => { cg.rotateZ((h.c * Math.PI) / 180); this.group.add(new THREE.Mesh(cg, this.holeMat)); };
+      // cylinder axis Y -> Z (axial) or -> X (radial), then turned to the hole's angle
+      if (!h.rad) add(new THREE.CylinderGeometry(h.R, h.R, len, 24).rotateX(Math.PI / 2).translate(h.pos, 0, h.tip + len / 2));
+      else {
+        for (const z of h.z1 - h.z0 > 0.01 ? [h.z0, h.z1] : [h.z0]) add(new THREE.CylinderGeometry(h.R, h.R, len, 24).rotateZ(-Math.PI / 2).translate(h.tip + len / 2, 0, z));
+        if (h.z1 - h.z0 > 0.01) add(new THREE.BoxGeometry(len, 2 * h.R, h.z1 - h.z0).translate(h.tip + len / 2, 0, (h.z0 + h.z1) / 2));
+      }
+    }
   }
   dispose() { for (const c of [...this.group.children]) { this.group.remove(c); c.geometry.dispose(); } this.stock = null; }
 }

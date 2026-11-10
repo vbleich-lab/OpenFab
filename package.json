@@ -17,10 +17,14 @@
     "build:kernel": "node tools/build-kernel.mjs",
     "test:kernel": "node tools/test-rust-kernel.mjs",
     "test:trim": "node tools/test-trim.mjs",
-    "test:sketch": "node tools/test-sketchtools.mjs && node tools/test-sketchcorner.mjs",
+    "test:sketch": "node tools/test-sketchtools.mjs && node tools/test-sketchcorner.mjs && node tools/test-sketchoffset.mjs",
     "test:solver": "node tools/test-solver-arcs.mjs",
     "test:cam": "node tools/test-cam.mjs",
-    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam"
+    "test:hh": "node tools/test-heidenhain.mjs",
+    "test:iso": "node tools/test-iso.mjs",
+    "test:lathe": "node tools/test-lathe.mjs",
+    "test:drawing": "node tools/test-drawing.mjs",
+    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing"
   },
   "devDependencies": {
     "@electron/packager": "18.3.6",
