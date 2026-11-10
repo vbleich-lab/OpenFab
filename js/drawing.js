@@ -231,17 +231,30 @@ export function makeDrawing(bodies, opts) {
     }
     for (const [a, b] of segs[k].vis) line(toSheet(k, a), toSheet(k, b), 'vis');
     const e = E[k], pl = place[k], s = pl.s || scale;
-    text(pl.x + (e.w * s) / 2, pl.y + e.h * s + (k === 'iso' ? 8 : 5), asSection(k) ? `Schnitt ${secs[k].letter}–${secs[k].letter}` : VIEWS[k].label, asSection(k) ? 'lbl sec' : 'lbl');
+    text(pl.x + (e.w * s) / 2, pl.y + e.h * s + (k === 'iso' ? 8 : 5), asSection(k) ? `${secs[k].mode === 'half' ? 'Halbschnitt' : 'Schnitt'} ${secs[k].letter}–${secs[k].letter}` : VIEWS[k].label, asSection(k) ? 'lbl sec' : 'lbl');
   }
   // cutting line A–A in the top view: thick ends, arrows in the viewing direction (towards +Y)
   if (sec && place.top) {
     cur = 'top';
     const e = E.top;
-    const a = toSheet('top', [e.x0, -sec.y]), b = toSheet('top', [e.x1, -sec.y]);
-    const l = [a[0] - 6, a[1]], r = [b[0] + 6, b[1]];
-    line(l, r, 'cut');
+    // straight, or in steps (offset section: the plane jumps to another Y at a given X; half section: only
+    // the right half is cut) – thick at the ends and at the corners
+    const steps = sec.steps?.length ? sec.steps : [{ x0: -Infinity, x1: Infinity, y: sec.y }];
+    const ends = steps.map(st => [toSheet('top', [Math.max(st.x0, e.x0), -st.y]), toSheet('top', [Math.min(st.x1, e.x1), -st.y])]);
+    if (steps[0].x0 === -Infinity) ends[0][0][0] -= 6;
+    if (steps[steps.length - 1].x1 === Infinity) ends[ends.length - 1][1][0] += 6;
+    ends.forEach(([p, q], i) => {
+      line(p, q, 'cut');
+      const nx = ends[i + 1];
+      if (!nx) return;
+      line(q, nx[0], 'cut');
+      const sg = Math.sign(nx[0][1] - q[1]) || 1;
+      line([q[0] - 2.5, q[1]], q, 'cutend'); line(q, [q[0], q[1] + sg * 2.5], 'cutend');
+      line([nx[0][0], nx[0][1] - sg * 2.5], nx[0], 'cutend'); line(nx[0], [nx[0][0] + 2.5, nx[0][1]], 'cutend');
+    });
+    const l = ends[0][0], r = ends[ends.length - 1][1], a = l;
     line(l, [l[0] + 5, l[1]], 'cutend'); line([r[0] - 5, r[1]], r, 'cutend');
-    const down = toSheet('top', [e.x0, -sec.y - 1])[1] > a[1] ? 1 : -1;
+    const down = toSheet('top', [e.x0, -steps[0].y - 1])[1] > toSheet('top', [e.x0, -steps[0].y])[1] ? 1 : -1;
     for (const p of [l, r]) {
       line([p[0] + (p === l ? 2.5 : -2.5), p[1]], [p[0] + (p === l ? 2.5 : -2.5), p[1] + down * 7], 'dim arrow1');
       text(p[0] + (p === l ? 2.5 : -2.5), p[1] + down * 7 + (down > 0 ? 5 : -2), sec.letter, 'secl');

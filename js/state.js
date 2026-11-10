@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 // Global app state, project data model, undo/redo and autosave.
 
 export const state = {
@@ -83,7 +84,9 @@ export const feature = id => state.project.features.find(f => f.id === id);
 export const camOp = id => state.project.cam.ops.find(o => o.id === id);
 export const camTool = id => state.project.cam.tools.find(t => t.id === id);
 
+// default names (Skizze1, Extrusion2 …) in the language of the interface
 export function nextName(list, base) {
+  base = t(base);
   const names = new Set(list.map(x => x.name));
   let n = 1;
   while (names.has(base + n)) n++;

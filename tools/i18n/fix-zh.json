@@ -1,0 +1,6 @@
+{
+ "⚠ Jedes NC-Programm vor dem ersten Lauf prüfen: an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang) oder in einem externen NC-Simulator. Die Simulation hier ersetzt das nicht – Nutzung auf eigene Gefahr, ohne Gewährleistung.": "⚠ 每个 NC 程序首次运行前都必须检查：在机床上空运行（单段、降低快移速度），或在外部 NC 仿真软件中验证。此处的仿真不能替代该检查——使用风险自负，不提供任何担保。",
+ "ARBEITSBEREICH": "工作空间",
+ "KONSTRUKTION": "设计",
+ "Werkzeugnummer(n) {0} > Magazinplätze ({1})": "刀具号 {0} > 刀库刀位数（{1}）"
+}

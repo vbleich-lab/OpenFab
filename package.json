@@ -24,7 +24,8 @@
     "test:iso": "node tools/test-iso.mjs",
     "test:lathe": "node tools/test-lathe.mjs",
     "test:drawing": "node tools/test-drawing.mjs",
-    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing"
+    "test:i18n": "node tools/test-i18n.mjs",
+    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing && npm run test:i18n"
   },
   "devDependencies": {
     "@electron/packager": "18.3.6",

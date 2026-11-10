@@ -140,3 +140,21 @@ ok('Eigene Maße als greifbare Gruppen (eine je Maß, mit breiten Greiflinien)',
   const only = makeDrawing(bodies, { ...base, userDims: [], sectionX });
   ok('Nur der Seitenschnitt heißt A–A', only.sections.left === 'A' && !only.sections.front);
 }
+
+// ---- offset section and half section: the cutting line in the top view follows the steps ----
+{
+  const g = new THREE.BoxGeometry(120, 80, 10).translate(60, 40, 5);
+  const cutBody = [{ id: 'h', geometry: g, edges: new THREE.EdgesGeometry(g, 30), shape: { edges: [] } }];
+  const mk = sec => makeDrawing(bodies, { ...base, userDims: [], section: { bodies: cutBody, polys: [[[[0, 0], [120, 0], [120, 10], [0, 10]]]], ...sec } });
+  const cuts = d => [...d.svg.matchAll(/<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)" class="cut"\/>/g)].map(m => m.slice(1, 5).map(Number));
+  const st = mk({ y: 20, mode: 'step', steps: [{ x0: -Infinity, x1: 60, y: 20 }, { x0: 60, x1: Infinity, y: 55 }] });
+  const c = cuts(st), X = st.xf.top, sx = x => X.px + (x - X.x0) * X.s, sy = y => X.py + (X.y1 + y) * X.s;
+  ok('Abgesetzter Schnitt: drei Stücke der Schnittlinie', c.length === 3 && Math.abs(c[0][1] - sy(20)) < 0.01 && Math.abs(c[0][2] - sx(60)) < 0.01 && Math.abs(c[1][0] - c[1][2]) < 1e-6 && Math.abs(c[1][3] - sy(55)) < 0.01 && Math.abs(c[2][1] - sy(55)) < 0.01, JSON.stringify(c));
+  const tx = d => [...d.svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(m => m[1]);
+  ok('Abgesetzter Schnitt heißt Schnitt A–A', tx(st).includes('Schnitt A–A') && !/NaN|Infinity/.test(st.svg));
+  const hf = mk({ y: 40, mode: 'half', steps: [{ x0: 60, x1: Infinity, y: 40 }] });
+  const ch = cuts(hf);
+  ok('Halbschnitt: Schnittlinie nur über die rechte Hälfte', ch.length === 1 && Math.abs(ch[0][0] - sx(60)) < 0.01 && ch[0][2] > sx(120) && tx(hf).includes('Halbschnitt A–A') && !/NaN|Infinity/.test(hf.svg), JSON.stringify(ch));
+  const full = mk({ y: 40 });
+  ok('Vollschnitt unverändert: eine Linie über die ganze Breite', cuts(full).length === 1 && cuts(full)[0][0] < sx(0) && cuts(full)[0][2] > sx(120));
+}

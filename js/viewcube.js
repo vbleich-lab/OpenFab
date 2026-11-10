@@ -2,6 +2,7 @@
 // Faces, edges and corners can be clicked (26 directions, like Fusion); arrows around
 // the cube turn the view by 90° and roll it.
 import * as THREE from 'three';
+import { t as tr } from './i18n.js';
 
 // BoxGeometry material order: +X, -X, +Y, -Y, +Z, -Z. The cube is built Y-up and
 // rotated +90° about X so its +Y face becomes world +Z (Z-up like the model).
@@ -32,7 +33,7 @@ function faceTexture(label, dark) {
   g.font = '600 22px "Segoe UI", system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(label, 64, 66);
+  g.fillText(tr(label), 64, 66);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;

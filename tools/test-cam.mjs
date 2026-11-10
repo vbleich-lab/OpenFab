@@ -156,6 +156,33 @@ for (const c of cases) {
   }
 }
 
+// ---- 1d. rest machining of a 2D contour: only the corners the previous cutter could not follow ----
+{
+  const o = { setup: 'S1', enabled: true };
+  const p = project();
+  p.cam.tools.push({ id: 'R3', number: 30, name: 'Fräser 3', type: 'flat', dia: 3, flutes: 2, rpm: 12000, feed: 400, plunge: 150, stepdown: 2, stepover: 0.4 });
+  const c = { ...o, type: 'contour', tool: 'R3', sketch: 'skPocket', entities: 'all', side: 'inside' };
+  p.cam.ops = [{ ...c, id: 'full' }, { ...c, id: 'rest', restDia: 12 }, { ...c, id: 'out', sketch: 'skBoss', side: 'outside', restDia: 12 }];
+  const g = cam.generateSetup(p, bodies, p.cam.setups[0], null, null);
+  const full = g.results.get('full'), rest = g.results.get('rest'), out = g.results.get('out');
+  if (rest.error || full.error) ok('Restmaterial Kontur: erzeugt', false, rest.error || full.error);
+  else {
+    const inv = g.T.clone().invert(), w = m => new THREE.Vector3(m.x, m.y, m.z).applyMatrix4(inv);
+    const cut = r => r.moves.filter((m, i, a) => i && m.t !== 'r' && Math.hypot(m.x - a[i - 1].x, m.y - a[i - 1].y) > 1e-6);
+    const len = r => r.moves.reduce((L, m, i, a) => L + (i && m.t !== 'r' ? Math.hypot(m.x - a[i - 1].x, m.y - a[i - 1].y) : 0), 0);
+    const chk = checkMoves(rest.moves, g.T, { r: 1.5, ball: false });
+    ok('Restmaterial Kontur: ohne Verletzung', chk.feed.pen <= TOL && chk.rapid.pen <= TOL, `ins Teil ${chk.feed.pen.toFixed(3)} mm`);
+    const P = { x0: 85, y0: 15, x1: 110, y1: 45 }, corners = [[P.x0, P.y0], [P.x1, P.y0], [P.x1, P.y1], [P.x0, P.y1]];
+    const far = Math.max(...cut(rest).map(m => { const q = w(m); return Math.min(...corners.map(k => Math.hypot(q.x - k[0], q.y - k[1]))); }));
+    // the Ø12 cutter leaves the wall 6 mm before each corner; a little overlap along the finished wall
+    ok('Restmaterial Kontur: vier Ecken, sonst nichts', rest.restRuns === 4 && far <= 6 * Math.SQRT2 + 1.5, `${rest.restRuns} Stücke, größter Abstand zur Ecke ${far.toFixed(2)} mm`);
+    const near = Math.max(...corners.map(k => Math.min(...cut(rest).map(m => { const q = w(m); return Math.hypot(q.x - (k[0] + (k[0] === P.x0 ? 1.5 : -1.5)), q.y - (k[1] + (k[1] === P.y0 ? 1.5 : -1.5))); }))));
+    ok('Restmaterial Kontur: jede Ecke bis in die Eckposition', near < 0.05, `${near.toFixed(3)} mm`);
+    ok('Restmaterial Kontur: viel kürzer als die ganze Kontur', len(rest) < len(full) * 0.5, `${len(full).toFixed(0)} → ${len(rest).toFixed(0)} mm`);
+    ok('Restmaterial Kontur: Außenkontur ohne Innenecken meldet kein Restmaterial', /Kein Restmaterial/.test(out.error || ''), out.error || 'kein Fehler');
+  }
+}
+
 // ---- 2. NC output of every milling post ----
 // positions of linear/arc end points read back from the program (G-code words or Heidenhain L/C lines)
 function readBack(code, hh) {
