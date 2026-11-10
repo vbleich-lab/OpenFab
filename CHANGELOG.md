@@ -1,6 +1,6 @@
 # Änderungen
 
-## Unveröffentlicht
+## v1.0.0-rc.3 – 2026-11-10
 
 ### Konstruktion: Gewindebohrung im Bohrungs-Feature
 - Die **Bohrung** hat den Schalter „Gewindebohrung" mit Gewindegröße (M3 … M30) und optionaler Gewindetiefe. Gebohrt wird das Kernloch; das Gewinde erscheint als Gewindedarstellung am Modell. Bei Senkbohrungen und Senkungen beginnt es unter der Senkung.
