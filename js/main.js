@@ -14,8 +14,9 @@ import { postProcess, runPost, allPosts, findPost, copyPost, setPostLibrary, SEC
 import { allMachines, findMachine, copyMachine, newMachine, machineChecks, KIN_TYPES, kinAngles } from './machines.js';
 import { StockSim, defaultFluteLen, defaultHolderDia, defaultStickout } from './sim.js';
 import { exampleProject, exampleTurning } from './example.js';
-import { describeEntity, entityPolys, translateEntity, rotateEntity } from './profiles.js';
+import { describeEntity, entityPolys, translateEntity, rotateEntity, mirrorEntity as mirrorAbout } from './profiles.js';
 import { applyCorners, cornerPlan } from './sketchcorner.js';
+import { offsetEntities } from './sketchoffset.js';
 import { parseDXF, writeDXF } from './dxf.js';
 import { loadFonts, FONTS } from './fonts.js';
 import { solveSketch, lockedFields, sketchHandles, constraintFor, dimensionFor, dimBase, measure as measureDim, refKind, refEntity, CONSTRAINTS, GLYPH, DIM_KINDS } from './solver.js';
@@ -176,7 +177,7 @@ const sketcher = new Sketcher(vp, {
   project: e => projectFaceAt(e),
   preview: () => rebuildScene(),
   overlay: () => refreshSketchOverlay(),
-  corner: (kind, ref) => sketchCorner(kind, [ref]),
+  corner: (kind, ref) => sketchCorner(kind, [ref]), offset: (id, sign) => sketchOffsetAt(id, sign), xform: (kind, data) => sketchXform(kind, data),
   addDim: d => createDim(d),
   evalNum: str => { const v = /^[-+]?[0-9.]+$/.test(str) ? +str : evalExpr(str, paramScope(state.project)); return Number.isFinite(v) ? v : NaN; },
   tip: (text, e) => {
@@ -1319,7 +1320,7 @@ function propsRender(b) {
   b.append(
     sec('UMGEBUNG'), swatches,
     row('Helligkeit', num(s.exposure, v => ed('exposure', v ?? 1), { min: 0.1, max: 4, step: 0.1 })),
-    row('Hintergrund', sel([['env', 'Umgebung (unscharf)'], ['color', 'Einfarbig']], s.background, v => ed('background', v))),
+    row('Hintergrund', sel([['studio', 'Studio-Verlauf'], ['env', 'Umgebung (unscharf)'], ['color', 'Einfarbig']], s.background, v => ed('background', v))),
     s.background === 'color' ? row('Farbe', bg) : null,
     sec('LICHT UND BODEN'),
     row('Lichtrichtung', num(s.lightAz, v => ed('lightAz', v ?? 35), { unit: '°' })),
@@ -2216,10 +2217,10 @@ function toolbarTabs() {
       tgroup('ÄNDERN', T('trim', 'Stutzen', 'trim', 'T'), tbtn('extend', 'Verlängern', () => sketcher.setTool('extend'), sketcher.tool === 'extend' ? 'active' : '', 'Verlängern: offenes Linienende bis zur nächsten Kante'),
         tbtn('fillet', 'Abrunden', sketchFillet, sketcher.tool === 'fillet' ? 'active' : '', 'Abrunden: Ecken anklicken (Linienzug, Rechteck, zwei Linien)'),
         tbtn('edgechamfer', 'Fase', sketchChamfer, sketcher.tool === 'chamfer' ? 'active' : '', 'Fase: Ecken anklicken (Linienzug, Rechteck, zwei Linien)'),
-        tbtn('offset', 'Versatz', sketchOffset, '', 'Versatz: geschlossene Konturen wählen, Abstand eingeben (+ außen, − innen)'),
-        tbtn('sketchMirror', 'Spiegeln', sketchMirror, '', 'Spiegeln: Elemente wählen und zuletzt eine Linie als Spiegelachse'),
-        tbtn('patternRect', 'Rechteck-Muster', () => sketchPattern('rect'), '', 'Rechteckige Anordnung der gewählten Elemente'),
-        tbtn('patternCirc', 'Kreis-Muster', () => sketchPattern('circ'), '', 'Runde Anordnung der gewählten Elemente')),
+        tbtn('offset', 'Versatz', sketchOffset, sketcher.tool === 'offset' ? 'active' : '', 'Versatz: neben eine Kontur fahren (Vorschau), klicken, Abstand bestätigen – auch offene Linienzüge'),
+        tbtn('sketchMirror', 'Spiegeln', sketchMirror, sketcher.tool === 'mirror' ? 'active' : '', 'Spiegeln: Elemente wählen, dann die Spiegelachse anklicken (Vorschau)'),
+        tbtn('patternRect', 'Rechteck-Muster', () => sketchPattern('rect'), sketcher.tool === 'prect' ? 'active' : '', 'Rechteckige Anordnung: Elemente wählen, dann den Abstand zeigen (Vorschau)'),
+        tbtn('patternCirc', 'Kreis-Muster', () => sketchPattern('circ'), sketcher.tool === 'pcirc' ? 'active' : '', 'Runde Anordnung: Elemente wählen, dann den Mittelpunkt zeigen (Vorschau)')),
       tgroup('ABHÄNGIGKEITEN',
         Object.assign(gbtn('↔', 'Bemaßung', addDimension, 'Bemaßung (D): Kante, Kreis oder Punkte anklicken, Maß wegziehen und ablegen'), { className: 'tbtn gl' + (sketcher.tool === 'dim' ? ' active' : '') }),
         ...['coincident', 'horizontal', 'vertical', 'parallel', 'perpendicular', 'equal', 'tangent', 'concentric', 'midpoint', 'symmetric', 'collinear', 'fix']
@@ -2325,7 +2326,7 @@ function toolbarTabs() {
   ];
   tabs['DREHEN'] = [
     SETUP(),
-    tgroup('DREHEN', A('face', 'Plandrehen', 'tface'), A('rough3d', 'Schruppen', 'trough'), A('contour', 'Schlichten', 'tfinish'), A('pocket', 'Einstechen', 'tgroove'), A('thread', 'Gewinde', 'tthread'), A('split', 'Abstechen', 'tpart'), A('drill', 'Bohren', 'tdrill'), A('bore', 'Innendrehen', 'tbore')),
+    tgroup('DREHEN', A('face', 'Plandrehen', 'tface'), A('rough3d', 'Schruppen', 'trough'), A('contour', 'Schlichten', 'tfinish'), A('pocket', 'Einstechen', 'tgroove'), A('thread', 'Gewinde', 'tthread'), A('split', 'Abstechen', 'tpart'), A('drill', 'Bohren', 'tdrill'), A('bore', 'Innendrehen', 'tbore'), A('drill', 'Bohren angetrieben', 'tlive'), A('slot', 'Nut angetrieben', 'tslot'), A('face', 'Schlüsselflächen', 'tflat'), A('contour', 'Kontur Planfläche', 'tcontour'), A('contour', 'Kontur Mantel', 'twrap'), A('pocket', 'Tasche Planfläche', 'tpocket')),
     AKTIONEN(), VERWALTEN(),
   ];
   tabs['DIENSTPROGRAMME'] = [AKTIONEN(), VERWALTEN(), tgroup('3D-MAUS', tbtn('spacemouse', 'SpaceMouse kalibrieren', () => openSmCalibration(), '', 'Nullpunkt, Totzone, Empfindlichkeit und Richtung der 3D-Maus'))];
@@ -3269,7 +3270,9 @@ function propsHole(b, f, ed) {
     row('Skizze', sel(sketchOptions(), f.sketch, v => ed(x => { x.sketch = v; x.points = 'all'; }))),
     row('Mittelpunkte', profileChecks(f.sketch, f.points, v => ed(x => (x.points = v)), e => e.type === 'circle')),
     row('Typ', sel([['simple', 'Einfach'], ['cbore', 'Senkbohrung (Zylinder)'], ['csink', 'Senkung (Kegel)']], f.kind, v => ed(x => (x.kind = v)))),
-    N('Durchmesser', 'dia'),
+    row('Gewindebohrung', chk(!!f.tapped, v => ed(x => { x.tapped = v; if (v && !x.threadSize) x.threadSize = (THREAD_SIZES.find(t => t[3] >= (+x.dia || 0) - 0.21) || THREAD_SIZES[4])[0]; }))),
+    f.tapped ? row('Gewinde', sel(THREAD_SIZES.map(t => [t[0], `${t[0]} × ${String(t[2]).replace('.', ',')} (Kernloch Ø${String(t[3]).replace('.', ',')})`]), f.threadSize || 'M8', v => ed(x => (x.threadSize = v)))) : N('Durchmesser', 'dia'),
+    f.tapped ? N('Gewindetiefe', 'threadDepth', { allowEmpty: true, ph: 'ganze Bohrung' }) : null,
     row('Durchgehend', chk(f.through, v => ed(x => (x.through = v)))),
     f.through ? null : N('Tiefe', 'depth'),
     f.kind === 'cbore' ? N('Senk-Ø', 'cbDia') : null,
@@ -3277,7 +3280,7 @@ function propsHole(b, f, ed) {
     f.kind === 'csink' ? N('Senk-Ø', 'csDia') : null,
     f.kind === 'csink' ? row('Senkwinkel', num(f.csAngle, v => ed(x => (x.csAngle = v)), { unit: '°', min: 1 })) : null,
     f.through ? null : row('Bohrerspitze 118°', chk(f.tip, v => ed(x => (x.tip = v)))),
-    h('p', { class: 'hint' }, 'Jeder Kreis der Skizze ist ein Bohrungsmittelpunkt. Gebohrt wird entgegen der Skizzennormalen (ins Material).'),
+    h('p', { class: 'hint' }, 'Jeder Kreis der Skizze ist ein Bohrungsmittelpunkt. Gebohrt wird entgegen der Skizzennormalen (ins Material).' + (f.tapped ? ' Gewindebohrung: gebohrt wird das Kernloch; das Gewinde erscheint als Gewindedarstellung am Modell und mit seinem Namen in der Zeichnung.' : '')),
   );
 }
 
@@ -4778,7 +4781,7 @@ const TOOLS_FOR = {
   thread: t => t.type === 'thread',
   trace: t => t.type !== 'drill' && t.type !== 'thread',
   tface: t => t.type === 'turn' && t.kind !== 'turnbore', trough: t => t.type === 'turn' && t.kind !== 'turnbore', tfinish: t => t.type === 'turn' && t.kind !== 'turnbore',
-  tdrill: t => t.type === 'drill', tbore: t => t.kind === 'turnbore',
+  tdrill: t => t.type === 'drill', tbore: t => t.kind === 'turnbore', tlive: t => t.type === 'drill', tslot: t => t.type === 'flat' || t.type === 'ball', tflat: t => t.type === 'flat', tpocket: t => t.type === 'flat', tcontour: t => ['flat', 'ball', 'chamfer'].includes(t.type), twrap: t => ['flat', 'ball', 'chamfer'].includes(t.type),
   tgroove: t => t.type === 'groove', tpart: t => t.type === 'groove', tthread: t => t.type === 'tthread',
   probe: t => t.type === 'probe',
   rotary: t => t.type === 'ball' || t.type === 'flat', rotaryRough: t => t.type === 'ball' || t.type === 'flat', rotaryWrap: t => t.type === 'ball' || t.type === 'flat',
@@ -5331,6 +5334,59 @@ function propsOp(b, op) {
       put('passes', N('Ende Z (Spitze)', 'zEnd', { allowEmpty: true, ph: 'aus Bohrung' }), N('Entspantiefe', 'peck', { allowEmpty: true, ph: '0 = ohne' }), N('Aufmaß', 'stockToLeave'),
         h('p', { class: 'hint' }, 'Bohrt auf der Drehachse von der Planfläche aus. Ohne Ende Z so tief, wie Bohrerspitze und Schaft in der Bohrung des Modells bleiben.'));
       break;
+    case 'tlive': {
+      const rad = op.dir === 'radial';
+      put('passes',
+        row('Richtung', sel([['axial', 'Axial – in die Planfläche (Z)'], ['radial', 'Radial – in den Durchmesser (X)']], op.dir || 'axial', v => ed(x => (x.dir = v)))),
+        rad ? N('Position Z', 'z', { allowEmpty: true }) : N('Lochkreis-Ø', 'pitchDia', { min: 0.1, allowEmpty: true }),
+        N('Anzahl', 'count', { unit: null, min: 1, int: true }), N('Startwinkel C', 'startAngle', { unit: '°' }),
+        row('Winkel einzeln', txt(op.angles || '', v => ed(x => (x.angles = v)))),
+        N('Bohrtiefe (Spitze)', 'depth', { min: 0.1 }), N('Entspantiefe', 'peck', { allowEmpty: true, ph: '0 = ohne' }),
+        h('div', { class: 'btns' }, btn('Bohrungen aus dem Modell übernehmen', () => {
+          const f = liveHolesFromModel(t?.dia, op.dir || 'axial');
+          if (!f) return status(`Keine ${rad ? 'Querbohrungen (radial zur Drehachse)' : 'Bohrungen parallel zur Drehachse'} im Modell gefunden.`);
+          ed(x => Object.assign(x, f.set));
+          status(`${f.n} Bohrung${f.n > 1 ? 'en' : ''} Ø${f2(f.dia)} übernommen${Math.abs(f.dia - (+t?.dia || 0)) > 0.01 ? ` – Werkzeug hat Ø${f2(+t?.dia || 0)}` : ''}`);
+        })),
+        h('p', { class: 'hint' }, `Bohren mit angetriebenem Werkzeug; die Hauptspindel positioniert das Teil als C-Achse. ${rad ? 'Radial: Bohrer entlang X in den Durchmesser bei „Position Z“ (Modell-Z).' : 'Axial: Bohrer entlang Z in die Planfläche, außermittig auf dem Lochkreis.'} „Winkel einzeln“ (z. B. 0; 90; 200) ersetzt Anzahl und Startwinkel. Tiefe ab ${rad ? 'Außendurchmesser' : 'Planfläche'}.`));
+      break;
+    }
+    case 'tpocket':
+      put('passes',
+        row('Skizze', sel([['', '– wählen –'], ...sketchOptions()], op.sketch || '', v => ed(x => { x.sketch = v; x.entities = 'all'; }))),
+        N('Tiefe', 'depth', { min: 0.01 }), N('Zustellung in Z', 'stepdown', { allowEmpty: true, ph: 'Fräserradius' }),
+        row('Bahnabstand', num(op.stepover != null ? Math.round(op.stepover * 100) : null, v => ed(x => (x.stepover = v == null ? null : Math.max(0.05, Math.min(0.95, v / 100)))), { unit: '% vom Ø', allowEmpty: true, ph: '45', min: 5 })),
+        N('Aufmaß', 'stockToLeave'), N('Rampenwinkel', 'ramp', { unit: '°', allowEmpty: true, ph: '3' }),
+        h('p', { class: 'hint' }, 'Tasche in der Planfläche aus den geschlossenen Konturen einer Skizze (innere Konturen bleiben als Inseln stehen), mit einem angetriebenen Schaftfräser entlang Z. Geräumt wird von innen nach außen; der Fräser taucht auf einer Rampe entlang der innersten Bahn ein und bleibt innerhalb einer Ebene unten. X und C fahren gemeinsam (Fanuc: Polar-Interpolation G12.1). Tiefe ab Planfläche.'));
+      break;
+    case 'tcontour':
+    case 'twrap': {
+      const wrap = op.type === 'twrap';
+      put('passes',
+        row('Skizze', sel([['', '– wählen –'], ...sketchOptions()], op.sketch || '', v => ed(x => { x.sketch = v; x.entities = 'all'; }))),
+        row('Fräser läuft', sel([['on', 'Auf der Kurve (Nutbreite = Fräser-Ø)'], ['inside', 'Innen an der Kontur'], ['outside', 'Außen an der Kontur']], op.side || 'on', v => ed(x => (x.side = v)))),
+        N('Tiefe', 'depth', { min: 0.01 }), N(wrap ? 'Zustellung (radial)' : 'Zustellung in Z', 'stepdown', { allowEmpty: true, ph: wrap ? 'Fräserradius' : 'ganze Tiefe' }),
+        op.side && op.side !== 'on' ? N('Aufmaß', 'stockToLeave') : null,
+        wrap ? N('Abwickel-Ø', 'wrapDia', { allowEmpty: true, ph: 'Außendurchmesser' }) : null,
+        h('p', { class: 'hint' }, wrap
+          ? 'Kurven einer Skizze, die längs zur Drehachse liegt, werden auf den Umfang gewickelt und mit einem angetriebenen Fräser gefräst, der zur Achse zeigt (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Die Skizzenebene bestimmt den Winkel, an dem die Kontur sitzt; waagerechte Strecken in der Skizze werden Bögen um das Teil. Tiefe ab Außendurchmesser.'
+          : 'Kurven einer Skizze auf der Planfläche (quer zur Drehachse) mit einem angetriebenen Fräser entlang Z (X und C fahren gemeinsam; Fanuc: Polar-Interpolation G12.1). Offene Kurven werden hin und zurück gefräst. Tiefe ab Planfläche.'));
+      break;
+    }
+    case 'tslot':
+      put('passes', N('Start Z', 'zStart', { allowEmpty: true }), N('Ende Z', 'zEnd', { allowEmpty: true }), N('Nuttiefe', 'depth', { min: 0.05 }),
+        N('Anzahl', 'count', { unit: null, min: 1, int: true }), N('Startwinkel C', 'startAngle', { unit: '°' }),
+        row('Winkel einzeln', txt(op.angles || '', v => ed(x => (x.angles = v)))),
+        N('Zustellung (radial)', 'stepdown', { allowEmpty: true, ph: 'Fräserradius' }),
+        h('p', { class: 'hint' }, 'Nut längs der Drehachse (z. B. Passfedernut) mit einem angetriebenen Fräser, der zur Achse zeigt; die Hauptspindel hält das Teil als C-Achse. Nutbreite = Fräser-Ø. Start/Ende Z in Modell-Z; reicht die Nut bis zur Planfläche, fährt der Fräser von vorn ein, sonst taucht er am Start ein. Tiefe ab Außendurchmesser.'));
+      break;
+    case 'tflat':
+      put('passes', N('Schlüsselweite', 'width', { min: 0.1, allowEmpty: true }), N('Länge ab Planfläche', 'length', { min: 0.1 }),
+        N('Anzahl Flächen', 'count', { unit: null, min: 1, int: true }), N('Startwinkel C', 'startAngle', { unit: '°' }),
+        row('Winkel einzeln', txt(op.angles || '', v => ed(x => (x.angles = v)))),
+        N('Zustellung radial', 'stepover', { allowEmpty: true, ph: '0,4 × Ø' }), N('Zustellung in Z', 'stepdown', { allowEmpty: true, ph: 'ganze Länge' }),
+        h('p', { class: 'hint' }, 'Flächen am Teilende (Zweiflach, Vierkant, Sechskant) mit einem angetriebenen Schaftfräser entlang Z. Schlüsselweite = doppelter Abstand der Fläche von der Drehachse. X und C fahren gemeinsam (Polar-Interpolation, Fanuc G12.1); ohne diese Vorlage im Postprozessor werden kurze X/C-Schritte ausgegeben.'));
+      break;
     case 'tbore':
       put('passes', N('Schnitttiefe (radial)', 'stepdown', { ph: '1' }), N('Aufmaß', 'stockToLeave'), N('Ende Z', 'zEnd', { allowEmpty: true, ph: 'Bohrungsgrund' }), N('Vorbohr-Ø', 'startDia', { allowEmpty: true, ph: 'aus Bohren' }),
         h('p', { class: 'hint' }, 'Schruppt die Bohrung von der Vorbohrung nach außen (0,2 mm Schlichtaufmaß) und schlichtet sie dann bis zum Grund. Die Bohrstange muss in die Vorbohrung passen.'));
@@ -5400,7 +5456,8 @@ function propsOp(b, op) {
     put('link', sec('Anfahr-Wegfahrbewegungen'),
       row('Schnellvorschub-Modus', sel(RAPID_MODES, rm, v => ed(x => (x.rapidMode = v)))),
       rm !== 'preserve' || op.rapidRetract === false ? row('Hoher Vorschub', num(op.highFeed ?? 5000, v => ed(x => (x.highFeed = v)), { unit: 'mm/min', min: 1 })) : null,
-      row('Rückzugsrichtlinie', sel([['full', 'Vollständiger Rückzug'], ['minimal', 'Minimaler Rückzug']], op.retractPolicy || 'full', v => ed(x => (x.retractPolicy = v)))),
+      row('Rückzugsrichtlinie', sel([['full', 'Vollständiger Rückzug'], ['minimal', 'Minimaler Rückzug'], ['stock', 'Kürzester sicherer Weg (über dem Restmaterial)']], op.retractPolicy || 'full', v => ed(x => (x.retractPolicy = v)))),
+      op.retractPolicy === 'stock' ? h('p', { class: 'hint' }, `Zwischen zwei Schnitten hebt das Werkzeug nur so weit ab, wie das Material auf dem Weg es verlangt (Rohteil abzüglich allem, was dieses Setup bis dahin gefräst hat) plus Sicherheitsabstand – und beginnt den Vorschub erst dort.${r?.shortLinks ? ` Hier: ${r.shortLinks.n} Wege verkürzt.` : ''}${setup.fixtures?.length ? ' In diesem Setup sind Spannmittel gewählt: dann bleibt es beim vollständigen Rückzug.' : ''}`) : null,
       C('Eilgangrückzug zulassen', 'rapidRetract', true),
       row('Sicherheitsabstand', num(op.safeDist ?? 1, v => ed(x => (x.safeDist = v)), { unit: 'mm', min: 0 })),
       C('Werkzeug unten halten', 'keepDown'),
@@ -7338,7 +7395,7 @@ function addOp(type, opt = {}) {
     commit(pp => pp.cam.tools.push({ id: uid('T'), number: n, name: '3D-Taster Ø6', type: 'probe', dia: 6, rpm: 0, feed: 300, plunge: 300, stepdown: 1, stepover: 0.5 }));
     status(`3D-Taster als T${n} in der Werkzeugbibliothek angelegt`);
   }
-  const turnTool = { tface: 'turn', trough: 'turn', tfinish: 'turn', tgroove: 'groove', tpart: 'groove', tthread: 'tthread', tdrill: 'drill', tbore: 'turnbore' }[type];
+  const turnTool = { tface: 'turn', trough: 'turn', tfinish: 'turn', tgroove: 'groove', tpart: 'groove', tthread: 'tthread', tdrill: 'drill', tbore: 'turnbore', tlive: 'drill', tslot: 'flat', tflat: 'flat', tcontour: 'flat', twrap: 'flat', tpocket: 'flat' }[type];
   const byKind = k => p.cam.tools.find(t => t.type === k) || (k === 'turnbore' ? null : byType(k));
   if (turnTool && !byKind(turnTool)) return status(`Kein ${TOOL_TYPES[turnTool]} in der Werkzeugbibliothek – bitte dort anlegen.`);
   const tool = opt.tool || (turnTool ? byKind(turnTool) : { probe: byType('probe'), rotary: byType('ball'), rotaryRough: byType('flat') || byType('ball'), rotaryWrap: byType('flat') || byType('ball'), drill: byType('drill') || byType('flat'), chamfer: byType('chamfer'), parallel3d: byType('ball') || byType('flat'), contour3d: byType('flat'), thread: byType('thread'), trace: byType('chamfer') || byType('flat'), vcarve: byType('chamfer'), project3d: byType('chamfer') || byType('ball') || byType('flat'),
@@ -7367,6 +7424,12 @@ function addOp(type, opt = {}) {
     ...(type === 'rotaryWrap' ? { depth: 0.5, stepdown: null, wrapDia: null } : {}),
     ...(type === 'rotaryRough' ? { stepoverMm: f2(tool.dia * 0.5), angleStep: 4, stepdown: f2(Math.max(0.5, tool.dia * 0.2)), stockToLeave: 0.3 } : {}),
     ...(type === 'ramp3d' ? { stepdown: 0.5 } : {}),
+    // 3D strategies have many links: go over the remaining material instead of up to the retract height
+    ...(OPS_3D.includes(type) ? { retractPolicy: 'stock' } : {}),
+    ...(type === 'tcontour' || type === 'twrap' || type === 'tpocket' ? { depth: 1, side: 'on', stepdown: null, wrapDia: null, ...(type === 'tpocket' ? { stepover: null, ramp: 3 } : {}), sketch: [...rp.features].reverse().find(sk => { if (sk.type !== 'sketch') return false; try { const nz = Math.abs(basis(sk).n.clone().normalize().z); return type !== 'twrap' ? nz > 0.999 : nz < 0.001; } catch { return false; } })?.id || '' } : {}),
+    ...(type === 'tslot' ? { depth: 2, count: 1, startAngle: 0, angles: '', zStart: null, zEnd: null, stepdown: null } : {}),
+    ...(type === 'tflat' ? { count: 2, startAngle: 0, angles: '', width: null, length: 10, stepdown: null, stepover: null } : {}),
+    ...(type === 'tlive' ? { dir: 'axial', depth: 5, count: 4, startAngle: 0, angles: '', pitchDia: null, z: null, ...(liveHolesFromModel(tool.dia)?.set || {}) } : {}),
     ...(type === 'corner3d' ? { restDia: f2(tool.dia * 2), slope: 45, stepdown: f2(Math.max(0.1, tool.dia * 0.08)) } : {}),
     ...(type === 'deburr3d' ? { depth: 0.2, edgeAngle: 30 } : {}),
     ...(type === 'pencil3d' ? { pencilAngle: 20 } : {}),
@@ -7972,6 +8035,29 @@ function motionStudy(jointId) {
 let drawingCache = null;
 // picking on the drawing sheet: 'dim' (two corner points → a dimension) or 'detail' (centre of a detail view)
 let dwPick = { mode: null, pts: [] };
+// Axes of the cylindrical faces for the centre lines of a drawing: one entry per axis line (faces around the
+// same line are merged), with its extent along the axis and the largest radius.
+function drawingAxes(bodies) {
+  let faces;
+  try { faces = cylinderFaces(bodies); } catch { return []; }
+  const axes = new Map();
+  for (const f of faces) {
+    if (!(f.r >= 0.5)) continue;
+    let d = f.dir.slice();
+    const big = d.reduce((m, v, i) => (Math.abs(v) > Math.abs(d[m]) ? i : m), 0), sg = d[big] < 0 ? -1 : 1;
+    d = d.map(v => v * sg);
+    // point of the axis closest to the origin identifies the line
+    const tp = -(f.loc[0] * d[0] + f.loc[1] * d[1] + f.loc[2] * d[2]), p = f.loc.map((v, i) => v + d[i] * tp);
+    const key = [...d, ...p].map(v => (Math.abs(v) < 5e-4 ? 0 : v).toFixed(3)).join(',');
+    // extent measured from p (the face's own range runs from its location, in its own direction)
+    const e = [(f.t0 - tp * sg) * sg, (f.t1 - tp * sg) * sg], lo = Math.min(...e), hi = Math.max(...e);
+    const a = axes.get(key);
+    if (a) { a.t0 = Math.min(a.t0, lo); a.t1 = Math.max(a.t1, hi); a.r = Math.max(a.r, f.r); }
+    else axes.set(key, { p, d, t0: lo, t1: hi, r: f.r });
+  }
+  return [...axes.values()];
+}
+
 function openDrawing() {
   if (!getModel().bodies.length) return status('Kein Körper für die Zeichnung vorhanden.');
   wm.get('winDrawing').show(true);
@@ -8012,7 +8098,7 @@ function renderDrawing(rebuild = false) {
       }
       parts = [...by.values()];
     }
-    drawingCache = { key, sectionY: section?.y, ...makeDrawing(bodies, { ...d, section, parts, userDims: d.userDims || [], detail: d.detail || null, title: { name: p.name, material: mat.label, mass, ...d.title } }) };
+    drawingCache = { key, sectionY: section?.y, ...makeDrawing(bodies, { ...d, section, parts, axes: d.centerLines === false ? [] : drawingAxes(bodies), threads: getModel().threads || [], userDims: d.userDims || [], detail: d.detail || null, title: { name: p.name, material: mat.label, mass, ...d.title } }) };
   }
   const placed = placedDrawingSvg(drawingCache.svg, d.offsets);
   root.replaceChildren();
@@ -8028,13 +8114,23 @@ function renderDrawing(rebuild = false) {
     d.section ? row('Schnittlage Y', num(d.sectionY ?? drawingCache.sectionY ?? null, v => ed(x => (x.sectionY = v)), { unit: 'mm', allowEmpty: true, ph: 'automatisch' })) : null,
     d.offsets && Object.keys(d.offsets).length ? h('div', { class: 'btns' }, btn('Ansichten zurücksetzen', () => ed(x => delete x.offsets))) : null,
     row('Bemaßung', chk(d.dims !== false, v => ed(x => (x.dims = v)))),
+    row('Mittellinien', chk(d.centerLines !== false, v => ed(x => (x.centerLines = v)))),
     sec('EIGENE MASSE'),
     h('div', { class: 'btns' },
       btn(dwPick.mode === 'dim' ? (dwPick.pts.length ? '2. Punkt anklicken …' : '1. Punkt anklicken …') : 'Maß hinzufügen', () => { dwPick = dwPick.mode === 'dim' ? { mode: null, pts: [] } : { mode: 'dim', pts: [] }; renderDrawing(); }, dwPick.mode === 'dim' ? 'on' : 'primary')),
-    row('Richtung', sel([['auto', 'automatisch'], ['h', 'waagerecht'], ['v', 'senkrecht'], ['a', 'ausgerichtet'], ['rad', 'Kreise als Radius']], d.dimKind || 'auto', v => ed(x => (x.dimKind = v)))),
-    h('p', { class: 'hint' }, 'Zwei Ecken anklicken = Längenmaß. Einen Kreisrand in der Draufsicht anklicken = Durchmesser (bzw. Radius).'),
+    row('Richtung', sel([['auto', 'automatisch'], ['h', 'waagerecht'], ['v', 'senkrecht'], ['a', 'ausgerichtet'], ['rad', 'Kreise als Radius'], ['ang', 'Winkel (Scheitel, dann je ein Punkt auf den Schenkeln)'], ['cha', 'Fase (beide Enden der Fasenkante)']], d.dimKind || 'auto', v => { dwPick = { mode: dwPick.mode, pts: [] }; ed(x => (x.dimKind = v)); })),
+    h('div', { class: 'btns' }, btn(dwPick.mode === 'note' ? 'Stelle im Blatt anklicken …' : 'Hinweis mit Pfeil hinzufügen', () => { dwPick = dwPick.mode === 'note' ? { mode: null, pts: [] } : { mode: 'note', pts: [] }; renderDrawing(); }, dwPick.mode === 'note' ? 'on' : ''),
+      btn(dwPick.mode === 'surf' ? 'Kante im Blatt anklicken …' : 'Oberflächenzeichen hinzufügen', () => { dwPick = dwPick.mode === 'surf' ? { mode: null, pts: [] } : { mode: 'surf', pts: [] }; renderDrawing(); }, dwPick.mode === 'surf' ? 'on' : ''),
+      btn(dwPick.mode === 'gdt' ? 'Stelle im Blatt anklicken …' : 'Form-/Lagetoleranz hinzufügen', () => { dwPick = dwPick.mode === 'gdt' ? { mode: null, pts: [] } : { mode: 'gdt', pts: [] }; renderDrawing(); }, dwPick.mode === 'gdt' ? 'on' : ''),
+      btn(dwPick.mode === 'datum' ? 'Kante im Blatt anklicken …' : 'Bezug hinzufügen', () => { dwPick = dwPick.mode === 'datum' ? { mode: null, pts: [] } : { mode: 'datum', pts: [] }; renderDrawing(); }, dwPick.mode === 'datum' ? 'on' : '')),
+    h('p', { class: 'hint' }, 'Eigene Maße und Hinweise lassen sich im Blatt mit der Maus ziehen (Abstand der Maßlinie, Winkel der Hinweislinie, Radius des Winkelbogens). Zwei Ecken anklicken = Längenmaß. Einen Kreisrand in der Draufsicht anklicken = Durchmesser (bzw. Radius). Winkel: erst die Ecke, dann je einen Eckpunkt auf beiden Schenkeln. Fase: beide Enden der schrägen Kante – ergibt z. B. 2×45°. Im Textfeld hinter jedem Maß steht ein Zusatz wie ±0,1, H7 oder 4×.'),
     ...(d.userDims || []).map((dm, i) => h('div', { class: 'dw-dim' },
-      h('span', null, `${{ front: 'Vorne', top: 'Oben', left: 'Links' }[dm.view] || dm.view}: ${dm.kind === 'dia' ? 'Ø' + f2(2 * dm.r) : dm.kind === 'rad' ? 'R' + f2(dm.r) : f2(dm.kind === 'h' ? Math.abs(dm.a[0] - dm.b[0]) : dm.kind === 'v' ? Math.abs(dm.a[1] - dm.b[1]) : Math.hypot(dm.a[0] - dm.b[0], dm.a[1] - dm.b[1])) + ' mm'}`),
+      h('span', null, `${{ front: 'Vorne', top: 'Oben', left: 'Links' }[dm.view] || dm.view}: ${dm.kind === 'note' ? 'Hinweis' : dm.kind === 'surf' ? 'Oberfläche' : dm.kind === 'gdt' ? 'Toleranz' : dm.kind === 'datum' ? 'Bezug' : dm.kind === 'ang' ? 'Winkel ' + f2((() => { let w = Math.atan2(dm.b[1] - dm.v[1], dm.b[0] - dm.v[0]) - Math.atan2(dm.a[1] - dm.v[1], dm.a[0] - dm.v[0]); while (w > Math.PI) w -= 2 * Math.PI; while (w < -Math.PI) w += 2 * Math.PI; return (Math.abs(w) * 180) / Math.PI; })()) + '°' : dm.kind === 'dia' ? 'Ø' + f2(2 * dm.r) : dm.kind === 'rad' ? 'R' + f2(dm.r) : f2(dm.kind === 'h' ? Math.abs(dm.a[0] - dm.b[0]) : dm.kind === 'v' ? Math.abs(dm.a[1] - dm.b[1]) : Math.hypot(dm.a[0] - dm.b[0], dm.a[1] - dm.b[1])) + ' mm'}`),
+      dm.kind === 'gdt' ? Object.assign(sel([['pos', 'Position'], ['flat', 'Ebenheit'], ['straight', 'Geradheit'], ['round', 'Rundheit'], ['cyl', 'Zylinderform'], ['par', 'Parallelität'], ['perp', 'Rechtwinkligkeit'], ['angle', 'Neigung'], ['conc', 'Koaxialität'], ['sym', 'Symmetrie'], ['run', 'Rundlauf']], dm.sym || 'pos', v => ed(x => (x.userDims[i].sym = v))), { title: 'Toleranzart', style: 'width:92px' }) : null,
+      dm.kind === 'surf' ? Object.assign(sel([['m', 'spanend'], ['any', 'beliebig'], ['none', 'ohne Abtrag']], dm.sym || 'm', v => ed(x => (x.userDims[i].sym = v))), { title: 'Fertigungsverfahren', style: 'width:92px' }) : null,
+      Object.assign(txt(['note', 'surf', 'gdt', 'datum'].includes(dm.kind) ? dm.text || '' : dm.txt || '', v => ed(x => { if (['note', 'surf', 'gdt', 'datum'].includes(dm.kind)) x.userDims[i].text = v; else x.userDims[i].txt = v; })), { placeholder: { surf: 'Ra 3,2', note: 'Text', gdt: '0,05 A', datum: 'A' }[dm.kind] || '±0,1 / H7', title: { surf: 'Rauheitsangabe', note: 'Text des Hinweises', gdt: 'Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B', datum: 'Bezugsbuchstabe' }[dm.kind] || 'Zusatz hinter der Maßzahl (Toleranz, Passung, Anzahl)', style: 'width:64px' }),
+      dm.kind === 'surf' || dm.kind === 'datum' ? num(dm.ang ?? 0, v => ed(x => (x.userDims[i].ang = v ?? 0)), { unit: '°' }) :
+      dm.kind === 'note' || dm.kind === 'gdt' ? num(dm.ang ?? 45, v => ed(x => (x.userDims[i].ang = v ?? 45)), { unit: '°' }) :
       dm.kind === 'dia' || dm.kind === 'rad'
         ? num(dm.ang ?? 45, v => ed(x => (x.userDims[i].ang = v ?? 45)), { unit: '°' })
         : num(dm.off ?? 16, v => ed(x => (x.userDims[i].off = v ?? 16)), { unit: 'Abst.', min: 2 }),
@@ -8151,8 +8247,49 @@ function enableViewDrag(sheet, d, ed) {
       dwPick = { mode: null, pts: [] };
       return ed(x => (x.detail = { view: q.k, c: [+q.u.toFixed(3), +q.v.toFixed(3)], r: +(12 / q.x.s).toFixed(2), factor: 2 }));
     }
+    // surface symbol: on the nearest edge of the view (its tip sits on the line, turned to stand on it)
+    if (dwPick.mode === 'surf' || dwPick.mode === 'datum') {
+      const datum = dwPick.mode === 'datum';
+      const g = svg.querySelector(`g[data-view="${q.k}"]`), o = d.offsets?.[q.k] || { dx: 0, dy: 0 }, pm = toMM(e);
+      let best = null, bd = 4;
+      for (const l of g?.querySelectorAll('line.vis') || []) {
+        const a = [+l.getAttribute('x1') + o.dx, +l.getAttribute('y1') + o.dy], b = [+l.getAttribute('x2') + o.dx, +l.getAttribute('y2') + o.dy];
+        const ux = b[0] - a[0], uy = b[1] - a[1], L2 = ux * ux + uy * uy;
+        if (L2 < 1e-9) continue;
+        const t = Math.max(0, Math.min(1, ((pm.x - a[0]) * ux + (pm.y - a[1]) * uy) / L2)), fx = a[0] + t * ux, fy = a[1] + t * uy, dd = Math.hypot(pm.x - fx, pm.y - fy);
+        if (dd < bd) { bd = dd; best = { fx, fy, ux, uy, side: (pm.x - fx) * -uy + (pm.y - fy) * ux }; }
+      }
+      if (!best) return status('Keine Kante in der Nähe – näher an eine Körperkante klicken.');
+      // stands on the side of the edge the click came from; angle of the symbol's "up" against the sheet's up
+      let nx = -best.uy, ny = best.ux;
+      if (best.side < 0) { nx = -nx; ny = -ny; }
+      const ang = Math.round((Math.atan2(-nx, -ny) * 180) / Math.PI);
+      const at = [+(q.x.x0 + (best.fx - o.dx - q.x.px) / q.x.s).toFixed(3), +(q.x.y1 - (best.fy - o.dy - q.x.py) / q.x.s).toFixed(3)], view = q.k;
+      dwPick = { mode: null, pts: [] };
+      if (datum) {
+        // next free letter
+        const used = new Set((d.userDims || []).filter(u => u.kind === 'datum').map(u => String(u.text || '').toUpperCase()));
+        const letter = 'ABCDEFGHJKLMNPRSTUVWXYZ'.split('').find(c => !used.has(c)) || 'A';
+        return ed(x => { x.userDims = [...(x.userDims || []), { view, kind: 'datum', a: at, text: letter, ang }]; });
+      }
+      return askValue('Rauheitsangabe (z. B. Ra 3,2 oder Rz 16):', 'Ra 3,2').then(tx => { if (tx == null) return renderDrawing(); ed(x => { x.userDims = [...(x.userDims || []), { view, kind: 'surf', a: at, text: String(tx).trim(), ang }]; }); });
+    }
+    // note or tolerance frame with a leader: at the nearest corner, or freely where clicked
+    if (dwPick.mode === 'gdt') {
+      let at = [+q.u.toFixed(3), +q.v.toFixed(3)], nd = 3 / q.x.s;
+      for (const p of drawingCache.snaps?.[q.k] || []) { const dd = Math.hypot(p[0] - q.u, p[1] - q.v); if (dd < nd) { nd = dd; at = p; } }
+      dwPick = { mode: null, pts: [] };
+      return ed(x => { x.userDims = [...(x.userDims || []), { view: q.k, kind: 'gdt', a: at, sym: 'pos', text: '0,05 A', ang: 45, off: 14 }]; });
+    }
+    if (dwPick.mode === 'note') {
+      let at = [+q.u.toFixed(3), +q.v.toFixed(3)], nd = 3 / q.x.s;
+      for (const p of drawingCache.snaps?.[q.k] || []) { const dd = Math.hypot(p[0] - q.u, p[1] - q.v); if (dd < nd) { nd = dd; at = p; } }
+      dwPick = { mode: null, pts: [] };
+      const view = q.k;
+      return askValue('Text des Hinweises:', '').then(tx => { if (tx == null || !String(tx).trim()) return renderDrawing(); ed(x => { x.userDims = [...(x.userDims || []), { view, kind: 'note', a: at, text: String(tx).trim(), ang: 45, off: 14 }]; }); });
+    }
     // a click on a circle (hole, boss) in the top view: diameter dimension right away
-    if (!dwPick.pts.length) {
+    if (!dwPick.pts.length && d.dimKind !== 'ang') {
       let hit = null, hd = 2.5 / q.x.s;
       for (const ci of drawingCache.circles?.[q.k] || []) for (const r of ci.rs) {
         const dd = Math.abs(Math.hypot(q.u - ci.c[0], q.v - ci.c[1]) - r);
@@ -8169,16 +8306,87 @@ function enableViewDrag(sheet, d, ed) {
     if (!best) return status('Kein Eckpunkt in der Nähe – näher an eine Ecke oder ein Linienende klicken.');
     if (dwPick.pts.length && dwPick.pts[0].k !== q.k) return status('Beide Punkte müssen in derselben Ansicht liegen.');
     dwPick.pts.push({ k: q.k, p: best });
+    // angle: corner first, then one point on each leg
+    if (d.dimKind === 'ang') {
+      if (dwPick.pts.length < 3) { renderDrawing(); return status(dwPick.pts.length === 1 ? 'Scheitel gewählt – jetzt einen Punkt auf dem ersten Schenkel.' : 'Jetzt einen Punkt auf dem zweiten Schenkel.'); }
+      const [V, A, B] = dwPick.pts.map(x => x.p);
+      dwPick = { mode: 'dim', pts: [] };
+      if (Math.hypot(A[0] - V[0], A[1] - V[1]) < 1e-6 || Math.hypot(B[0] - V[0], B[1] - V[1]) < 1e-6) return status('Schenkelpunkt liegt auf dem Scheitel.');
+      return ed(x => { x.userDims = [...(x.userDims || []), { view: q.k, kind: 'ang', v: V, a: A, b: B, off: 16 }]; });
+    }
     if (dwPick.pts.length < 2) { renderDrawing(); return status('Ersten Punkt gewählt – jetzt den zweiten anklicken.'); }
     const [A, B] = dwPick.pts.map(x => x.p);
     const dx = Math.abs(A[0] - B[0]), dy = Math.abs(A[1] - B[1]);
     if (dx < 1e-6 && dy < 1e-6) { dwPick.pts.pop(); return status('Zweimal derselbe Punkt.'); }
+    // chamfer: the two ends of its edge give the callout (2×45° or 2×3), on a leader from the middle of the edge
+    if (d.dimKind === 'cha') {
+      dwPick = { mode: 'dim', pts: [] };
+      if (dx < 1e-6 || dy < 1e-6) return status('Das ist keine schräge Kante – beide Enden der Fasenkante anklicken.');
+      const c = v => String(f2(v)).replace('.', ','), text = Math.abs(dx - dy) < 0.01 ? `${c(dx)}×45°` : `${c(dx)}×${c(dy)}`;
+      // the leader points away from the middle of the view (in steps of 45°), so the text lands outside the part
+      const sn = drawingCache.snaps?.[q.k] || [], mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+      const cx = sn.length ? (Math.min(...sn.map(p => p[0])) + Math.max(...sn.map(p => p[0]))) / 2 : mid[0] - 1, cy = sn.length ? (Math.min(...sn.map(p => p[1])) + Math.max(...sn.map(p => p[1]))) / 2 : mid[1] - 1;
+      let la = Math.round((Math.atan2(mid[1] - cy, mid[0] - cx) * 180) / Math.PI / 45) * 45;
+      if (la % 90 === 0) la += 45;
+      return ed(x => { x.userDims = [...(x.userDims || []), { view: q.k, kind: 'note', a: [+mid[0].toFixed(3), +mid[1].toFixed(3)], text, ang: la, off: 12 }]; });
+    }
     const kind = d.dimKind && !['auto', 'rad'].includes(d.dimKind) ? d.dimKind : dy < 1e-6 ? 'h' : dx < 1e-6 ? 'v' : dx >= dy ? 'h' : 'v';
     dwPick = { mode: 'dim', pts: [] };
     ed(x => { x.userDims = [...(x.userDims || []), { view: q.k, a: A, b: B, kind, off: 16 }]; });
   });
+  // own dimensions are moved with the mouse: lengths by the distance of the dimension line, diameters / notes
+  // by the angle of their leader (notes also by its length), angles by the radius of the arc
+  for (const g of svg.querySelectorAll('g.udim')) g.style.cursor = dwPick.mode ? '' : 'grab';
+  const dimDrag = e => {
+    const g = e.target.closest?.('g.udim'), i = g ? +g.dataset.dim : -1, dm = d.userDims?.[i];
+    const x = dm && drawingCache.xf?.[dm.view];
+    if (!x) return false;
+    e.preventDefault(); e.stopPropagation();
+    const o = d.offsets?.[dm.view] || { dx: 0, dy: 0 };
+    const S = q => [x.px + (q[0] - x.x0) * x.s + o.dx, x.py + (x.y1 - q[1]) * x.s + o.dy]; // view -> sheet
+    const p0 = toMM(e);
+    let patch = null;
+    try { svg.setPointerCapture(e.pointerId); } catch { /* not a real pointer */ }
+    g.classList.add('dw-drag');
+    const move = ev => {
+      const p = toMM(ev), dx = p.x - p0.x, dy = p.y - p0.y;
+      if (dm.kind === 'surf' || dm.kind === 'datum') {
+        // turned in steps of 15°, pointing where the mouse is
+        const c = S(dm.a), ang = Math.round(((Math.atan2(-(p.y - c[1]), p.x - c[0]) * 180) / Math.PI - 90) / 15) * 15;
+        patch = { ang };
+        g.setAttribute('transform', `rotate(${(+dm.ang || 0) - ang} ${c[0].toFixed(2)} ${c[1].toFixed(2)})`);
+      } else if (dm.kind === 'dia' || dm.kind === 'rad' || dm.kind === 'note' || dm.kind === 'gdt') {
+        const lead = dm.kind === 'note' || dm.kind === 'gdt';
+        const c = S(lead ? dm.a : dm.c), ang = Math.round((Math.atan2(-(p.y - c[1]), p.x - c[0]) * 180) / Math.PI);
+        patch = { ang, ...(lead ? { off: +Math.max(4, Math.hypot(p.x - c[0], p.y - c[1])).toFixed(1) } : {}) };
+        g.setAttribute('transform', `rotate(${(+dm.ang || 45) - ang} ${c[0].toFixed(2)} ${c[1].toFixed(2)})`);
+      } else if (dm.kind === 'ang') {
+        const v = S(dm.v);
+        patch = { off: +Math.max(4, Math.hypot(p.x - v[0], p.y - v[1])).toFixed(1) };
+      } else {
+        // along the direction the dimension line moves in: up (h), right (v) or across the edge (aligned)
+        let n = dm.kind === 'h' ? [0, -1] : dm.kind === 'v' ? [1, 0] : null;
+        if (!n) { const a = S(dm.a), b = S(dm.b), L0 = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; n = [-(b[1] - a[1]) / L0, (b[0] - a[0]) / L0]; if (n[1] > 0) n = [-n[0], -n[1]]; }
+        const t = dx * n[0] + dy * n[1];
+        patch = { off: +Math.max(2, (+dm.off || 16) + t).toFixed(1) };
+        const tt = patch.off - (+dm.off || 16);
+        g.setAttribute('transform', `translate(${(n[0] * tt).toFixed(2)} ${(n[1] * tt).toFixed(2)})`);
+      }
+    };
+    const up = () => {
+      svg.removeEventListener('pointermove', move);
+      svg.removeEventListener('pointerup', up);
+      g.classList.remove('dw-drag');
+      if (patch && Object.entries(patch).some(([k2, v]) => Math.abs(v - (+dm[k2] || 0)) > 0.05)) ed(xd => Object.assign(xd.userDims[i], patch));
+      else g.removeAttribute('transform');
+    };
+    svg.addEventListener('pointermove', move);
+    svg.addEventListener('pointerup', up);
+    return true;
+  };
   svg.addEventListener('pointerdown', e => {
     if (e.button !== 0 || dwPick.mode) return;
+    if (dimDrag(e)) return;
     const p0 = toMM(e), k = viewAt(p0);
     if (!k) return;
     e.preventDefault();
@@ -8393,6 +8601,49 @@ function toolMesh(t) {
   return grp;
 }
 
+// Holes of the model a driven tool on the lathe can drill (spindle = model Z): parallel to the axis but off
+// centre (axial) or crossing the axis at a right angle (radial). The group that fits the tool diameter best wins.
+// Returns the operation fields to set, the number of holes and their diameter.
+function liveHolesFromModel(toolDia, want) {
+  let list;
+  try { list = cylinderFaces(getModel().bodies).filter(q => !q.outside); } catch { return null; }
+  if (!list.length) return null;
+  let top = -Infinity;
+  for (const b of getModel().bodies) { try { top = Math.max(top, b.shape.boundingBox.bounds[1][2]); } catch { /* no box */ } }
+  const groups = new Map();
+  const add = (key, base, ang, depth) => {
+    const g = groups.get(key) || { ...base, angs: [], depth: 0 };
+    const a = +((((ang * 180) / Math.PI) % 360 + 360) % 360).toFixed(2);
+    if (!g.angs.some(v => Math.abs(v - a) < 0.05 || Math.abs(Math.abs(v - a) - 360) < 0.05)) g.angs.push(a);
+    g.depth = Math.max(g.depth, depth);
+    groups.set(key, g);
+  };
+  for (const q of list) {
+    const [dx, dy, dz] = q.dir, [lx, ly, lz] = q.loc;
+    if (Math.abs(Math.abs(dz) - 1) < 1e-4) {
+      const rad = Math.hypot(lx, ly);
+      if (rad < 0.05) continue; // on the axis: plain drilling
+      const zBot = Math.min(lz + q.t0 * dz, lz + q.t1 * dz);
+      add(`ax|${rad.toFixed(2)}|${q.r.toFixed(3)}`, { dir: 'axial', r: q.r, pitchDia: +(2 * rad).toFixed(3) }, Math.atan2(ly, lx), top - zBot);
+    } else if (Math.abs(dz) < 1e-4 && Math.abs(lx * dy - ly * dx) < 0.05) {
+      // signed distances of the two ends from the turning axis, along the hole
+      const ta = -(lx * dx + ly * dy), s0 = q.t0 - ta, s1 = q.t1 - ta;
+      const through = s0 < -0.05 && s1 > 0.05, sg = through ? 1 : Math.sign(s0 + s1) || 1;
+      const depth = through ? s1 - s0 : Math.max(Math.abs(s0), Math.abs(s1)) - Math.min(Math.abs(s0), Math.abs(s1));
+      add(`rad|${lz.toFixed(2)}|${q.r.toFixed(3)}`, { dir: 'radial', r: q.r, z: +lz.toFixed(3) }, Math.atan2(sg * dy, sg * dx), depth);
+    }
+  }
+  const all = [...groups.values()].filter(g => !want || g.dir === want);
+  if (!all.length) return null;
+  const R = (+toolDia || 0) / 2;
+  all.sort((a, b) => Math.abs(a.r - R) - Math.abs(b.r - R) || b.angs.length - a.angs.length);
+  const g = all[0], angs = [...g.angs].sort((a, b) => a - b);
+  // evenly spaced holes: count + start angle, otherwise the list of angles
+  const step = 360 / angs.length, even = angs.every((a, i) => Math.abs(a - angs[0] - i * step) < 0.05);
+  const set = { dir: g.dir, depth: +g.depth.toFixed(3), count: angs.length, startAngle: even ? angs[0] : 0, angles: even ? '' : angs.join('; '), ...(g.dir === 'radial' ? { z: g.z } : { pitchDia: g.pitchDia }) };
+  return { ...set, set, n: angs.length, dia: 2 * g.r };
+}
+
 function placeTool() {
   if (!sim.segs) return;
   const s = sim.segs[Math.min(sim.idx, sim.segs.length - 1)];
@@ -8411,13 +8662,16 @@ function placeTool() {
   // 4-axis: tool radial to the A axis (along the setup X)
   const aDeg = s.b.a != null ? (s.a.a ?? s.b.a) + ((s.b.a - (s.a.a ?? s.b.a)) * t) : 0;
   sim.toolMesh.rotation.set((-aDeg * Math.PI) / 180, 0, 0);
+  // lathe with driven tool: radial holes have the tool along the radius at the hole's angle
+  const liveC = s.b.live ? (s.b.polar && s.a.polar ? (Math.atan2(y, x) * 180) / Math.PI : s.b.c) : null;
+  if (s.b.live === 'rad') sim.toolMesh.rotation.set(0, Math.PI / 2, (liveC * Math.PI) / 180, 'ZYX');
   const o = originOf(sim.gen.setup, sim.gen.stock);
   const nc = sim.collisions?.length || 0;
   const info = $('#simInfo');
   info.classList.toggle('bad', nc > 0);
   info.title = nc ? sim.collisions.map(c => `${({ rapid: 'Eilgang im Material', shank: 'Schaft über der Schneidenlänge berührt Material', holder: 'Werkzeughalter berührt Material' })[c.type]} – ${c.op}`).join('\n') : '';
   // lathe: X as diameter, Z from the finished face (as in the NC program)
-  const pos = sim.turn ? `X${(2 * x).toFixed(2)} Z${(z - sim.gen.stock.modelTop).toFixed(2)}`
+  const pos = sim.turn ? `X${(2 * (liveC == null ? x : s.b.polar && s.a.polar ? Math.hypot(x, y) : (s.a.xr ?? s.b.xr) + (s.b.xr - (s.a.xr ?? s.b.xr)) * t)).toFixed(2)} Z${(z - sim.gen.stock.modelTop).toFixed(2)}${liveC != null ? ` C${liveC.toFixed(1)}` : ''}`
     : s.b.a != null ? `X${(x - o.x).toFixed(2)} Z${((s.a.mz ?? s.b.mz) + (s.b.mz - (s.a.mz ?? s.b.mz)) * t - o.z).toFixed(2)} A${aDeg.toFixed(1)}` : `X${(x - o.x).toFixed(2)} Y${(y - o.y).toFixed(2)} Z${(z - o.z).toFixed(2)}`;
   info.textContent = `${nc ? `⚠ ${nc} Kollision${nc > 1 ? 'en' : ''}  ` : ''}${fmtTime(sim.t)} / ${fmtTime(sim.total)}  ${pos}  ${s.op}`;
   $('#simProgress').value = sim.total ? Math.round((sim.t / sim.total) * 1000) : 0;
@@ -9334,10 +9588,23 @@ function selectedSketchEntities() {
   return { rsk, ids, ents: ids.map(id => rsk.entities.find(e => e.id === id)).filter(Boolean) };
 }
 
+// "Versatz" as a click tool: with nothing selected the tool starts (hover shows the offset on the mouse's side,
+// a click asks for the distance); with closed contours selected they are offset at once as before
+async function sketchOffsetAt(id, sign) {
+  const e = sketcher.entities.find(x => x.id === id);
+  if (!e) return;
+  const v = evalExpr(await askValue('Versatzabstand (mm):', String(sketcher.offsetVal)) || '', paramScope(state.project));
+  if (!Number.isFinite(v) || !(Math.abs(v) > 0)) return;
+  sketcher.offsetVal = Math.abs(v);
+  const add = offsetEntities(e, sign * v, () => uid('e'));
+  if (!add.length) return status('Versatz ergibt keine Kontur (zu weit nach innen).');
+  commitSketch(state.sketchId, sk => { sk.entities.push(...add); });
+  status(`Versatz ${String(Math.abs(v)).replace('.', ',')} mm erstellt – weitere Kontur anklicken oder Esc`);
+}
 async function sketchOffset() {
   const { ents } = selectedSketchEntities();
   const closed = ents.filter(e => e.type !== 'text' && (e.type !== 'poly' || e.closed));
-  if (!closed.length) return status('Versatz: geschlossene Konturen wählen (Rechteck, Kreis, Kontur …), dann erneut „Versatz“.');
+  if (!closed.length) { sketcher.setTool('offset'); renderToolbar(); return status('Versatz: mit der Maus neben eine Kontur fahren – die Seite bestimmt die Richtung – und klicken. Esc beendet.'); }
   const d = evalExpr(await askValue('Versatzabstand (mm, positiv = nach außen, negativ = nach innen):', '2') || '', paramScope(state.project));
   if (!Number.isFinite(d) || !d) return;
   const CL = window.ClipperLib, S = 1000;
@@ -9360,61 +9627,69 @@ async function sketchOffset() {
   status(`Versatz ${d} mm erstellt`);
 }
 
+// Mirror and patterns as tools with a preview: the elements are chosen first, then the tool shows what it will
+// make – the mirror image at the line under the mouse, the pattern with the mouse as spacing / centre.
+function mirrorSketchEntities(items, axis) {
+  const [A, B] = axis.pts.map(q => q.map(Number));
+  const add = items.map(e => mirrorAbout(e, A, B)).filter(Boolean);
+  commitSketch(state.sketchId, sk => { for (const e of add) sk.entities.push({ ...e, id: uid('e') }); });
+  sketcher.selection = [];
+  status(`${add.length} Element(e) gespiegelt`);
+}
 function sketchMirror() {
   const { ents } = selectedSketchEntities();
-  const axis = [...ents].reverse().find(e => e.type === 'poly' && e.pts.length === 2 && !e.curve);
-  const items = ents.filter(e => e !== axis);
-  if (!axis || !items.length) return status('Spiegeln: zuerst die Elemente wählen, zuletzt (Umschalt) eine einzelne Linie als Spiegelachse, dann „Spiegeln“.');
-  const [[ax, ay], [bx, by]] = axis.pts.map(p => p.map(Number));
-  const len = Math.hypot(bx - ax, by - ay) || 1, ux = (bx - ax) / len, uy = (by - ay) / len;
-  const M = ([x, y]) => { const t = (x - ax) * ux + (y - ay) * uy; const px = ax + t * ux, py = ay + t * uy; return [+(2 * px - x).toFixed(4), +(2 * py - y).toFixed(4)]; };
-  const axDeg = (Math.atan2(uy, ux) * 180) / Math.PI;
-  commitSketch(state.sketchId, sk => {
-    for (const e of items) {
-      const id = uid('e');
-      // mirrored polyline: points reversed, so the corner numbers too (unequal chamfers swap their sides)
-      const rev = (o, f = v => v) => (o ? Object.fromEntries(Object.entries(o).map(([k, v]) => [e.pts.length - 1 - +k, f(v)])) : undefined);
-      if (e.type === 'poly') sk.entities.push({ ...JSON.parse(JSON.stringify(e)), id, pts: e.pts.map(M).reverse(), radii: rev(e.radii), chamfers: rev(e.chamfers, v => (Array.isArray(v) ? [v[1], v[0]] : v)) });
-      else if (e.type === 'circle') { const [cx, cy] = M([e.cx, e.cy]); sk.entities.push({ id, type: 'circle', cx, cy, r: e.r }); }
-      else if (e.type === 'rect') {
-        const pts = [[+e.x, +e.y], [+e.x + +e.w, +e.y], [+e.x + +e.w, +e.y + +e.h], [+e.x, +e.y + +e.h]].map(M).reverse();
-        sk.entities.push({ id, type: 'poly', closed: true, pts });
-      } else if (e.type === 'ngon' || e.type === 'slot' || e.type === 'ellipse') {
-        const [cx, cy] = M([e.cx, e.cy]);
-        sk.entities.push({ ...JSON.parse(JSON.stringify(e)), id, cx, cy, rot: +(2 * axDeg - (+e.rot || 0)).toFixed(4) });
-      }
-    }
-  });
-  sketcher.selection = [];
-  status(`${items.length} Element(e) gespiegelt`);
+  if (!ents.length) return status('Spiegeln: zuerst die Elemente wählen (Umschalt für mehrere), dann „Spiegeln“ und die Spiegelachse anklicken.');
+  // as before: a single line chosen last is the axis
+  const axis = ents.length > 1 ? [...ents].reverse().find(e => e.type === 'poly' && e.pts.length === 2 && !e.curve) : null;
+  if (axis && axis === ents[ents.length - 1]) return mirrorSketchEntities(ents.filter(e => e !== axis), axis);
+  sketcher.xformIds = ents.map(e => e.id);
+  sketcher.setTool('mirror');
+  renderToolbar();
+  status('Spiegeln: über die Spiegelachse fahren (Vorschau) und klicken. Esc beendet.');
 }
 
 // Sketch pattern (Fusion: "Rechteckige Anordnung" / "Runde Anordnung" in a sketch).
-async function sketchPattern(kind) {
+function sketchPattern(kind) {
   const { ents } = selectedSketchEntities();
   if (!ents.length) return status('Muster: zuerst Skizzenelemente wählen (Auswahl, Umschalt für mehrere).');
-  const scope = paramScope(state.project);
-  const ask = async (label, def) => { const v = await askValue(label, def); return v == null ? null : evalExpr(v.replace(/,/g, '.'), scope); };
-  let copies = [];
-  if (kind === 'rect') {
-    const nx = Math.round(await ask('Anzahl in X-Richtung', '3')); if (!(nx >= 1)) return;
-    const dx = await ask('Abstand in X (mm)', '20'); if (!Number.isFinite(dx)) return;
-    const ny = Math.round(await ask('Anzahl in Y-Richtung', '1')); if (!(ny >= 1)) return;
-    const dy = ny > 1 ? await ask('Abstand in Y (mm)', '20') : 0; if (!Number.isFinite(dy)) return;
-    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) if (i || j) copies.push(e => translateEntity(e, i * dx, j * dy));
-  } else {
-    const n = Math.round(await ask('Anzahl (inkl. Original)', '6')); if (!(n >= 2)) return;
-    const total = await ask('Gesamtwinkel (°)', '360'); if (!Number.isFinite(total)) return;
-    const c = (await askValue('Mittelpunkt x, y (mm)', '0, 0'))?.split(/[;\s]+|,\s*/).map(v => evalExpr(v, scope));
-    if (!c || c.length < 2 || !c.every(Number.isFinite)) return;
-    const step = Math.abs(Math.abs(total) - 360) < 1e-6 ? total / n : total / (n - 1);
-    for (let i = 1; i < n; i++) copies.push(e => rotateEntity(e, step * i, c));
+  sketcher.xformIds = ents.map(e => e.id);
+  sketcher.setTool(kind === 'rect' ? 'prect' : 'pcirc');
+  renderToolbar();
+  status(kind === 'rect' ? 'Rechteck-Muster: mit der Maus den Abstand der ersten Kopie zeigen (Vorschau) und klicken. Esc beendet.' : 'Kreis-Muster: den Mittelpunkt zeigen (Vorschau) und klicken. Esc beendet.');
+}
+// the click of the mirror / pattern tools
+async function sketchXform(kind, data) {
+  const ents = sketcher.xformIds.map(id => sketcher.entities.find(e => e.id === id)).filter(Boolean);
+  if (!ents.length) return;
+  const done = () => { sketcher.xformIds = []; sketcher.setTool('select'); renderToolbar(); };
+  if (kind === 'mirror') {
+    const axis = sketcher.entities.find(e => e.id === data.axis);
+    if (axis) mirrorSketchEntities(ents, axis);
+    return done();
   }
-  commitSketch(state.sketchId, sk => {
-    for (const mk of copies) for (const e of ents) sk.entities.push({ ...mk(e), id: uid('e') });
-  });
+  const scope = paramScope(state.project), pv = sketcher.patternVal, c = v => String(+(+v).toFixed(3)).replace('.', ',');
+  const nums = txt => String(txt).split(/[;\s]+/).filter(x => x !== '').map(x => evalExpr(x.replace(/,/g, '.'), scope));
+  const copies = [];
+  if (kind === 'prect') {
+    const txt = await askValue('Rechteck-Muster: Anzahl X; Abstand X; Anzahl Y; Abstand Y (mm) – bei Anzahl Y = 1 liegen die Kopien in Richtung des gezeigten Abstands', `${pv.nx}; ${c(data.dx)}; ${pv.ny}; ${c(data.dy)}`);
+    if (txt == null) return;
+    const [nx, dx, ny = 1, dy = 0] = nums(txt);
+    if (![nx, dx, ny, dy].every(Number.isFinite) || !(nx >= 1) || !(ny >= 1) || nx * ny < 2) return status('Muster: mindestens zwei Stück und gültige Abstände angeben.');
+    Object.assign(pv, { nx: Math.round(nx), ny: Math.round(ny) });
+    for (let i = 0; i < pv.nx; i++) for (let j = 0; j < pv.ny; j++) if (i || j) copies.push(e => translateEntity(e, i * dx, pv.ny > 1 ? j * dy : i * dy));
+  } else {
+    const txt = await askValue('Kreis-Muster: Anzahl (mit Original); Gesamtwinkel (°)', `${pv.n}; ${c(pv.ang)}`);
+    if (txt == null) return;
+    const [n, ang = 360] = nums(txt);
+    if (!(n >= 2) || !Number.isFinite(ang) || !ang) return status('Muster: mindestens zwei Stück und einen Winkel angeben.');
+    Object.assign(pv, { n: Math.round(n), ang });
+    const step = Math.abs(Math.abs(ang) - 360) < 1e-6 ? ang / pv.n : ang / (pv.n - 1);
+    for (let i = 1; i < pv.n; i++) copies.push(e => rotateEntity(e, step * i, data.c));
+  }
+  commitSketch(state.sketchId, sk => { for (const mk of copies) for (const e of ents) sk.entities.push({ ...mk(e), id: uid('e') }); });
   sketcher.selection = [];
   status(`${copies.length * ents.length} Element(e) als Muster erzeugt`);
+  done();
 }
 
 // ---------- designs: data panel, document tabs, versions (like Fusion) ----------
@@ -10417,7 +10692,7 @@ function latheThreadChain(st, xr, ze, H, D) {
 }
 function parseNcLathe(code) {
   const pos = { x: 0, z: 0 };
-  let mode = 0, tool = null, known = false, sx = false, sz = false, diam = true;
+  let mode = 0, tool = null, known = false, sx = false, sz = false, diam = true, cAng = null, polar = false;
   const out = [];
   const ups = code.split('\n').map(raw => raw.replace(/\([^)]*\)/g, '').replace(/;.*$/, '').toUpperCase());
   const wv = (up, k) => { const m = up.match(new RegExp(`(?:^|[^A-Z])${k}\\s*([+-]?\\d*\\.?\\d+)`)); return m ? +m[1] : null; };
@@ -10481,7 +10756,10 @@ function parseNcLathe(code) {
     }
     const tm = up.match(/(?:^|[^A-Z])T\s*(\d+)/);
     // T0101 (Fanuc: tool + offset), T010101 (Okuma: offset + tool + nose)
-    if (tm) tool = tm[1].length === 4 ? +tm[1].slice(0, 2) : tm[1].length === 6 ? +tm[1].slice(2, 4) : +tm[1];
+    if (tm) { tool = tm[1].length === 4 ? +tm[1].slice(0, 2) : tm[1].length === 6 ? +tm[1].slice(2, 4) : +tm[1]; cAng = null; }
+    if (/G12\.1|G112(?![\d.])/.test(up)) polar = true;
+    if (/G13\.1|G113(?![\d.])/.test(up)) { polar = false; cAng = null; }
+    { const cw = /G0*7\.1|G107(?![\d.])/.test(up) ? null : wv(up, 'C'); if (cw != null) cAng = cw; }
     if (/G0*7(?![\d.])/.test(up)) diam = true;
     if (/G0*8(?![\d.])/.test(up)) diam = false;
     // dwell (X = time) and reference / datum moves are no tool moves
@@ -10493,9 +10771,13 @@ function parseNcLathe(code) {
       if (m[1] === 'X') { pos.x = diam ? +m[2] / 2 : +m[2]; sx = true; } else { pos.z = +m[2]; sz = true; }
       moved = true;
     }
+    if (polar && sx && sz && wv(up, 'C') != null) moved = true; // polar mode: a C word alone is a move too
     if (moved && sx && sz) {
       const pt = { x: pos.x, y: 0, z: pos.z, rapid: mode === 0, thread: mode === 32 || mode === 33, tool, first: !known };
       if ((mode === 2 || mode === 3) && known) pt.arc = latheArc(before, pos, up, mode === 2);
+      if (cAng != null) pt.c = cAng;
+      // polar mode: X/C are Cartesian on the part -> radius and angle
+      if (polar && cAng != null) { pt.c = (Math.atan2(cAng, pos.x) * 180) / Math.PI; pt.x = Math.hypot(pos.x, cAng); }
       out.push(pt);
       known = true;
     } else out.push(null);
@@ -10543,7 +10825,7 @@ function ncLatheCheck(g, pts) {
     const t = tools.get(+p.tool);
     const a = prev, b = { x: p.x, z: p.z + s.modelTop };
     prev = b;
-    if (!t || !a) return;
+    if (!t || !a || p.c != null) return; // driven tools (C axis) do not cut the turned profile
     const sh = turnCutShape(t), kinds = new Set();
     // the trailing edge starts behind the nose: material it removes means the tool went down too steeply
     const trail = sh.rn != null ? sh.rn * 1.5 + dz : Infinity;
@@ -10859,6 +11141,7 @@ function ncViewer(results) {
   };
   const firstMove = () => Math.max(0, pts.findIndex(p => p));
   const world = p => {
+    if (p.c != null) { const th = (p.c * Math.PI) / 180; p = { x: p.x * Math.cos(th), y: p.x * Math.sin(th), z: p.z }; }
     if (p.a) {
       const th = (p.a * Math.PI) / 180, c = Math.cos(th), s = Math.sin(th);
       p = { x: p.x, y: p.y * c + p.z * s, z: -p.y * s + p.z * c };

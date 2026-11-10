@@ -42,6 +42,9 @@ export const SECTIONS = [
   ['threadMove', 'Drehen: Gewindeschnitt'],
   ['cycleTurnRough', 'Drehen: Schruppzyklus ({contour} = Konturzeilen)'], ['cycleTurnFinish', 'Drehen: Schlichtzyklus (Kontur des Schruppzyklus)'], ['contourFirst', 'Drehen: Vorsatz erste Konturzeile'], ['contourLast', 'Drehen: Vorsatz letzte Konturzeile'],
   ['cycleTurnThread', 'Drehen: Gewindezyklus'],
+  ['liveOn', 'Drehen: C-Achse und angetriebenes Werkzeug ein'], ['liveOff', 'Drehen: angetriebenes Werkzeug und C-Achse aus'],
+  ['polarOn', 'Drehen: Polar-Interpolation ein (X Durchmesser, C in mm; leer = X/C in Grad)'], ['polarOff', 'Drehen: Polar-Interpolation aus'],
+  ['cylOn', 'Drehen: Zylinder-Interpolation ein ({cylr} = Radius; leer = Z/C ohne)'], ['cylOff', 'Drehen: Zylinder-Interpolation aus'],
   ['probeZ', 'Antasten: Z-Fläche'], ['probeBore', 'Antasten: Bohrung'], ['probeBoss', 'Antasten: Zapfen'], ['probeRectOut', 'Antasten: Rechteck außen'], ['probeRectIn', 'Antasten: Rechtecktasche innen'],
 ];
 export const CYCLE_KEYS = { drill: 'cycleDrill', dwell: 'cycleDwell', peck: 'cyclePeck', chip: 'cycleChip', tap: 'cycleTap', tapLeft: 'cycleTapLeft', ream: 'cycleReam', bore: 'cycleBore' };
@@ -85,7 +88,8 @@ export const BUILTIN_POSTS = [
     ...GCODE_BASE, ...G8X, family: 'linuxcnc', id: 'linuxcnc', name: 'LinuxCNC', ext: 'ngc', builtin: true,
     // LinuxCNC has no G84/G74 (rigid tapping is G33.1) -> tapping is written out
     cycleTap: '', cycleTapLeft: '',
-    header: `${HEADER_INFO}\nG90 G94 G17\nG21\nG54\nG0 Z{safe}`,
+    // start: up in machine coordinates (no tool length offset is active yet, so no height above the part)
+    header: `${HEADER_INFO}\nG90 G94 G17\nG21\nG54\nG53 G0 Z0`,
     toolChangeFirst: '# T{t} {toolname} D{tooldia}\nT{t} M6\nG43 H{t}',
     toolChange: 'M5\n# T{t} {toolname} D{tooldia}\nT{t} M6\nG43 H{t}',
     footer: '\nG0 Z{safe}\n{coolantoff}\nM5\nM30',
@@ -98,9 +102,11 @@ export const BUILTIN_POSTS = [
     probeBoss: 'G0 X{cx} Y{cy}\nG0 Z{zsafe}\nG65 P9810 Z{zabove} F{pfeed}\nG65 P9814 D{dia} Z{zmeas} S{wcsn}\nG65 P9810 Z{zsafe} F{pfeed}',
     probeRectOut: 'G0 X{cx} Y{cy}\nG0 Z{zsafe}\nG65 P9810 Z{zabove} F{pfeed}\nG65 P9812 X{w} Z{zmeas} S{wcsn}\nG65 P9812 Y{l} Z{zmeas} S{wcsn}\nG65 P9810 Z{zsafe} F{pfeed}',
     probeRectIn: 'G0 X{cx} Y{cy}\nG0 Z{zsafe}\nG65 P9810 Z{zmeas} F{pfeed}\nG65 P9812 X{w} S{wcsn}\nG65 P9812 Y{l} S{wcsn}\nG65 P9810 Z{zsafe} F{pfeed}',
-    header: `%\nO1000\n${HEADER_INFO}\nG90 G94 G17\nG21\nG54\nG0 Z{safe}`,
-    toolChangeFirst: '# T{t} {toolname} D{tooldia}\nT{t} M6',
-    toolChange: 'M5\n# T{t} {toolname} D{tooldia}\nT{t} M6',
+    // start and tool change: Z to the reference point first (no tool length offset is active at the start)
+    header: `%\nO1000\n${HEADER_INFO}\nG90 G94 G17\nG21\nG54\nG91 G28 Z0\nG90`,
+    // tool length offset with the first move in Z (without it the control positions the spindle nose)
+    toolChangeFirst: '# T{t} {toolname} D{tooldia}\nT{t} M6\nG0 G43 Z{safe} H{t}',
+    toolChange: 'M5\nG91 G28 Z0\nG90\n# T{t} {toolname} D{tooldia}\nT{t} M6\nG0 G43 Z{safe} H{t}',
     footer: '\nG0 Z{safe}\n{coolantoff}\nM5\nM30\n%',
   },
   {
@@ -112,7 +118,7 @@ export const BUILTIN_POSTS = [
     cyclePeck: 'G83{X!}{Y!} Z{zbottom} R{rplane} Q{peck} F{f}', cycleChip: 'G73{X!}{Y!} Z{zbottom} R{rplane} Q{peck} F{f}',
     cycleTap: 'G84{X!}{Y!} Z{zbottom} R{rplane} F{f}', cycleTapLeft: 'G74{X!}{Y!} Z{zbottom} R{rplane} F{f}',
     cycleReam: 'G85{X!}{Y!} Z{zbottom} R{rplane} F{f}', cycleBore: 'G86{X!}{Y!} Z{zbottom} R{rplane} F{f}',
-    header: `O{prognum}\n${HEADER_INFO}\nG15 H{wcsh}\nG17 G40 G80 G90 G94\nG0 Z{safe}`,
+    header: `O{prognum}\n${HEADER_INFO}\nG15 H{wcsh}\nG17 G40 G80 G90 G94`,
     toolChangeFirst: '# T{t} {toolname} D{tooldia}\nT{t} M6\nG56 H{t}',
     toolChange: 'M5\n# T{t} {toolname} D{tooldia}\nT{t} M6\nG56 H{t}',
     footer: '\nG0 Z{safe}\n{coolantoff}\nM5\nM2',
@@ -121,10 +127,10 @@ export const BUILTIN_POSTS = [
     ...GCODE_BASE, family: 'sinumerik', id: 'sinumerik', name: 'Siemens Sinumerik 840D', ext: 'mpf', builtin: true, comment: '; {text}',
     // modal cycle call: MCALL CYCLE8x(...), then one positioning block per hole, MCALL ends it
     useDrillCycle: true, cycleFirstInDef: false, cyclePoint: 'G0{X!}{Y!}', cycleEnd: 'MCALL', dwell: 'G4 F{dwell}',
-    cycleDrill: 'MCALL CYCLE81({safe},{ztop},{sdis},{zbottom})',
-    cycleDwell: 'MCALL CYCLE82({safe},{ztop},{sdis},{zbottom},,{dwell})',
-    cyclePeck: 'MCALL CYCLE83({safe},{ztop},{sdis},{zbottom},,{zfirst},,{peck},0,0,1,1)',
-    cycleChip: 'MCALL CYCLE83({safe},{ztop},{sdis},{zbottom},,{zfirst},,{peck},0,0,1,0)',
+    cycleDrill: 'F{f}\nMCALL CYCLE81({safe},{ztop},{sdis},{zbottom})',
+    cycleDwell: 'F{f}\nMCALL CYCLE82({safe},{ztop},{sdis},{zbottom},,{dwell})',
+    cyclePeck: 'F{f}\nMCALL CYCLE83({safe},{ztop},{sdis},{zbottom},,{zfirst},,{peck},0,0,1,1)',
+    cycleChip: 'F{f}\nMCALL CYCLE83({safe},{ztop},{sdis},{zbottom},,{zfirst},,{peck},0,0,1,0)',
     cycleTap: 'MCALL CYCLE84({safe},{ztop},{sdis},{zbottom},,0,3,,{pitch},0,{rpm},{rpm})',
     cycleTapLeft: 'MCALL CYCLE84({safe},{ztop},{sdis},{zbottom},,0,4,,{pitchsigned},0,{rpm},{rpm})',
     cycleReam: 'MCALL CYCLE85({safe},{ztop},{sdis},{zbottom},,0,{f},{f})',
@@ -136,7 +142,7 @@ export const BUILTIN_POSTS = [
     cycleStudRect: 'CYCLE76({safe},{ztop},{sdis},{zbottom},,{plen1},{plen2},{pcr},{px},{py},{pangs},{stepdown},{stl},0,{pfeed},{dfeed},{cdir},1,{blank1},{blank2})',
     cycleStudCirc: 'CYCLE77({safe},{ztop},{sdis},{zbottom},,{prad},{px},{py},{stepdown},{stl},0,{pfeed},{dfeed},{cdir},1,{pblank})',
     cyclePocketCirc: 'POCKET4({safe},{ztop},{sdis},{zbottom},{prad},{px},{py},{stepdown},{stl},0,{pfeed},{dfeed},{cdir},{vari},{mida},0,0,{rad1},{dp1})',
-    header: `${HEADER_INFO}\nG17 G90 G94 G71\nG54\nG0 Z{safe}`,
+    header: `${HEADER_INFO}\nG17 G90 G94 G71\nG54\nG0 SUPA Z0 D0`,
     toolChangeFirst: '# T{t} {toolname} D{tooldia}\nT{t} D1\nM6',
     toolChange: 'M5\n# T{t} {toolname} D{tooldia}\nT{t} D1\nM6',
     footer: '\nG0 Z{safe}\n{coolantoff}\nM5\nM30',
@@ -192,21 +198,31 @@ const LATHE_BASE = {
 BUILTIN_POSTS.push(
   {
     ...LATHE_BASE, family: 'lathe', id: 'fanuc-lathe', name: 'Fanuc Drehen (Drehmaschine)', ext: 'nc', builtin: true, decimalPoint: true,
-    header: '%\nO2000\n# OpenFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG18 G21 G40 G98\nG0 X{safex} Z{safez}',
-    toolChangeFirst: '# T{t} {toolname}\nT{tt}', toolChange: 'G0 X{safex} Z{safez}\nM5\n# T{t} {toolname}\nT{tt}',
+    // the turret indexes at the reference point (G28 U0 W0), never next to the part
+    header: '%\nO2000\n# OpenFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG18 G21 G40 G98',
+    toolChangeFirst: 'G28 U0 W0\n# T{t} {toolname}\nT{tt}', toolChange: 'G0 X{safex} Z{safez}\nM5\nG28 U0 W0\n# T{t} {toolname}\nT{tt}',
     threadMove: 'G32{Z} F{pitch}',
     // G71 type I (contour N{ns}…N{nf}, rising steadily), G76 two-block threading (1 finishing pass, 60°)
     // G70 finishes along the contour N{ns}…N{nf} of the G71 before it (feed: F of the first contour block)
     cycleTurnRough: 'G0 X{sx} Z{sz}\nG71 U{ap} R0.5\nG71 P{ns} Q{nf} U{u} W0 F{f}\n{contour}', contourFirst: 'N{ns} ', contourLast: 'N{nf} ',
     cycleTurnFinish: 'G0 X{sx} Z{sz}\nG70 P{ns} Q{nf}',
     cycleTurnThread: 'G0 X{tsx} Z{tsz}\nG76 P010060 Q{tqmin} R0\nG76 X{tx} Z{tz} P{thu} Q{tdu} F{pitch}',
-    footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nM30\n%',
+    // driven tools: main spindle stopped and coupled as C axis (M45), C reference, tool spindle M13
+    liveOn: 'M5\nM45\nG28 H0\nG97 S{rpm} M13', liveOff: 'M5\nM46',
+    // flats: polar interpolation G12.1 (X as diameter, C in mm, no G0 while it is active)
+    polarOn: 'G0 C0\nG12.1', polarOff: 'G13.1',
+    // contours wrapped on the diameter: cylindrical interpolation (feed along the developed surface)
+    cylOn: 'G19 W0 H0\nG7.1 C{cylr}', cylOff: 'G7.1 C0\nG18',
+    footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nG28 U0 W0\nM30\n%',
   },
   {
     ...LATHE_BASE, family: 'lathe', id: 'linuxcnc-lathe', name: 'LinuxCNC Drehen', ext: 'ngc', builtin: true, spindleOn: 'S{rpm} M3',
-    header: '# OpenFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG7 G18 G21 G90 G94\nG0 X{safex} Z{safez}',
-    toolChangeFirst: '# T{t} {toolname}\nT{t} M6 G43', toolChange: 'G0 X{safex} Z{safez}\nM5\n# T{t} {toolname}\nT{t} M6 G43',
+    // the turret indexes at the tool change position {tcx}/{tcz} (post properties), away from the part
+    header: '# OpenFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG7 G18 G21 G90 G94',
+    toolChangeFirst: '# T{t} {toolname}\nT{t} M6 G43', toolChange: 'G0 X{safex} Z{safez}\nM5\nG0 X{tcx} Z{tcz}\n# T{t} {toolname}\nT{t} M6 G43',
     threadMove: 'G33{Z} K{pitch}',
+    // driven tools: second spindle ($1), the main spindle is positioned as C axis
+    liveOn: 'M5 $0\nS{rpm} M3 $1', liveOff: 'M5 $1',
     footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nM30',
   },
   {
@@ -214,8 +230,8 @@ BUILTIN_POSTS.push(
     // feed per minute G94, threading G33 with the lead F, end M02
     ...LATHE_BASE, family: 'lathe', id: 'okuma-lathe', name: 'Okuma OSP Drehen', ext: 'min', builtin: true, decimalPoint: true,
     comment: '({text})',
-    header: 'O{prognum}\n# OpenFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG50 S{maxrpm}\nG94\nG0 X{safex} Z{safez}',
-    toolChangeFirst: '# T{t} {toolname}\nG0 X{safex} Z{safez}\nT{tt6}', toolChange: 'G0 X{safex} Z{safez}\nM5\n# T{t} {toolname}\nT{tt6}',
+    header: 'O{prognum}\n# OpenFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG50 S{maxrpm}\nG94',
+    toolChangeFirst: '# T{t} {toolname}\nT{tt6}', toolChange: 'G0 X{safex} Z{safez}\nM5\nG0 X{tcx} Z{tcz}\n# T{t} {toolname}\nT{tt6}',
     spindleOn: 'G97 S{rpm} M3', dwell: 'G4 F{dwell}',
     threadMove: 'G33{Z} F{pitch}',
     // LAP: G85 bar turning with the contour N… G81 … G80, threading cycle G71 (straight infeed B0)
@@ -223,9 +239,38 @@ BUILTIN_POSTS.push(
     cycleTurnRough: 'G0 X{sx} Z{sz}\nG85 N{lap} D{ap} F{f} U{u} W0\nN{lap} G81\n{contour}\nG80', contourFirst: '', contourLast: '',
     cycleTurnFinish: 'G0 X{sx} Z{sz}\nG87 N{lap}',
     cycleTurnThread: 'G0 X{tsx} Z{tsz}\nG71 X{tx} Z{tz} B0 D{td} H{th} F{pitch}',
+    // driven tools: C axis joined (M110) and unclamped (M146), M-tool spindle SB= with M13
+    liveOn: 'M5\nM110\nM146\nG94\nSB={rpm} M13', liveOff: 'M12\nM109',
     footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nM2',
   },
 );
+
+// Passes of a driven tool across the axis (polar moves) as short steps with the real machine values: radius and
+// part angle C in degrees, C continuous (no jump at 360°). For controls without polar interpolation.
+function polarSteps(moves, tol = 0.01) {
+  const out = [];
+  let prev = null, cPrev = null;
+  const push = (m, x, y, z) => {
+    const xr = Math.hypot(x, y);
+    let c = xr > 1e-9 ? (Math.atan2(y, x) * 180) / Math.PI : cPrev ?? 0;
+    if (cPrev != null) c += 360 * Math.round((cPrev - c) / 360);
+    cPrev = c;
+    out.push({ ...m, x, y, z, xr, c: +c.toFixed(4), polar: false });
+  };
+  for (const m of moves) {
+    if (!m.polar) { out.push(m); prev = null; if (m.c != null) cPrev = m.c; continue; }
+    if (prev) {
+      // chord error of a straight X/C step over the angle it turns: r·(1 − cos(Δ/2)) ≤ tol
+      const L = Math.hypot(m.x - prev.x, m.y - prev.y), rMax = Math.max(Math.hypot(m.x, m.y), Math.hypot(prev.x, prev.y), 1);
+      const sweep = Math.abs(Math.atan2(prev.x * m.y - prev.y * m.x, prev.x * m.x + prev.y * m.y));
+      const n = L < 1e-9 ? 1 : Math.max(1, Math.ceil(sweep / (2 * Math.acos(Math.max(0, 1 - tol / rMax)))));
+      for (let k = 1; k < n; k++) push(m, prev.x + ((m.x - prev.x) * k) / n, prev.y + ((m.y - prev.y) * k) / n, prev.z + ((m.z - prev.z) * k) / n);
+    }
+    push(m, m.x, m.y, m.z);
+    prev = m;
+  }
+  return out;
+}
 
 // own posts of the app's library (all projects): set by the app; a post of the project with the same id wins
 let LIBRARY = () => [];
@@ -250,7 +295,10 @@ export function copyPost(def, id, name) {
 
 // Controllers and senders often choke on non-ASCII, even inside comments.
 const ascii = s => s.replace(/Ø/g, 'D').replace(/×/g, 'x').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
-  .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue').replace(/ß/g, 'ss').replace(/[^\x20-\x7e]/g, '');
+  .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue').replace(/ß/g, 'ss')
+  .replace(/[\u2212\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[\u201e\u201c\u201d\u00ab\u00bb]/g, '"').replace(/[\u2018\u2019\u201a]/g, "'")
+  .replace(/°/g, ' Grad').replace(/µ/g, 'u').replace(/±/g, '+/-').replace(/²/g, '2').replace(/³/g, '3')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '');
 
 // ---------- arc fitting ----------
 // Runs of feed moves in one Z level that lie on a circle become arc moves
@@ -272,6 +320,36 @@ export function fitArcs(moves, tol = 0.005, helix = true) {
     const st = moves[i - 1];
     // planar arcs and helical arcs (Z changes evenly with the angle: helix boring, thread milling, ramps)
     if (!st || m.t !== 'f' || st.a != null || m.a != null) { out.push(m); i++; continue; }
+    // the circle of the arc just written goes on (a turn is cut into arcs of at most 180°): the rest of it
+    // becomes an arc around the same centre, however short, instead of a few leftover lines
+    const pa = out[out.length - 1];
+    if (pa && pa.t === 'a' && pa.r != null && pa.f === m.f && pa.comp === m.comp && pa.lead === m.lead && Math.abs(Math.hypot(st.x - pa.cx, st.y - pa.cy) - pa.r) <= 0.002) {
+      const r0 = pa.r, dir0 = pa.cw ? -1 : 1;
+      let end = -1, sweep = 0, endSweep = 0;
+      const zs = [];
+      for (let j = i; j < moves.length && j < i + 720; j++) {
+        const q = moves[j], pv = moves[j - 1];
+        if (q.t !== 'f' || q.f !== m.f || q.comp !== m.comp || q.lead !== m.lead || q.a != null) break;
+        if (Math.abs(Math.hypot(q.x - pa.cx, q.y - pa.cy) - r0) > tol) break;
+        const seg = Math.hypot(q.x - pv.x, q.y - pv.y);
+        if (seg < 1e-9 || r0 - Math.sqrt(Math.max(0, r0 * r0 - seg * seg / 4)) > tol) break;
+        const da = Math.atan2((pv.x - pa.cx) * (q.y - pa.cy) - (pv.y - pa.cy) * (q.x - pa.cx), (pv.x - pa.cx) * (q.x - pa.cx) + (pv.y - pa.cy) * (q.y - pa.cy));
+        if (Math.sign(da) !== dir0 || sweep + Math.abs(da) > Math.PI) break;
+        sweep += Math.abs(da);
+        zs.push([sweep, q.z]);
+        // Z constant, or linear in the angle up to here
+        const zE = q.z, flat = zs.every(([, z]) => Math.abs(z - st.z) <= 1e-9);
+        if (!flat && (!helix || zs.some(([sw, z]) => Math.abs(z - (st.z + ((zE - st.z) * sw) / sweep)) > tol))) { sweep -= Math.abs(da); zs.pop(); break; }
+        // the arc may end only where the point lies on the circle itself (the control checks the end point)
+        if (Math.abs(Math.hypot(q.x - pa.cx, q.y - pa.cy) - r0) <= 0.002) { end = j; endSweep = sweep; }
+      }
+      if (end >= i && r0 >= 0.05 && endSweep * r0 > 0.02) {
+        const e = moves[end];
+        out.push({ t: 'a', x: e.x, y: e.y, z: e.z, f: m.f, cx: pa.cx, cy: pa.cy, cw: pa.cw, sw: endSweep, r: r0, ...(m.comp ? { comp: m.comp } : {}), ...(m.lead ? { lead: m.lead } : {}) });
+        i = end + 1;
+        continue;
+      }
+    }
     let best = -1, bestArc = null;
     for (let j = i + 2; j < moves.length && j < i + 720; j++) {
       const mj = moves[j];
@@ -310,7 +388,7 @@ export function fitArcs(moves, tol = 0.005, helix = true) {
       const sag = c.r - Math.sqrt(Math.max(0, c.r * c.r - (chord / 2) ** 2));
       if (c.r > 1000 || sag < 4 * tol) continue;
       best = j;
-      bestArc = { cx: c.x, cy: c.y, cw: dir < 0, sw: sweep };
+      bestArc = { cx: c.x, cy: c.y, cw: dir < 0, sw: sweep, r: c.r };
     }
     if (best >= i + 2) {
       const e = moves[best];
@@ -338,7 +416,7 @@ function mergeHelix(moves) {
     if (m.t === 'a' && last?.t === 'a' && last.z0 != null && z != null && m.sw > 0 && last.sw > 0 && m.cw === last.cw && m.f === last.f && m.comp === last.comp &&
       Math.abs(m.cx - last.cx) < 1e-6 && Math.abs(m.cy - last.cy) < 1e-6) {
       const dz = m.z - z, dzl = last.z - last.z0;
-      if (Math.abs(dz) > 1e-6 && Math.abs(dzl) > 1e-6 && Math.abs(dz / m.sw - dzl / last.sw) < 1e-4 && last.sw + m.sw < (3600 * Math.PI) / 180) {
+      if (Math.abs(dz) > 1e-6 && Math.abs(dzl) > 1e-6 && Math.abs(dz - (dzl / last.sw) * m.sw) < 0.002 && last.sw + m.sw < (3600 * Math.PI) / 180) {
         out[out.length - 1] = { ...last, x: m.x, y: m.y, z: m.z, sw: last.sw + m.sw };
         z = m.z;
         continue;
@@ -509,7 +587,7 @@ class Writer {
       let line = isComment ? raw.slice(1).trimStart() : raw;
       let wroteAxis = false;
       line = line.replace(/\{([A-Za-z][A-Za-z0-9]*)(!?)\}/g, (_, key, force) => {
-        if (motion && /^[XYZA]$/.test(key)) {
+        if (motion && /^[XYZAC]$/.test(key)) {
           if (motion[key.toLowerCase()] == null) return '';
           const v = this.num(motion[key.toLowerCase()]);
           // axis words are modal: written only when the value changes (unless forced with "!")
@@ -542,6 +620,7 @@ class Writer {
         }
       }
       if (!line.trim()) continue;
+      if (!/^\s/.test(raw)) line = line.trimStart();
       this.out.push({ text: line, cont: /^\s/.test(raw) });
     }
     return true;
@@ -552,10 +631,14 @@ class Writer {
   text() {
     const ln = this.def.lineNumbers || {};
     let n = +ln.start || 0;
+    // blocks that carry their own number (contour labels of turning cycles) keep it, and the running numbers
+    // never take one of those
+    const own = new Set(this.out.map(l => +(String(l.text).match(/^N(\d+)\b/) || [])[1]).filter(Number.isFinite));
     return this.out.map(l => {
       if (l.blank) return '';
       // tape start/end (%) and the program number line are never numbered
-      if (!ln.enabled || l.cont || (l.comment && !ln.comments) || l.text === '%' || /^O\d+$/.test(l.text)) return l.text;
+      if (!ln.enabled || l.cont || (l.comment && !ln.comments) || l.text === '%' || /^O\d+$/.test(l.text) || /^N\d+\b/.test(l.text)) return l.text;
+      while (own.has(n)) n += +ln.step || 1;
       const s = `${ln.prefix ?? 'N'}${n} ${l.text}`;
       n += +ln.step || 1;
       return s;
@@ -589,6 +672,8 @@ export const POST_PROPS = [
   { key: 'safeRetract', group: 'retract', label: 'Sicherer Rückzug', type: { heidenhain: [['clearance', 'Sicherheitshöhe'], ['m91', 'M91 (Maschinenkoordinaten)']], default: [['clearance', 'Sicherheitshöhe'], ['g28', 'G28 (Referenzpunkt)'], ['g53', 'G53 (Maschinenkoordinaten)']] }, def: 'clearance' },
   { key: 'm91Z', group: 'retract', label: 'Rückzugshöhe M91', type: 'num', def: 0, only: HH, help: 'Z-Wert in Maschinenkoordinaten für den M91-Rückzug' },
   { key: 'useM140', group: 'retract', label: 'M140 verwenden', type: 'bool', def: false, only: HH, help: 'M140 MB MAX: in Werkzeugachse maximal zurückziehen' },
+  { key: 'tcX', group: 'retract', label: 'Werkzeugwechsel X (Ø)', type: 'num', def: 0, only: ['lathe'], help: 'Drehen: Durchmesser, auf dem der Revolver schaltet (Okuma, LinuxCNC). 0 = Rohteil-Ø + 200 mm' },
+  { key: 'tcZ', group: 'retract', label: 'Werkzeugwechsel Z', type: 'num', def: 0, only: ['lathe'], help: 'Drehen: Z vor der Planfläche, auf dem der Revolver schaltet. 0 = Sicherheitsabstand + 100 mm' },
   { key: 'homeXY', group: 'retract', label: 'XY-Referenz am Ende', type: 'bool', def: false, help: 'Am Programmende in X/Y auf Maschinen-Null fahren (M91 / G28)' },
   { key: 'preferTilt', group: 'multiaxis', label: 'Schwenkrichtung bevorzugen', type: [['neg', 'Negativ'], ['pos', 'Positiv'], ['either', 'Beliebig']], def: 'neg', only: HH },
   { key: 'tcpm', group: 'multiaxis', label: 'FUNCTION TCPM verwenden', type: 'bool', def: false, only: HH, help: 'Werkzeugspitzen-Nachführung einschalten' },
@@ -667,6 +752,8 @@ export function runPost(def, project, gen, opts = {}) {
     smaxx: stock.maxX - o.x, smaxy: stock.maxY - o.y, smaxz: stock.top - o.z,
     safe: safe - o.z,
     safex: lathe ? 2 * (stock.r + 2) : 0, safez: lathe ? stock.top + (+setup.safeZ || 5) - o.z : 0,
+    // lathe: where the turret indexes (work coordinates)
+    tcx: lathe ? (+P.tcX > 0 ? +P.tcX : 2 * (stock.r + 2) + 200) : 0, tcz: lathe ? (+P.tcZ > 0 ? +P.tcZ : stock.top + (+setup.safeZ || 5) - o.z + 100) : 0,
   };
   if (lathe && !def.lathe) warnings.push('Dreh-Setup mit Fräs-Postprozessor – bitte einen Dreh-Postprozessor wählen.');
   if (!lathe && def.lathe) warnings.push('Fräs-Setup mit Dreh-Postprozessor – bitte einen Fräs-Postprozessor wählen.');
@@ -675,7 +762,7 @@ export function runPost(def, project, gen, opts = {}) {
   const coolCodes = { flood: [P.coolFlood], mist: [P.coolMist], air: [P.coolAir], airThrough: [P.coolAirThrough], through: [P.coolThrough], floodAir: [P.coolFlood, P.coolAir] };
   const offCodes = mode => (mode === 'air' || mode === 'airThrough' ? [P.coolAirOff] : mode === 'floodAir' ? [...new Set([P.coolOff, P.coolAirOff])] : [P.coolOff]);
   const defaultCool = opts.coolant ? 'flood' : 'off';
-  let cool = 'off', turnLabel = 9000, lastRough = null;
+  let cool = 'off', turnLabel = 9000, lastRough = null, liveMode = false, liveWarned = false;
   // cutting edge geometry: a finishing cycle may follow the roughing contour only with the same nose
   const edgeSig = t => JSON.stringify([t.kind, +t.noseRadius || 0, +t.insertAngle || 0, +t.leadAngle || 0, +t.angle || 0, +t.edgeLen || 0, +t.width || 0, !!t.internal]);
   const setCoolant = mode => {
@@ -685,17 +772,32 @@ export function runPost(def, project, gen, opts = {}) {
     cool = mode;
   };
 
+  // ---- tilted working plane for setups not machined from the top ----
+  // 4-axis simultaneous: the setup orientation is how the part is clamped along the A axis, not a swivelled plane
+  const rotarySetup = gen.ops.some(op => results.get(op.id)?.rotary);
+  const tilt = lathe || rotarySetup ? { identity: true } : tiltAngles(setup, P.preferTilt);
+  // Heidenhain with a swivelled plane: every retract outside the plane goes up the tool axis in machine
+  // coordinates (a height above the datum means nothing before the plane is active)
+  const hhTilt = hh && !tilt.identity && P.tiltedPlane !== 'off';
+
+  const okuma = /^okuma/.test(String(def.id)) || /^O\{prognum\}\n[\s\S]*G15 H/.test(String(def.header || ''));
+  if (okuma && !lathe && (P.safeRetract === 'g28' || P.safeRetract === 'g53' || P.homeXY)) warnings.push('Okuma OSP: G28/G53 fahren dort nicht auf Maschinenkoordinaten (G53 hebt die Werkzeuglängenkorrektur auf) – Rückzug auf Sicherheitshöhe, keine XY-Referenzfahrt ausgegeben');
+  if (okuma && !lathe && P.smoothing !== 'off') warnings.push('Okuma OSP: keine Glättungsfunktion ausgegeben (G5.1 ist Fanuc) – Hi-Cut/Super-NURBS an der Maschine einstellen');
   // ---- retract templates (M91 / M140 / G28 / G53) ----
   const retractTpl = tpl => {
     if (!tpl) return tpl;
     let t = String(tpl);
     if (hh) {
       if (P.safeRetract === 'm91') t = t.replace(/^L Z\{safe\} R0 FMAX/gm, `L Z${W.num(+P.m91Z || 0)} R0 FMAX M91`);
-      if (P.useM140) t = t.replace(/^L Z\{safe\} R0 FMAX( M5)?$/gm, (_, m5) => `M140 MB MAX${m5 || ''}`).replace(/^(L Z[^\n]*? M91)( M5)?$/gm, (_, l, m5) => `M140 MB MAX${m5 || ''}`);
+      if (P.useM140 || hhTilt) t = t.replace(/^L Z\{safe\} R0 FMAX( M5)?$/gm, (_, m5) => `M140 MB MAX${m5 || ''}`).replace(/^(L Z[^\n]*? M91)( M5)?$/gm, (_, l, m5) => `M140 MB MAX${m5 || ''}`);
       if (P.toolAsName) t = t.replace(/TOOL CALL \{t\}/g, 'TOOL CALL {tcall}');
     } else if (!lathe) {
-      if (P.safeRetract === 'g28') t = t.replace(/^G0 Z\{safe\}$/gm, 'G91 G28 Z0\nG90');
-      if (P.safeRetract === 'g53') t = t.replace(/^G0 Z\{safe\}$/gm, 'G53 G0 Z0');
+      // Okuma OSP: G28 is no reference return and G53 cancels the tool length offset – the clearance height stays.
+      // Sinumerik: machine coordinates with SUPA, tool offset off (the next tool call selects D1 again)
+      if (okuma) { /* see the warning below */ }
+      else if (fam === 'sinumerik') { if (P.safeRetract === 'g28' || P.safeRetract === 'g53') t = t.replace(/^G0 Z\{safe\}$/gm, 'G0 SUPA Z0 D0'); }
+      else if (P.safeRetract === 'g28') t = t.replace(/^G0 Z\{safe\}$/gm, 'G91 G28 Z0\nG90');
+      else if (P.safeRetract === 'g53') t = t.replace(/^G0 Z\{safe\}$/gm, 'G53 G0 Z0');
     }
     return t;
   };
@@ -715,22 +817,36 @@ export function runPost(def, project, gen, opts = {}) {
   }
   if (hh && P.tcpm && !lathe) W.expand('FUNCTION TCPM F TCP AXIS POS PATHCTRL AXIS');
 
-  // ---- tilted working plane for setups not machined from the top ----
-  // 4-axis simultaneous: the setup orientation is how the part is clamped along the A axis, not a swivelled plane
-  const rotarySetup = ops.some(op => results.get(op.id)?.rotary);
-  const tilt = lathe || rotarySetup ? { identity: true } : tiltAngles(setup, P.preferTilt);
-  let planeOn = false;
+  let planeOn = false, kinWarned = false;
+  // rotary axes of the machine (cycle 19 computes their angles into Q120…Q122 but does not move them)
+  const rotAxes = { A: ['A'], AC: ['A', 'C'], BC: ['B', 'C'] }[machine?.kin?.type] || null;
+  const QROT = { A: 120, B: 121, C: 122 };
   const planeStart = () => {
     if (tilt.identity || planeOn) return;
     if (hh && P.tiltedPlane === 'spatial') W.expand(`PLANE SPATIAL SPA${W.num(tilt.a)} SPB${W.num(tilt.b)} SPC${W.num(tilt.c)} TURN MB MAX FMAX${tilt.seq ? ' SEQ' + tilt.seq : ''} TABLE ROT`);
-    else if (hh && P.tiltedPlane === 'cycle19') W.expand(`CYCL DEF 19.0 BEARBEITUNGSEBENE\nCYCL DEF 19.1 A${W.num(tilt.a)} B${W.num(tilt.b)} C${W.num(tilt.c)}`);
+    else if (hh && P.tiltedPlane === 'cycle19') {
+      W.expand(`CYCL DEF 19.0 BEARBEITUNGSEBENE\nCYCL DEF 19.1 A${W.num(tilt.a)} B${W.num(tilt.b)} C${W.num(tilt.c)}`);
+      if (rotAxes) W.expand(`L ${rotAxes.map(a => `${a}+Q${QROT[a]}`).join(' ')} R0 FMAX`);
+      else {
+        W.expand('# Drehachsen positionieren, z. B. L A+Q120 C+Q122 R0 FMAX (Achsen der Maschine)');
+        if (!kinWarned) warnings.push('Zyklus 19 schwenkt nur das Koordinatensystem: ohne Maschine mit Kinematik (A, A/C oder B/C) werden die Drehachsen nicht positioniert – Maschine wählen oder PLANE SPATIAL verwenden');
+        kinWarned = true;
+      }
+    }
     else { warnings.push(`Setup „${setup.name}“ ist geschwenkt – dieser Postprozessor gibt keine Schwenkebene aus. Werkstück entsprechend aufspannen.`); planeOn = true; return; }
     planeOn = true;
   };
-  const planeEnd = () => {
+  // final = end of the program: the rotary axes go back to zero; before a tool change they stay
+  const planeEnd = final => {
     if (!planeOn || tilt.identity || !hh) return;
-    if (P.tiltedPlane === 'spatial') W.expand('PLANE RESET STAY');
-    else if (P.tiltedPlane === 'cycle19') W.expand('CYCL DEF 19.0 BEARBEITUNGSEBENE\nCYCL DEF 19.1 A+0 B+0 C+0');
+    W.expand('M140 MB MAX');
+    if (P.tiltedPlane === 'spatial') W.expand(final ? 'PLANE RESET TURN MB MAX FMAX' : 'PLANE RESET STAY');
+    else if (P.tiltedPlane === 'cycle19') {
+      W.expand(`CYCL DEF 19.0 BEARBEITUNGSEBENE\nCYCL DEF 19.1 A${W.num(0)} B${W.num(0)} C${W.num(0)}\nCYCL DEF 19.0 BEARBEITUNGSEBENE\nCYCL DEF 19.1`);
+      if (final && rotAxes) W.expand(`L ${rotAxes.map(a => `${a}${W.num(0)}`).join(' ')} R0 FMAX`);
+    }
+    planeOn = false;
+    W.resetModal();
   };
 
   // ---- smoothing ----
@@ -743,14 +859,15 @@ export function runPost(def, project, gen, opts = {}) {
   const smoothStart = sm => {
     if (!sm) { smoothReset(); return; }
     if (hh) W.expand(`CYCL DEF 32.0 TOLERANZ\nCYCL DEF 32.1 T${W.num(sm.tol)}\nCYCL DEF 32.2 HSC-MODE:${sm.rough ? 1 : 0}`);
-    else if (fam === 'fanuc') W.expand('G5.1 Q1');
+    else if (fam === 'fanuc' && !okuma) W.expand('G5.1 Q1');
+    else if (fam !== 'sinumerik') return;
     else if (fam === 'sinumerik') W.expand(`CYCLE832(${sm.tol},${sm.rough ? '_ROUGH' : '_FINISH'},1)`);
     smoothOn = true;
   };
   const smoothReset = () => {
     if (!smoothOn) return;
     if (hh) W.expand('CYCL DEF 32.0 TOLERANZ\nCYCL DEF 32.1');
-    else if (fam === 'fanuc') W.expand('G5.1 Q0');
+    else if (fam === 'fanuc' && !okuma) W.expand('G5.1 Q0');
     else if (fam === 'sinumerik') W.expand('CYCLE832(0,_OFF,1)');
     smoothOn = false;
   };
@@ -767,25 +884,40 @@ export function runPost(def, project, gen, opts = {}) {
     if (machine?.maxRpm && rpm > machine.maxRpm) { warnings.push(`${op.name}: Drehzahl ${rpm} > Maschinenmaximum ${machine.maxRpm} – begrenzt`); rpm = machine.maxRpm; }
     const tv = { ...base, coolanton: '', coolantoff: '', tt: String(t.number).padStart(2, '0').repeat(2), tt6: String(t.number).padStart(2, '0').repeat(3),t: String(t.number), tcall: tcallOf(t), toolname: t.name, tooldia: String(+(+t.dia).toFixed(3)), rpm: String(probe ? 0 : rpm), opname: op.name, optype: OP_TYPES[op.type] };
     const toolChanged = tool !== t.id;
+    // driven tool on the lathe (spindle as C axis): switched off before a tool change and before turning again
+    const live = lathe && !!r.live, wasLive = liveMode;
+    if (liveMode && (!live || toolChanged)) { if (def.liveOff) W.expand(W.tag(def.liveOff, 'liveOff'), tv); liveMode = false; W.resetModal(); }
     if (toolChanged) {
       smoothReset();
       setCoolant('off');
+      if (tool !== null) planeEnd(false); // tool change in the untilted system
       if (tool !== null && P.optionalStop) W.expand('M1');
     }
     if (P.structureComments !== false) W.expand(def.opStart, tv);
     if (P.showNotes && op.note) for (const line of String(op.note).split('\n')) W.expand('# ' + line);
     if (toolChanged) {
       let tpl = tool === null ? tcFirst : tcNext;
+      // the tool name often carries the diameter already ("Schaftfräser Ø6"): no second D6 behind it
+      if (ascii(String(t.name)).replace(',', '.').includes('D' + tv.tooldia)) tpl = W.tag(String(tpl || '').replace(' D{tooldia}', ''), tool === null && def.toolChangeFirst ? 'toolChangeFirst' : 'toolChange');
       if (probe) tpl = W.tag(String(tpl || '').replace(/ M3\b/g, '').replace(/ S\{rpm\}/g, ''), 'toolChange'); // no spindle for the touch probe
       W.expand(tpl, tv);
       W.resetModal();
-      if (!probe) W.expand(def.spindleOn, tv);
+      if (!probe && !live) W.expand(def.spindleOn, tv);
       tool = t.id;
       if (P.preloadTool) {
         const next = ops.slice(oi + 1).map(x => results.get(x.id).tool).find(x => x.id !== t.id);
         if (next) W.expand(hh ? `TOOL DEF ${tcallOf(next)}` : `T${next.number}`);
       }
     } else if (def.resetModalPerOp) W.resetModal();
+    if (lathe && !live && wasLive && !toolChanged) W.expand(def.spindleOn, tv);
+    if (live && !liveMode) {
+      if (def.liveOn) W.expand(W.tag(def.liveOn, 'liveOn'), tv);
+      else warnings.push(`${op.name}: Postprozessor ohne Vorlage „C-Achse und angetriebenes Werkzeug ein“ – C-Achse und Werkzeugspindel von Hand einschalten`);
+      if (!liveWarned) warnings.push('Angetriebene Werkzeuge: Die M-Codes für C-Achse und Werkzeugspindel sind maschinenabhängig – Vorlagen „C-Achse … ein/aus“ im Postprozessor mit dem Maschinenhandbuch vergleichen');
+      liveWarned = true;
+      liveMode = true;
+      W.resetModal();
+    }
     planeStart();
 
     // ---- touch probe cycles ----
@@ -830,7 +962,8 @@ export function runPost(def, project, gen, opts = {}) {
     const cycleTpl = c && (def[CYCLE_KEYS[ctype]] || (['drill', 'dwell', 'peck'].includes(ctype) ? def.drillCycle : ''));
     const pointTpl = def.cyclePoint || def.drillPoint;
     let done = false;
-    if (c && (P.cycles ?? def.useDrillCycle) && cycleTpl && pointTpl) {
+    if (c && !(c.top - c.bottom > 1e-6)) warnings.push(`${op.name}: Bohrzyklus nicht möglich (Tiefe 0) – als Bahn ausgegeben`);
+    if (c && c.top - c.bottom > 1e-6 && (P.cycles ?? def.useDrillCycle) && cycleTpl && pointTpl) {
       const depth = c.bottom - c.top;
       const cv = {
         ...tv, ztop: c.top - o.z, zbottom: c.bottom - o.z, rplane: (c.clear ?? clear) - o.z, depth, f: feedOf(c.feed), dfeed: feedOf(c.feed),
@@ -839,6 +972,8 @@ export function runPost(def, project, gen, opts = {}) {
         sdis: Math.max(0.5, clear - c.top), q200: Math.max(0.5, clear - c.top), dtop: c.top - o.z, q204: safe - c.top, vari: c.type === 'chip' ? '0' : '1',
       };
       const pos = ([x, y]) => ({ x: x - o.x, y: y - o.y, z: c.top - o.z, f: null, arc: true });
+      const leftTap = ctype === 'tapLeft' && /\bG74\b/.test(cycleTpl);
+      if (leftTap) W.expand(`M5\nS${tv.rpm} M4`);
       // bolt circles / grids as the control's pattern cycles (they call the cycle defined just before at each
       // hole); single holes first with the point template, so M99 surely calls the drilling cycle
       const pats = P.drillPatterns !== false && !def.cycleFirstInDef ? holePatterns(c.pts) : null;
@@ -860,6 +995,7 @@ export function runPost(def, project, gen, opts = {}) {
         for (const pt of c.pts) W.expand(pointTpl, cv, pos(pt));
       }
       W.expand(def.cycleEnd, cv);
+      if (leftTap) { W.expand('M5'); W.expand(def.spindleOn || 'S{rpm} M3', tv); }
       W.resetModal();
       done = true;
     }
@@ -872,6 +1008,7 @@ export function runPost(def, project, gen, opts = {}) {
         : s.kind === 'circ' ? 'cyclePocketCirc' : s.kind === 'slot' && def.cyclePocketSlot ? 'cyclePocketSlot' : 'cyclePocketRect');
       const what = studOp ? 'Zapfenzyklus' : 'Taschenzyklus';
       if (!pc) warnings.push(`${op.name}: Steuerungszyklus nicht möglich (${why || 'Form nicht erkannt'}) – als Bahn ausgegeben`);
+      else if (!(pc.top - pc.bottom > 1e-6)) warnings.push(`${op.name}: Steuerungszyklus nicht möglich (Tiefe 0) – als Bahn ausgegeben`);
       else if (!pc.pockets.every(s => def[keyOf(s)] && (/\{px\}/.test(def[keyOf(s)]) || pointTpl))) warnings.push(`${op.name}: Postprozessor ohne ${what} für diese Form – als Bahn ausgegeben`);
       else {
         const sg = v => { const t = W.num(v).replace(/^\+/, ''); return (t.startsWith('-') ? '' : '+') + t; };
@@ -978,9 +1115,14 @@ export function runPost(def, project, gen, opts = {}) {
         if (machine?.kin && machine.kin.type !== 'A' && (machine.kin.type !== 'AC' || Array.isArray(machine.kin.a))) warnings.push(`${op.name}: Die gewählte Maschine hat keine endlos drehende A-Achse`);
         if (!machine?.kin) warnings.push(`${op.name}: 4-Achs-Simultan – Maschine mit Drehachse A wählen`);
       }
-      let px = null, py = null, pz = null, comp = null;
+      let px = null, py = null, pz = null, comp = null, cpDrift = 0;
       W.lastCC = null; // circle centre CC: modal on the control, written again only when it changes (and per operation)
-      const list = def.helixCW && def.helixCCW ? mergeHelix(moves) : moves;
+      const polarTpl = lathe && r.polar && def.polarOn && def.polarOff;
+      if (lathe && r.polar && !polarTpl) warnings.push(`${op.name}: Postprozessor ohne Polar-Interpolation – Flächen als kurze X/C-Schritte (C in Grad) ausgegeben; der Vorschub gilt dann je nach Steuerung nicht entlang der Bahn. Besser die Vorlage „Polar-Interpolation ein/aus“ eintragen`);
+      let polarOn = false, cylOn = false;
+      const cylTpl = lathe && r.cyl > 0 && def.cylOn && def.cylOff;
+      if (lathe && r.cyl > 0 && !cylTpl) warnings.push(`${op.name}: Postprozessor ohne Zylinder-Interpolation – Z und C fahren gemeinsam, der Vorschub gilt dann je nach Steuerung nicht entlang der Bahn. Besser die Vorlage „Zylinder-Interpolation ein/aus“ eintragen`);
+      const list = lathe && r.polar && !polarTpl ? polarSteps(moves) : def.helixCW && def.helixCCW ? mergeHelix(moves) : moves;
       const useAppr = hh && !lathe && !rot && P.apprDep !== false && def.approach && def.depart;
       const R0t = (+t.dia || 0) / 2;
       // a lead (run of moves with the same lead tag) as APPR/DEP words, or null when the control's functions do not fit
@@ -1011,16 +1153,31 @@ export function runPost(def, project, gen, opts = {}) {
           }
         }
         // cutter radius compensation at the control (G41/G42 … G40, Heidenhain RL/RR … R0)
-        const mc = m.t === 'r' ? null : m.comp || null;
+        let mc = m.t === 'r' ? null : m.comp || null;
+        {
+          const nx = list[mi + 1];
+          if (mc && comp === mc && m.t === 'f' && px != null && Math.hypot(m.x - px, m.y - py) > 1e-4 && (!nx || nx.t === 'r' || !nx.comp)) mc = null;
+        }
         if (mc !== comp && !lathe) {
           if (fam === 'grbl') { if (mc) warnings.push(`${op.name}: GRBL kennt keine Radiuskorrektur (G41/G42) – Bahn ohne Korrektur ausgegeben`); }
           else if (!hh) W.expand(mc ? `${mc === 'L' ? 'G41' : 'G42'}${fam === 'sinumerik' ? '' : ' D' + t.number}` : 'G40');
           comp = mc;
         }
+        // polar interpolation on for the passes across the axis, off again for everything else
+        // cylindrical interpolation only around the feed moves on the diameter (no rapids while it is active)
+        const cy = !!(cylTpl && m.cyl && m.t !== 'r');
+        if (cy !== cylOn) { W.expand(W.tag(cy ? def.cylOn : def.cylOff, cy ? 'cylOn' : 'cylOff'), { ...tv, cylr: r.cyl }); W.resetModal(); cylOn = cy; }
+        const pol = !!(polarTpl && m.polar);
+        if (pol !== polarOn) { W.expand(W.tag(pol ? def.polarOn : def.polarOff, pol ? 'polarOn' : 'polarOff'), tv); W.resetModal(); polarOn = pol; }
         const mark0 = W.out.length;
         // lathe: x is the radius in the toolpath, the program wants the diameter
-        const mv = { x: lathe ? 2 * m.x : m.x - o.x, y: m.y - o.y, z: m.z - o.z, f: m.t === 'r' ? null : feedOf(m.f) };
+        const mv = { x: lathe ? 2 * (m.xr ?? m.x) : m.x - o.x, y: m.y - o.y, z: m.z - o.z, f: m.t === 'r' ? null : feedOf(m.f) };
         if (m.a != null) Object.assign(mv, { y: m.my - o.y, z: m.mz - o.z, a: m.a });
+        // lathe with driven tool: the part angle as C word
+        if (lathe && m.c != null) mv.c = m.c;
+        // polar interpolation: Cartesian position on the part, X as diameter and C in mm; rapids as fast feed moves
+        if (pol) { mv.x = 2 * m.x; mv.c = m.y; if (m.t === 'r') mv.f = Math.min(maxF, 5000); }
+        const withC = tpl => (mv.c == null || /\{C!?\}/.test(tpl || '') ? tpl : W.tag(String(tpl || '').replace('{Z}', '{Z}{C}'), tpl === def.rapid ? 'rapid' : 'linear'));
         if (m.t === 't') { W.expand(def.threadMove, { ...tv, pitch: m.pitch }, { ...mv, f: null }); W.rapidBefore = false; px = m.x; py = m.y; pz = m.z; continue; }
         if (m.t === 'a') {
           Object.assign(mv, { arc: true, cx: m.cx - o.x, cy: m.cy - o.y, i: m.cx - px, j: m.cy - py });
@@ -1034,22 +1191,30 @@ export function runPost(def, project, gen, opts = {}) {
             }
             W.lastCC = ccKey;
           }
+          if (helix && cpDrift > 0.002) {
+            W.expand(W.tag(String(def.linear).replace('{X}', '{X!}').replace('{Y}', '{Y!}').replace('{Z}', '{Z!}'), 'linear'), tv, { x: px - o.x, y: py - o.y, z: pz - o.z, f: feedOf(m.f) });
+            cpDrift = 0;
+          }
           if (helix) {
+            cpDrift += Math.abs(Math.hypot(m.x - m.cx, m.y - m.cy) - Math.hypot(px - m.cx, py - m.cy)) + 0.0005;
             // polar arc: the end point follows from the angle – the axis words are now known to the control
             const ipa = ((m.cw ? -1 : 1) * (m.sw ?? 0) * 180) / Math.PI;
             const sgn = v => { const t = W.num(v).replace(/^\+/, ''); return (t.startsWith('-') ? '' : '+') + t; };
             W.expand(helix, { ...tv, cx: mv.cx, cy: mv.cy, ipa: sgn(ipa), iz: sgn(m.z - pz) }, { ...mv, x: null, y: null, z: null });
             W.st.X = W.num(mv.x); W.st.Y = W.num(mv.y); W.st.Z = W.num(mv.z);
-          } else W.expand(arcT, { ...tv, cx: mv.cx, cy: mv.cy, i: mv.i, j: mv.j }, mv);
+          } else { W.expand(arcT, { ...tv, cx: mv.cx, cy: mv.cy, i: mv.i, j: mv.j }, mv); cpDrift = 0; }
           W.rapidBefore = false;
-        } else if (m.t === 'r') {
-          W.expand(withA(def.rapid), tv, mv);
+        } else if (m.t === 'r' && !pol) {
+          cpDrift = 0;
+          W.expand(withC(withA(def.rapid)), tv, mv);
           W.rapidBefore = true;
-        } else if (W.expand(withA(def.linear), tv, mv)) W.rapidBefore = false;
+        } else { if (Math.hypot(m.x - (px ?? m.x), m.y - (py ?? m.y)) > 1e-6) cpDrift = 0; if (W.expand(withC(withA(def.linear)), tv, mv)) W.rapidBefore = false; }
         if (hh && comp && fam !== 'grbl') for (let k = mark0; k < W.out.length; k++) W.out[k].text = W.out[k].text.replace(/ R0\b/, comp === 'L' ? ' RL' : ' RR');
         px = m.x; py = m.y; pz = m.z;
       }
       if (comp && !hh && fam !== 'grbl' && !lathe) W.expand('G40');
+      if (polarOn) { W.expand(W.tag(def.polarOff, 'polarOff'), tv); W.resetModal(); }
+      if (cylOn) { W.expand(W.tag(def.cylOff, 'cylOff'), { ...tv, cylr: r.cyl }); W.resetModal(); }
     }
     W.qfeed = null;
     if (subs) {
@@ -1061,7 +1226,8 @@ export function runPost(def, project, gen, opts = {}) {
     }
   });
   smoothReset();
-  planeEnd();
+  planeEnd(true);
+  if (liveMode && def.liveOff) W.expand(W.tag(def.liveOff, 'liveOff'), base);
   if (cool !== 'off') {
     const offs = offCodes(cool);
     cool = 'off';
@@ -1072,7 +1238,7 @@ export function runPost(def, project, gen, opts = {}) {
     const end = W.out.findIndex(l => /^M30\b|^M2\b/.test(l.text));
     if (end >= 0) W.out.splice(end, 0, { text: 'FUNCTION RESET TCPM' });
   }
-  if (P.homeXY && !lathe) {
+  if (P.homeXY && !lathe && !okuma) {
     const end = W.out.findIndex(l => /^M30\b|^M2\b/.test(l.text));
     const home = hh ? [{ text: 'L X+0 Y+0 R0 FMAX M91' }] : fam === 'sinumerik' ? [{ text: 'G0 SUPA X0 Y0' }] : [{ text: 'G91 G28 X0 Y0' }, { text: 'G90' }];
     if (end >= 0) W.out.splice(end, 0, ...home);

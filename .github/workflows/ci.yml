@@ -24,5 +24,13 @@ jobs:
         run: npm run test:kernel
       - name: CAM-Bahnen, Postprozessoren, Drehen
         run: npm run test:cam
+      - name: Heidenhain Klartext
+        run: npm run test:hh
+      - name: G-Code (Fanuc, Okuma, LinuxCNC, GRBL, Sinumerik)
+        run: npm run test:iso
+      - name: Dreh-Postprozessoren (Fanuc, Okuma, LinuxCNC)
+        run: npm run test:lathe
+      - name: Zeichnung (Maße, Winkel, Hinweise)
+        run: npm run test:drawing
       - name: Browser-Version bauen
         run: node tools/build-web.mjs

@@ -30,7 +30,8 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 - **Skizzen** mit Linie, Rechteck (2 Punkte, Mitte, 3 Punkte), Kreis (Mitte, 2 Punkte, 3 Punkte), Bögen (3 Punkte, Mittelpunkt, tangential), Langloch, Polygon, Text und Konstruktionslinien
 - **Geometrischer Solver** mit Bemaßungen und Abhängigkeiten (tangential, konzentrisch, gleich … auch an Bögen)
 - **Stutzen und Verlängern**: Abhängigkeiten und Bemaßungen bleiben dabei erhalten
-- **Volumenkörper**: Extrusion, Rotation, Sweep, Loft, Rohr, Spirale, Rippe, Drücken/Ziehen, Bohrung, Gewinde, Verrundung, Fase, Formschräge, Wandung, Aufdicken, Prägen (eben oder auf Zylinder gewickelt), Kombinieren, Teilen, Skalieren
+- **Abrunden, Fase und Versatz** als Klick-Werkzeuge mit Vorschau am Mauszeiger
+- **Volumenkörper**: Extrusion, Rotation, Sweep, Loft, Rohr, Spirale, Rippe, Drücken/Ziehen, Bohrung (auch als Gewindebohrung), Gewinde, Verrundung, Fase, Formschräge, Wandung, Aufdicken, Prägen (eben oder auf Zylinder gewickelt), Kombinieren, Teilen, Skalieren
 - **Muster**: rechteckig, kreisförmig und entlang eines Pfades; Spiegeln
 - **Konstruktionsgeometrie**: Ebenen (versetzt, unter Winkel, durch 3 Punkte, tangential), Achsen und Punkte
 - **Flächen**: Extrusion, Rotation, Loft, Pflaster, Versatz, Vernähen, Trennen, Verlängern, Füllen
@@ -43,8 +44,8 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 - Kollisionsprüfung zwischen Körpern
 
 ### Zeichnung
-- Normalansichten, Isometrie, Schnitt A–A und Detailansicht
-- Eigene Maße (linear, Durchmesser, Radius), Positionsnummern, Stückliste, Schriftfeld
+- Normalansichten, Isometrie, Schnitt A–A und Detailansicht; Mittellinien an Wellen, Zapfen und Bohrungen
+- Eigene Maße (linear, Durchmesser, Radius, Winkel) mit Toleranz-/Passungszusatz, Hinweise mit Pfeil, Oberflächenzeichen, Form- und Lagetoleranzen mit Bezügen, Gewinde- und Fasenangaben, Positionsnummern, Stückliste, Schriftfeld
 - Export als SVG, Drucken bzw. Speichern als PDF
 
 ### Rendern
@@ -57,7 +58,7 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 - **2D-Fräsen**: Planen, Kontur, Tasche, 2D-Adaptiv, Nut, Gravur, Fase/Entgraten, Bohren, Gewindefräsen, Zirkularfräsen, Antasten
 - **3D-Fräsen**: Adaptiv-Schruppen, Parallel, Kontur (Z-Ebenen), Spirale, Radial, Morph, Geodätisch, Scallop, Planflächen, Restmaterial in Ecken und weitere
 - **4-Achs-Simultan**: Rotation (Helix/Linien), 4-Achs-Schruppen, Abwickeln von Skizzen auf den Zylinder
-- **Drehen**: Plandrehen, Schruppen/Schlichten (mit Schneidenradius-Kompensation), Einstechen, Gewinde, Abstechen, Bohren in der Drehachse, Innendrehen, Innen-Einstiche und Innengewinde
+- **Drehen**: Plandrehen, Schruppen/Schlichten (mit Schneidenradius-Kompensation), Einstechen, Gewinde, Abstechen, Bohren in der Drehachse, Innendrehen, Innen-Einstiche und Innengewinde; mit angetriebenem Werkzeug und C-Achse: Bohren (axial auf dem Lochkreis, radial als Querbohrung), Passfedernuten, Schlüsselflächen (Zweiflach, Vierkant, Sechskant) freie Skizzenkonturen auf der Planfläche oder abgewickelt auf dem Umfang und Taschen in der Planfläche
 - **Werkzeugbibliothek** mit Schnittdaten-Rechner, Werkstoff-Sätzen, Standzeit und Halterdarstellung
 - **Simulation** mit Materialabtrag (auch auf Zylinder-Rohteilen), Vergleich mit dem Fertigteil (Rest / zu tief), Bearbeitungszeit je Aufspannung
 - **NC-Editor** mit Backplot, Suche und Bearbeiten; die **NC-Prüfung** erkennt Kollisionen von Halter, Schaft und Eilgang, Spannmittel- und Tischkontakt, Achsgrenzen und Syntaxfehler (Heidenhain)
@@ -122,6 +123,10 @@ npm test
 | `npm run test:solver` | Abhängigkeiten und Bemaßungen an Bögen |
 | `npm run test:kernel` | Rust-Kern (WebAssembly) |
 | `npm run test:cam` | Alle Frässtrategien an einem Prüfteil mit exakt bekannter Form: keine Verletzung von Teil und Aufmaß (Toleranz Schlichten 0,02 mm, Schruppen 0,04 mm); alle Postprozessoren (gültige Werte, Programmrahmen, zurückgelesene Positionen = Bahn); alle Drehoperationen und Dreh-Posts, Schneide gegen Kontur, Schrupp-/Schlichtzyklus G71/G70 und G85/G87; Lochmuster und Bohrreihenfolge |
+| `npm run test:hh` | Heidenhain Klartext: ein Programm mit allen Zyklen, APPR/DEP, Schraubenlinien, Tastzyklus und geschwenkter Aufspannung in sechs Optionskombinationen, Satz für Satz gegen die Klartext-Regeln und den Zustand der Steuerung geprüft |
+| `npm run test:iso` | G-Code für Fanuc/ISO, Okuma OSP-M, LinuxCNC, GRBL und Sinumerik: dasselbe Programm in fünf Optionskombinationen, Satz für Satz geprüft (Längenkorrektur, Spindel, Vorschub, Zyklen, Kreisbögen) |
+| `npm run test:lathe` | Drehprogramme für Fanuc, Okuma und LinuxCNC: alle Operationen als Bahn und als Zyklen, Satz für Satz geprüft (Werkzeugwechsel abseits des Teils, Spindel, C-Achse, Zyklen mit Kontur) |
+| `npm run test:drawing` | Zeichnung: eigene Maße, Winkelmaße, Hinweise und Maßzusätze im erzeugten SVG |
 
 Die Tests laufen ohne Browser in Node.js und bei jedem Push automatisch auf GitHub.
 
@@ -161,7 +166,7 @@ Standardmäßig rechnet OpenFab mit **OpenCascade** (über replicad/WebAssembly)
 
 - **NC-Programme immer erst im Probelauf testen.** Die Okuma-Syntax (Fräsen und Drehen, inkl. G85/G81-Zyklen) wurde nach allgemeinem Wissen umgesetzt und nicht an einer echten Steuerung geprüft.
 - Kein simultanes 5-Achs-Fräsen. Unterstützt werden 3+2 (geschwenkte Aufspannungen) und 4-Achs-Simultan um die A-Achse.
-- Drehen ohne angetriebene Werkzeuge (C-Achse) und ohne Schlichtzyklus G70/G87.
+- Angetriebene Werkzeuge an der Drehmaschine: Bohren, Nuten, Flächen und Skizzenkonturen auf Planfläche und Umfang; keine Y-Achse, Taschen nur auf der Planfläche. Polar- und Zylinder-Interpolation (G12.1, G7.1) nur im Fanuc-Postprozessor, sonst kurze X/C-Schritte bzw. Z/C ohne Interpolation. In der Simulation erscheinen Konturen als Bänder, nicht als Materialabtrag. Die M-Codes für C-Achse und Werkzeugspindel sind maschinenabhängig und müssen im Postprozessor geprüft werden. Die NC-Prüfung rechnet angetriebene Bearbeitungen nicht gegen das Rohteil.
 - Keine Freiform-/T-Spline-Modellierung.
 - Große 3D-Strategien (Adaptiv 3D, Geodätisch) brauchen je nach Teil mehrere Sekunden Rechenzeit.
 

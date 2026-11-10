@@ -104,6 +104,9 @@ app.whenReady().then(async () => {
       await loadExample(false);
       await workspace('render');
       await sleep(5000);
+      // the scene settings would cover the picture
+      await js(`document.querySelector('#winProps .fw-collapse')?.click();`);
+      await sleep(800);
       await still('06-rendern');
       await workspace('design');
       await sleep(1500);

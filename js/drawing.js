@@ -151,7 +151,8 @@ export function makeDrawing(bodies, opts) {
     for (const list of [segs[k].vis, segs[k].hid]) for (const s of list) for (const [x, y] of s) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
     return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
   };
-  const E = Object.fromEntries(want.map(([k]) => [k, ext(k)]));
+  // a view without any line (no body visible yet) is left out: its extent would be infinite
+  const E = Object.fromEntries(want.filter(([k]) => segs[k].vis.length + segs[k].hid.length > 0).map(([k]) => [k, ext(k)]));
   // drawing area left of the title block; first-angle: top view below, left view to the right
   const margin = 20, tbH = 32, gap = 22;
   const areaW = SW - margin - 10, areaH = SH - 20 - tbH;
@@ -182,7 +183,13 @@ export function makeDrawing(bodies, opts) {
   const G = {};
   let cur = 'sheet';
   const L = { push: s => (G[cur] ||= []).push(s) };
-  const line = (a, b, cls) => L.push(`<line x1="${a[0].toFixed(3)}" y1="${a[1].toFixed(3)}" x2="${b[0].toFixed(3)}" y2="${b[1].toFixed(3)}" class="${cls}"/>`);
+  let hitLines = false;
+  const circle = (cx, cy, r) => L.push(`<circle cx="${cx.toFixed(3)}" cy="${cy.toFixed(3)}" r="${r.toFixed(3)}" class="dim" fill="none"/>`);
+  const line = (a, b, cls) => {
+    const xy = `x1="${a[0].toFixed(3)}" y1="${a[1].toFixed(3)}" x2="${b[0].toFixed(3)}" y2="${b[1].toFixed(3)}"`;
+    L.push(`<line ${xy} class="${cls}"/>`);
+    if (hitLines) L.push(`<line ${xy} class="hit"/>`);
+  };
   const text = (x, y, s, cls = 'txt', anchor = 'middle', rot = 0) => L.push(`<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" class="${cls}" text-anchor="${anchor}"${rot ? ` transform="rotate(${rot} ${x.toFixed(2)} ${y.toFixed(2)})"` : ''}>${esc(s)}</text>`);
 
   const asSection = k => k === 'front' && sec;
@@ -236,11 +243,15 @@ export function makeDrawing(bodies, opts) {
       line([a[0] - r - 2, a[1]], [a[0] + r + 2, a[1]], 'ctr');
       line([a[0], a[1] - r - 2], [a[0], a[1] + r + 2], 'ctr');
       // label: smallest = bore, larger concentric ones = counterbore with depth
+      // a thread along Z on this axis: the hole is called by the thread (M8×1,25 ↧12), not by its core diameter
+      const th = (opts.threads || []).find(t => !t.outside && Math.abs(Math.abs(t.d[2]) - 1) < 1e-6 && Math.hypot(t.c[0] - hole.cx, t.c[1] - hole.cy) < 1e-3);
       const parts = radii.map((rr, i) => {
         const zs = hole.rs.get(rr.toFixed(3));
         const depth = Math.max(...zs) - Math.min(...zs);
+        if (th && Math.abs(rr - th.r) < 0.05) return `${String(th.name).replace('.', ',')}${th.L > 1e-3 ? ` ↧${f2(th.L)}` : ''}`;
         return i === 0 ? `Ø${f2(2 * rr)}` : `⌴ Ø${f2(2 * rr)}${depth > 1e-3 ? ` ↧${f2(depth)}` : ''}`;
       });
+      if (th) hole.thread = th;
       const key = parts.join('|');
       (groups.get(key) || groups.set(key, []).get(key)).push({ a, r, parts });
     }
@@ -250,6 +261,60 @@ export function makeDrawing(bodies, opts) {
         const tip = [a[0] + r * 0.707, a[1] - r * 0.707], knee = [tip[0] + 6, tip[1] - 6 - 4 * (parts.length - 1)];
         line(tip, knee, 'dim'); line(knee, [knee[0] + 22, knee[1]], 'dim');
         parts.forEach((txt, i) => text(knee[0] + 1, knee[1] - 1 + 4.2 * i + (i ? 1.5 : 0), `${i === 0 && list.length > 1 ? list.length + '× ' : ''}${txt}`, 'dtx', 'start'));
+      }
+    }
+  }
+
+  // centre lines of cylinders (shafts, bosses, bores): a dash-dot line where the axis lies in the sheet, a
+  // cross where it points at the viewer (the top view has its hole crosses already)
+  for (const ax of opts.axes || []) {
+    for (const k of Object.keys(place)) {
+      if (k === 'iso' || !VIEWS[k]) continue;
+      const vw = VIEWS[k], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      const along = Math.abs(dot(ax.d, vw.dir)), s = place[k].s || scale, over = 3 / s;
+      const P = t => [ax.p[0] + ax.d[0] * t, ax.p[1] + ax.d[1] * t, ax.p[2] + ax.d[2] * t];
+      const uv = q => [dot(q, vw.u), dot(q, vw.v)];
+      cur = k;
+      if (along < 1e-3) line(toSheet(k, uv(P(ax.t0 - over))), toSheet(k, uv(P(ax.t1 + over))), 'ctr');
+      else if (along > 0.999 && k !== 'top') {
+        const c = toSheet(k, uv(P((ax.t0 + ax.t1) / 2))), r = ax.r * s + 2;
+        line([c[0] - r, c[1]], [c[0] + r, c[1]], 'ctr'); line([c[0], c[1] - r], [c[0], c[1] + r], 'ctr');
+      }
+    }
+  }
+
+  // threads the way drawings show them: seen along the axis a thin three-quarter circle (inside the outline of
+  // a bolt, outside the core hole of a tapped hole); seen from the side of a bolt two thin lines at the root
+  // diameter over the thread length, with the thread's name on a leader
+  for (const t of opts.threads || []) {
+    const Rn = t.outside ? t.r : t.r + 0.5413 * t.P, thin = t.outside ? Rn - 0.6134 * t.P : Rn; // nominal / thin line radius
+    for (const k of Object.keys(place)) {
+      if (k === 'iso' || !VIEWS[k]) continue;
+      const vw = VIEWS[k], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], s = place[k].s || scale;
+      const uv = q => [dot(q, vw.u), dot(q, vw.v)], along = Math.abs(dot(t.d, vw.dir));
+      cur = k;
+      if (along > 0.999) {
+        const c = toSheet(k, uv(t.c)), r = thin * s, a0 = (20 * Math.PI) / 180, a1 = a0 + 1.5 * Math.PI;
+        const P0 = [c[0] + r * Math.cos(a0), c[1] - r * Math.sin(a0)], P1 = [c[0] + r * Math.cos(a1), c[1] - r * Math.sin(a1)];
+        L.push(`<path d="M${P0[0].toFixed(3)} ${P0[1].toFixed(3)}A${r.toFixed(3)} ${r.toFixed(3)} 0 1 0 ${P1[0].toFixed(3)} ${P1[1].toFixed(3)}" class="dim" fill="none"/>`);
+      } else if (along < 1e-3 && !t.outside) {
+        // tapped hole seen from the side: it lies inside the part, so thin dashed lines at the nominal diameter
+        // over the thread length and one across its end
+        const e = [t.c[0] + t.d[0] * t.L, t.c[1] + t.d[1] * t.L, t.c[2] + t.d[2] * t.L];
+        const A = toSheet(k, uv(t.c)), B = toSheet(k, uv(e)), dx = B[0] - A[0], dy = B[1] - A[1], L0 = Math.hypot(dx, dy) || 1, nx = (-dy / L0) * Rn * s, ny = (dx / L0) * Rn * s;
+        line([A[0] + nx, A[1] + ny], [B[0] + nx, B[1] + ny], 'thr'); line([A[0] - nx, A[1] - ny], [B[0] - nx, B[1] - ny], 'thr');
+        line([B[0] + nx, B[1] + ny], [B[0] - nx, B[1] - ny], 'thr');
+      } else if (along < 1e-3 && t.outside) {
+        const e = [t.c[0] + t.d[0] * t.L, t.c[1] + t.d[1] * t.L, t.c[2] + t.d[2] * t.L];
+        const A = toSheet(k, uv(t.c)), B = toSheet(k, uv(e)), dx = B[0] - A[0], dy = B[1] - A[1], L0 = Math.hypot(dx, dy) || 1, nx = (-dy / L0) * thin * s, ny = (dx / L0) * thin * s;
+        line([A[0] + nx, A[1] + ny], [B[0] + nx, B[1] + ny], 'dim'); line([A[0] - nx, A[1] - ny], [B[0] - nx, B[1] - ny], 'dim');
+        if (opts.dims !== false) {
+          // name on a leader from the outline, halfway along the thread
+          const on = (-dy / L0) * Rn * s, oy = (dx / L0) * Rn * s, sg = Math.abs(oy) > 1e-6 ? (oy > 0 ? -1 : 1) : on >= 0 ? 1 : -1; // on the upper side of the bolt (right of an upright one)
+          const tip = [(A[0] + B[0]) / 2 + on * sg, (A[1] + B[1]) / 2 + oy * sg], knee = [tip[0] + 6, tip[1] - 6], name = String(t.name).replace('.', ',');
+          line(knee, tip, 'dim arrow1'); line(knee, [knee[0] + Math.max(10, name.length * 1.9), knee[1]], 'dim');
+          text(knee[0] + 1, knee[1] - 1.2, name, 'dtx', 'start');
+        }
       }
     }
   }
@@ -277,9 +342,100 @@ export function makeDrawing(bodies, opts) {
   }
 
   // ----- user dimensions (picked on the sheet): stored in view coordinates, so they follow scale and view -----
-  for (const dm of opts.userDims || []) {
-    if (!place[dm.view]) continue;
-    cur = dm.view;
+  // each one in its own group (the drawing window moves them with the mouse), every line with a wide
+  // invisible twin so the thin lines can be grabbed
+  const drawUserDim = dm => {
+    // text behind the number: tolerance, fit, count ("±0,1", "H7", "2×")
+    const sfx = dm.txt ? ' ' + String(dm.txt) : '';
+    // surface texture symbol (ISO 1302, material removal required): the tip on the surface, the value above
+    // the bar; ang turns it (0 = standing on a top edge, 90 = on a left face, …)
+    if (dm.kind === 'surf') {
+      const p = toSheet(dm.view, dm.a), th = ((+dm.ang || 0) * Math.PI) / 180, co = Math.cos(th), si = Math.sin(th);
+      const R = (x, y) => [p[0] + x * co + y * si, p[1] - x * si + y * co]; // turned counter-clockwise on the sheet
+      const tx = String(dm.text || ''), w = Math.max(5, tx.length * 1.9 + 1.5);
+      line(R(0, 0), R(-1.75, -3), 'dim'); line(R(0, 0), R(3.5, -6), 'dim');
+      // forms: material removal required (bar), any process (open), no removal (circle in the V)
+      if (dm.sym === 'none') { const c = R(0, -2.1); circle(c[0], c[1], 1.05); }
+      else if (dm.sym !== 'any') line(R(-1.75, -3), R(1.75, -3), 'dim');
+      line(R(3.5, -6), R(3.5 + w, -6), 'dim');
+      const t = R(4.2, -7);
+      text(t[0], t[1], tx, 'dtx', 'start', -(+dm.ang || 0));
+      return;
+    }
+    // datum feature: filled triangle on the surface, stem, letter in a square (ang turns it like a surface symbol)
+    if (dm.kind === 'datum') {
+      const p = toSheet(dm.view, dm.a), th = ((+dm.ang || 0) * Math.PI) / 180, co = Math.cos(th), si = Math.sin(th);
+      const R = (x, y) => [p[0] + x * co + y * si, p[1] - x * si + y * co];
+      const f = q => q.map(v => v.toFixed(3)).join(' ');
+      L.push(`<path d="M${f(R(-1.6, 0))}L${f(R(1.6, 0))}L${f(R(0, -2.8))}Z" class="dim" fill="#000"/>`);
+      line(R(0, -2.8), R(0, -7), 'dim');
+      const c = R(0, -10), hs = 3;
+      line([c[0] - hs, c[1] - hs], [c[0] + hs, c[1] - hs], 'dim'); line([c[0] + hs, c[1] - hs], [c[0] + hs, c[1] + hs], 'dim');
+      line([c[0] + hs, c[1] + hs], [c[0] - hs, c[1] + hs], 'dim'); line([c[0] - hs, c[1] + hs], [c[0] - hs, c[1] - hs], 'dim');
+      text(c[0], c[1] + 1.3, String(dm.text || 'A'), 'dtx');
+      return;
+    }
+    // geometric tolerance: leader with arrow, then the frame [symbol | tolerance | datums …]
+    if (dm.kind === 'gdt') {
+      const p = toSheet(dm.view, dm.a), ang = ((+dm.ang || 45) * Math.PI) / 180, ux = Math.cos(ang), uy = -Math.sin(ang), len = +dm.off || 14;
+      const knee = [p[0] + ux * len, p[1] + uy * len], right = ux >= 0;
+      line(knee, p, 'dim arrow1');
+      const cells = String(dm.text || '').trim().split(/[\s|]+/).filter(Boolean), H = 6, ws = [7, ...cells.map(c => Math.max(7, c.length * 1.9 + 2.6))];
+      const total = ws.reduce((a, b) => a + b, 0), x0 = right ? knee[0] + 3 : knee[0] - 3 - total, y0 = knee[1] - H / 2;
+      line(knee, [right ? x0 : x0 + total, knee[1]], 'dim');
+      line([x0, y0], [x0 + total, y0], 'dim'); line([x0, y0 + H], [x0 + total, y0 + H], 'dim');
+      let x = x0;
+      line([x, y0], [x, y0 + H], 'dim');
+      ws.forEach((w, i) => {
+        if (i) text(x + w / 2, knee[1] + 1.3, cells[i - 1], 'dtx');
+        x += w;
+        line([x, y0], [x, y0 + H], 'dim');
+      });
+      // the characteristic, drawn (fonts differ too much in these signs)
+      const cx = x0 + 3.5, cy = knee[1], g = (x1, y1, x2, y2) => line([cx + x1, cy + y1], [cx + x2, cy + y2], 'dim');
+      switch (dm.sym || 'pos') {
+        case 'straight': g(-2.2, 0, 2.2, 0); break;
+        case 'flat': g(-2.2, 1.2, -1, -1.2); g(-1, -1.2, 2.2, -1.2); g(2.2, -1.2, 1, 1.2); g(1, 1.2, -2.2, 1.2); break;
+        case 'round': circle(cx, cy, 1.6); break;
+        case 'cyl': circle(cx, cy, 1.15); g(-2.5, 1.6, -1.3, -1.6); g(1.3, 1.6, 2.5, -1.6); break;
+        case 'par': g(-1.7, 1.6, -0.5, -1.6); g(0.5, 1.6, 1.7, -1.6); break;
+        case 'perp': g(-2, 1.5, 2, 1.5); g(0, 1.5, 0, -1.8); break;
+        case 'angle': g(-2, 1.5, 2, 1.5); g(-2, 1.5, 1.5, -1.5); break;
+        case 'conc': circle(cx, cy, 1.7); circle(cx, cy, 0.9); break;
+        case 'sym': g(-2.2, 0, 2.2, 0); g(-1.3, -1.1, 1.3, -1.1); g(-1.3, 1.1, 1.3, 1.1); break;
+        case 'run': g(-1.6, 1.6, 1.6, -1.6); g(1.6, -1.6, 0.3, -1.3); g(1.6, -1.6, 1.3, -0.3); break;
+        default: circle(cx, cy, 1.3); g(-2.2, 0, 2.2, 0); g(0, -2.2, 0, 2.2); // position
+      }
+      return;
+    }
+    // note with a leader: arrow at the picked point, text at the end of the leader
+    if (dm.kind === 'note') {
+      const p = toSheet(dm.view, dm.a), ang = ((+dm.ang || 45) * Math.PI) / 180, ux = Math.cos(ang), uy = -Math.sin(ang), len = +dm.off || 14;
+      const knee = [p[0] + ux * len, p[1] + uy * len], right = ux >= 0;
+      line(knee, p, 'dim arrow1');
+      const rows = String(dm.text || '').split('\n'), w = Math.max(6, ...rows.map(r => r.length * 1.9));
+      line(knee, [knee[0] + (right ? w : -w), knee[1]], 'dim');
+      rows.forEach((r, i) => text(knee[0] + (right ? 1 : -1), knee[1] - 1.2 - 4.2 * (rows.length - 1 - i), r, 'dtx', right ? 'start' : 'end'));
+      return;
+    }
+    // angle between two legs from a common corner: arc with arrows, the number outside the arc
+    if (dm.kind === 'ang') {
+      const V = toSheet(dm.view, dm.v), A = toSheet(dm.view, dm.a), B = toSheet(dm.view, dm.b);
+      let a0 = Math.atan2(A[1] - V[1], A[0] - V[0]), a1 = Math.atan2(B[1] - V[1], B[0] - V[0]);
+      let sw = a1 - a0;
+      while (sw > Math.PI) sw -= 2 * Math.PI;
+      while (sw < -Math.PI) sw += 2 * Math.PI;
+      const rad = Math.max(4, +dm.off || 16), at = t => [V[0] + rad * Math.cos(a0 + sw * t), V[1] + rad * Math.sin(a0 + sw * t)];
+      // legs out to just beyond the arc where the edge is shorter
+      for (const P of [A, B]) { const L0 = Math.hypot(P[0] - V[0], P[1] - V[1]) || 1; if (L0 < rad + 2) line(P, [V[0] + ((P[0] - V[0]) / L0) * (rad + 2), V[1] + ((P[1] - V[1]) / L0) * (rad + 2)], 'ext'); }
+      const n = Math.max(8, Math.ceil((Math.abs(sw) * rad) / 1.5));
+      for (let i = 1; i < n - 1; i++) line(at(i / n), at((i + 1) / n), 'dim');
+      line(at(1 / n), at(0), 'dim arrow1');
+      line(at((n - 1) / n), at(1), 'dim arrow1');
+      const m = at(0.5), mx = (m[0] - V[0]) / rad, my = (m[1] - V[1]) / rad;
+      text(m[0] + mx * 3.2, m[1] + my * 3.2 + 1.2, `${f2((Math.abs(sw) * 180) / Math.PI)}°${sfx}`, 'dtx');
+      return;
+    }
     // diameter / radius of a circle: leader through the centre at an angle, text outside
     if (dm.kind === 'dia' || dm.kind === 'rad') {
       const c = toSheet(dm.view, dm.c), rr = (+dm.r) * (place[dm.view].s || scale);
@@ -290,8 +446,10 @@ export function makeDrawing(bodies, opts) {
       line([c[0] + ux * rr, c[1] + uy * rr], outer, 'dim');
       const right = ux >= 0, tl = [outer[0] + (right ? 10 : -10), outer[1]];
       line(outer, tl, 'dim');
-      text(outer[0] + (right ? 1 : -1), outer[1] - 1.2, `${dm.kind === 'dia' ? 'Ø' : 'R'}${f2(dm.kind === 'dia' ? 2 * dm.r : dm.r)}`, 'dtx', right ? 'start' : 'end');
-      continue;
+      const lab = `${dm.kind === 'dia' ? 'Ø' : 'R'}${f2(dm.kind === 'dia' ? 2 * dm.r : dm.r)}${sfx}`;
+      line(tl, [outer[0] + (right ? 1 : -1) * Math.max(10, lab.length * 1.9), outer[1]], 'dim');
+      text(outer[0] + (right ? 1 : -1), outer[1] - 1.2, lab, 'dtx', right ? 'start' : 'end');
+      return;
     }
     const a = toSheet(dm.view, dm.a), b = toSheet(dm.view, dm.b);
     const off = +dm.off || 16;
@@ -300,12 +458,12 @@ export function makeDrawing(bodies, opts) {
       const y = Math.min(a[1], b[1]) - off;
       line([a[0], a[1] - 1], [a[0], y - 2], 'ext'); line([b[0], b[1] - 1], [b[0], y - 2], 'ext');
       line([a[0], y], [b[0], y], 'dim arrow2');
-      text((a[0] + b[0]) / 2, y - 1.5, f2(len), 'dtx');
+      text((a[0] + b[0]) / 2, y - 1.5, f2(len) + sfx, 'dtx');
     } else if (dm.kind === 'v') {
       const x = Math.max(a[0], b[0]) + off;
       line([a[0] + 1, a[1]], [x + 2, a[1]], 'ext'); line([b[0] + 1, b[1]], [x + 2, b[1]], 'ext');
       line([x, a[1]], [x, b[1]], 'dim arrow2');
-      text(x - 1.5, (a[1] + b[1]) / 2, f2(len), 'dtx', 'middle', -90);
+      text(x - 1.5, (a[1] + b[1]) / 2, f2(len) + sfx, 'dtx', 'middle', -90);
     } else {
       const dx = b[0] - a[0], dy = b[1] - a[1], L0 = Math.hypot(dx, dy) || 1;
       let nx = -dy / L0, ny = dx / L0;
@@ -315,9 +473,18 @@ export function makeDrawing(bodies, opts) {
       line(A2, B2, 'dim arrow2');
       let ang = (Math.atan2(dy, dx) * 180) / Math.PI;
       if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
-      text((A2[0] + B2[0]) / 2 + nx * 1.5, (A2[1] + B2[1]) / 2 + ny * 1.5, f2(len), 'dtx', 'middle', ang);
+      text((A2[0] + B2[0]) / 2 + nx * 1.5, (A2[1] + B2[1]) / 2 + ny * 1.5, f2(len) + sfx, 'dtx', 'middle', ang);
     }
-  }
+    };
+  (opts.userDims || []).forEach((dm, di) => {
+    if (!place[dm.view]) return;
+    cur = dm.view;
+    L.push(`<g class="udim" data-dim="${di}">`);
+    hitLines = true;
+    drawUserDim(dm);
+    hitLines = false;
+    L.push('</g>');
+  });
 
   // ----- detail view: a circle of a view, enlarged (Fusion: "Detailansicht") -----
   let detailInfo = null;
@@ -398,13 +565,15 @@ export function makeDrawing(bodies, opts) {
   text(tx + tbW - 2, ty - 2 - (opts.parts?.length ? (opts.parts.length + 1) * 6 : 0), 'Projektionsmethode 1 (ISO-E) · Maße in mm · Allgemeintoleranz ISO 2768-m', 'tbl', 'end');
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}mm" height="${SH}mm" viewBox="0 0 ${SW} ${SH}">
-<defs><marker id="ar" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="3" markerHeight="3" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#000"/></marker>
+<defs><marker id="ar" viewBox="0 0 10 4" refX="10" refY="2" markerUnits="userSpaceOnUse" markerWidth="2.5" markerHeight="1" orient="auto-start-reverse"><path d="M0,0 L10,2 L0,4 z" fill="#000"/></marker>
 <pattern id="hatch" width="2" height="2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="2" stroke="#000" stroke-width=".18"/></pattern></defs>
 <style>
 .vis{stroke:#000;stroke-width:.5;stroke-linecap:round}
 .hid{stroke:#000;stroke-width:.25;stroke-dasharray:2 1}
 .ctr{stroke:#000;stroke-width:.18;stroke-dasharray:6 1 1 1}
 .dim,.ext{stroke:#000;stroke-width:.18}
+.thr{stroke:#000;stroke-width:.18;stroke-dasharray:2 1}
+.hit{stroke:#000;stroke-opacity:0;stroke-width:3;fill:none}
 .arrow2{marker-start:url(#ar);marker-end:url(#ar)}.arrow1{marker-end:url(#ar)}
 .hatch{fill:url(#hatch);stroke:none}.det line,.det path{vector-effect:non-scaling-stroke}.detc{fill:none;stroke:#000;stroke-width:.35}
 .tbl.hd{font-size:2.6px;font-weight:600;fill:#000}.tbv.sm{font-size:3px}

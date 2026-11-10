@@ -8,6 +8,8 @@ import { basis, planeMatrix, toLocal, toWorld } from './plane.js';
 import { sketchHandles, refKind, refEntity, dimensionFor, dimBase } from './solver.js';
 import { trimAt, extendAt, remapConstraints } from './trim.js';
 import { cornerAt, cornerPreview } from './sketchcorner.js';
+import { offsetHit, offsetCurves } from './sketchoffset.js';
+import { entityOutlines, mirrorEntity, translateEntity, rotateEntity } from './profiles.js';
 import { centerRect, rect3, circle2, circleThrough, centerArc, endTangent, tangentArc } from './sketchtools.js';
 
 const r2 = v => Math.round(v * 100) / 100;
@@ -36,6 +38,9 @@ export class Sketcher {
     this.dimPreview = null; // dimension following the mouse
     this.hoverRef = null;
     this.cornerVal = { fillet: 3, chamfer: 1 }; // last value of the corner tools (preview and prompt)
+    this.offsetVal = 2; // last offset distance (preview and prompt)
+    this.xformIds = []; // entities the mirror / pattern tools work on (set when the tool starts)
+    this.patternVal = { nx: 3, ny: 1, n: 6, ang: 360 }; // last pattern counts (preview and prompt)
     this.locks = {};        // values typed while drawing
     this.segDims = [];      // typed line lengths, per polyline segment
     this.inp = null;        // value boxes while drawing
@@ -229,6 +234,21 @@ export class Sketcher {
       this.dimPreview = pv;
       if (changed) this.hooks.overlay();
       this.hooks.tip(pv ? 'Klicken: Bemaßung hier ablegen' : this.dim.refs.length ? 'Zweites Element wählen' : 'Linie, Kreis oder Punkt wählen', e);
+      return;
+    }
+    if (this.tool === 'mirror' || this.tool === 'prect' || this.tool === 'pcirc') {
+      this.cur = this.tool === 'mirror' ? p : this.snap(p);
+      this.drawPreview();
+      const ax = this.tool === 'mirror' && this.axisAt(p);
+      this.hooks.tip(this.tool === 'mirror' ? (ax ? 'Klicken: an dieser Linie spiegeln' : 'Spiegelachse: über eine Linie fahren und klicken · Esc beendet')
+        : this.tool === 'prect' ? `Klicken: Abstand der ersten Kopie (${this.patternVal.nx} × ${this.patternVal.ny}) · Esc beendet` : `Klicken: Mittelpunkt des Kreismusters (${this.patternVal.n} Stück) · Esc beendet`, e);
+      return;
+    }
+    if (this.tool === 'offset') {
+      this.cur = p;
+      const hit = offsetHit(this.entities, p, this.vp.worldPerPixel() * 60);
+      this.drawPreview();
+      this.hooks.tip(hit ? `Klicken: Versatz ${this.offsetVal} mm auf dieser Seite` : 'Mit der Maus neben eine Kontur fahren (die Seite bestimmt die Richtung) · Esc beendet', e);
       return;
     }
     if (this.tool === 'fillet' || this.tool === 'chamfer') {
@@ -479,6 +499,28 @@ export class Sketcher {
     return Math.abs(((x - a[0]) * dy - (y - a[1]) * dx) / L);
   }
 
+  // a single straight line under p that can serve as a mirror axis (not one of the entities being mirrored)
+  axisAt(p) {
+    const tol = this.vp.worldPerPixel() * 12;
+    let best = null, bd = tol;
+    for (const x of this.entities) {
+      if (x.type !== 'poly' || x.pts.length !== 2 || x.curve || this.xformIds.includes(x.id)) continue;
+      const a = x.pts[0].map(Number), b = x.pts[1].map(Number), dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+      if (L2 < 1e-12) continue;
+      const u = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)), d = Math.hypot(p[0] - a[0] - u * dx, p[1] - a[1] - u * dy);
+      if (d < bd) { bd = d; best = x; }
+    }
+    return best;
+  }
+  // a spacing that is almost along X or Y is taken as exactly along it
+  axisLock(dx, dy) { return Math.abs(dy) <= 0.1 * Math.abs(dx) ? [dx, 0] : Math.abs(dx) <= 0.1 * Math.abs(dy) ? [0, dy] : [dx, dy]; }
+  // middle of the entities a pattern starts from (the mouse gives the spacing from here)
+  xformOrigin() {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const id of this.xformIds) { const x = this.entities.find(q => q.id === id); if (x) for (const o of entityOutlines(x)) for (const [px, py] of o.pts) { x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py); } }
+    return Number.isFinite(x0) ? [(x0 + x1) / 2, (y0 + y1) / 2] : [0, 0];
+  }
+
   click(e) {
     const raw = this.localPoint(e);
     if (!raw) return;
@@ -488,6 +530,24 @@ export class Sketcher {
     if (this.tool === 'dim') { this.dimClick(raw); return; }
 
     if (this.tool === 'trim') { this.trimClick(raw); return; }
+    if (this.tool === 'mirror') {
+      const ax = this.axisAt(raw);
+      if (!ax) { this.hooks.status?.('Keine Linie hier – eine einzelne gerade Linie (auch Konstruktionslinie) als Spiegelachse anklicken.'); return; }
+      this.hooks.xform?.('mirror', { axis: ax.id });
+      return;
+    }
+    if (this.tool === 'prect' || this.tool === 'pcirc') {
+      const sp = this.snap(raw), o = this.xformOrigin();
+      const [ldx, ldy] = this.axisLock(sp[0] - o[0], sp[1] - o[1]);
+      this.hooks.xform?.(this.tool, this.tool === 'prect' ? { dx: +ldx.toFixed(3), dy: +ldy.toFixed(3) } : { c: [+sp[0].toFixed(3), +sp[1].toFixed(3)] });
+      return;
+    }
+    if (this.tool === 'offset') {
+      const hit = offsetHit(this.entities, raw, this.vp.worldPerPixel() * 60);
+      if (!hit) { this.hooks.status?.('Keine Kontur in der Nähe – neben eine Linie, ein Rechteck oder einen Kreis klicken.'); return; }
+      this.hooks.offset?.(hit.e.id, hit.sign);
+      return;
+    }
     if (this.tool === 'fillet' || this.tool === 'chamfer') {
       const c = cornerAt(this.entities, raw, this.vp.worldPerPixel() * 16);
       if (!c) { this.hooks.status?.('Keine Ecke hier – Eckpunkt eines Linienzugs, Rechtecks oder Treffpunkt zweier Linien anklicken.'); return; }
@@ -779,6 +839,42 @@ export class Sketcher {
 
   drawPreview() {
     this.vp.clear(this.preview);
+    if (this.active && this.cur && (this.tool === 'mirror' || this.tool === 'prect' || this.tool === 'pcirc')) {
+      // the copies the tool would make, drawn as outlines
+      const src = this.xformIds.map(id => this.entities.find(x => x.id === id)).filter(Boolean);
+      let copies = [];
+      const ax = this.tool === 'mirror' ? this.axisAt(this.cur) : null;
+      if (ax) copies = src.map(x => mirrorEntity(x, ax.pts[0].map(Number), ax.pts[1].map(Number)));
+      else if (this.tool === 'prect') {
+        const o = this.xformOrigin(), [dx, dy] = this.axisLock(this.cur[0] - o[0], this.cur[1] - o[1]), { nx, ny } = this.patternVal;
+        for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) if (i || j) for (const x of src) copies.push(translateEntity(x, i * dx, j * (ny > 1 ? dy : 0)));
+        if (ny <= 1) copies = copies.map((c, k) => translateEntity(c, 0, ((Math.floor(k / src.length) + 1) * dy)));
+      } else if (this.tool === 'pcirc') {
+        const { n, ang } = this.patternVal, step = Math.abs(Math.abs(ang) - 360) < 1e-6 ? ang / n : ang / Math.max(1, n - 1);
+        for (let i = 1; i < n; i++) for (const x of src) copies.push(rotateEntity(x, step * i, this.cur));
+      }
+      this.preview.matrix.copy(planeMatrix(this.sketch));
+      const mat = new THREE.LineBasicMaterial({ color: 0xff7a00, depthTest: false, transparent: true });
+      const add = pts => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(q => new THREE.Vector3(q[0], q[1], 0.06))), mat); l.renderOrder = 11; this.preview.add(l); };
+      for (const c of copies) if (c) for (const o of entityOutlines(c)) add(o.closed ? [...o.pts, o.pts[0]] : o.pts);
+      if (ax) add(ax.pts.map(q => q.map(Number)));
+      if (this.tool === 'pcirc') { const r = this.vp.worldPerPixel() * 6; add(Array.from({ length: 25 }, (_, i) => [this.cur[0] + r * Math.cos((i / 24) * Math.PI * 2), this.cur[1] + r * Math.sin((i / 24) * Math.PI * 2)])); }
+      return;
+    }
+    if (this.active && this.cur && this.tool === 'offset') {
+      // the offset of the nearest contour, on the side the mouse is on
+      const hit = offsetHit(this.entities, this.cur, this.vp.worldPerPixel() * 60);
+      if (!hit) return;
+      this.preview.matrix.copy(planeMatrix(this.sketch));
+      const mat = new THREE.LineBasicMaterial({ color: 0xff7a00, depthTest: false, transparent: true });
+      for (const c of offsetCurves(hit.e, hit.sign * this.offsetVal)) {
+        const pts = c.closed ? [...c.pts, c.pts[0]] : c.pts;
+        const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(q => new THREE.Vector3(q[0], q[1], 0.06))), mat);
+        l.renderOrder = 11;
+        this.preview.add(l);
+      }
+      return;
+    }
     if (this.active && this.cur && (this.tool === 'fillet' || this.tool === 'chamfer')) {
       const c = cornerAt(this.entities, this.cur, this.vp.worldPerPixel() * 16);
       if (!c) return;
