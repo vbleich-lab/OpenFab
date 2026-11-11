@@ -1,8 +1,8 @@
 {
   "name": "werkfab",
   "productName": "WerkFab",
-  "version": "1.0.0-rc.3",
-  "description": "WerkFab CAD/CAM – Konstruktion und Fertigung, offline",
+  "version": "1.0.0-rc.4",
+  "description": "WerkFab CAD/CAM – design and CNC machining, offline",
   "license": "GPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -12,7 +12,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . WerkFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=WerkFab --win32metadata.FileDescription=\"WerkFab CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=^/docs --ignore=/rust/openfab-kernel --ignore=^/[.]claude --ignore=^/[.]git",
+    "build": "electron-packager . WerkFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=WerkFab --win32metadata.FileDescription=\"WerkFab CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=^/docs --ignore=/rust/werkfab-kernel --ignore=^/[.]claude --ignore=^/[.]git",
     "build:web": "node tools/build-web.mjs",
     "build:kernel": "node tools/build-kernel.mjs",
     "test:kernel": "node tools/test-rust-kernel.mjs",
@@ -25,10 +25,95 @@
     "test:lathe": "node tools/test-lathe.mjs",
     "test:drawing": "node tools/test-drawing.mjs",
     "test:i18n": "node tools/test-i18n.mjs",
-    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing && npm run test:i18n"
+    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing && npm run test:i18n",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
+    "dist:mac": "electron-builder --mac --publish never"
   },
   "devDependencies": {
     "@electron/packager": "18.3.6",
-    "electron": "33.4.11"
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8"
+  },
+  "homepage": "https://github.com/vbleich-lab/WerkFab",
+  "author": {
+    "name": "vbleich-lab"
+  },
+  "build": {
+    "appId": "io.github.vbleich-lab.werkfab",
+    "productName": "WerkFab",
+    "copyright": "GPL-3.0-or-later",
+    "directories": {
+      "output": "dist/installers"
+    },
+    "files": [
+      "index.html",
+      "manifest.webmanifest",
+      "css/**",
+      "js/**",
+      "vendor/**",
+      "icons/**",
+      "electron/**",
+      "licenses/**",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
+      "package.json"
+    ],
+    "asar": true,
+    "afterPack": "electron/after-pack.cjs",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "WerkFab",
+      "artifactName": "WerkFab-${version}-windows-x64-setup.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Engineering",
+      "icon": "icons/icon-512.png",
+      "synopsis": "CAD/CAM for design and CNC machining",
+      "artifactName": "WerkFab-${version}-linux-x86_64.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.graphics-design",
+      "icon": "icons/icon-512.png",
+      "identity": null,
+      "artifactName": "WerkFab-${version}-macos-${arch}.${ext}"
+    }
   }
 }

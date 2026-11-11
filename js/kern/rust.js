@@ -9,7 +9,7 @@ import { buildRegions } from '../profiles.js';
 import { basis, sketchPlane, toWorld, axisRef } from '../plane.js';
 import { profileItems, FEATURE_TYPES, patternAxis, pathPlacements } from '../model.js';
 
-const WASM_URL = new URL('../../vendor/openfab-kernel/openfab_kernel.wasm', import.meta.url).href;
+const WASM_URL = new URL('../../vendor/werkfab-kernel/werkfab_kernel.wasm', import.meta.url).href;
 const NAME = 'Rust-Kern';
 const DEG = Math.PI / 180;
 const EPS = 1e-3; // extrusions reach this far into / out of the material at the sketch plane (coplanar faces)

@@ -2,14 +2,14 @@
 
 [English](README.md) · **Deutsch**
 
-**CAD/CAM für Konstruktion und Fertigung – komplett offline, im Browser oder als Windows-App.**
+**CAD/CAM für Konstruktion und Fertigung – komplett offline, im Browser oder als App für Windows, Linux und macOS.**
 
 WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über Skizzen und eine Feature-Zeitachse konstruiert. Danach lassen sich Baugruppen, Zeichnungen und Renderings erstellen und NC-Programme für Fräs- und Drehmaschinen erzeugen, simulieren und prüfen. Alles läuft lokal: kein Konto, keine Cloud, keine Telemetrie.
 
 > [!CAUTION]
 > **Jedes NC-Programm muss vor dem ersten Einsatz geprüft werden – an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang, ohne Werkstück oder mit Abstand in Z) oder in einem externen NC-Simulator.** Die Simulation in WerkFab ersetzt diese Prüfung nicht. WerkFab ist freie Software ohne jede Gewährleistung; für Schäden an Maschine, Werkzeug, Werkstück oder Personen wird nicht gehaftet (siehe [Sicherheit](#sicherheit-nc-programme-immer-vorher-simulieren)).
 
-> **Status: Release Candidate 3 (v1.0.0-rc.3).** Der Funktionsumfang ist vollständig für 1.0.
+> **Status: Release Candidate 4 (v1.0.0-rc.4).** Der Funktionsumfang ist vollständig für 1.0.
 
 ![Konstruktion über die Zeitachse, danach Fräsbahnen und Simulation mit Materialabtrag](docs/media/demo.gif)
 
@@ -79,11 +79,21 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 
 ## Starten
 
-### Windows-App
-Lade `WerkFab-<Version>-windows-x64.zip` aus den [Releases](../../releases), entpacke das Archiv und starte `WerkFab.exe`.
+Alle Downloads stehen auf der Seite [Releases](../../releases).
+
+| System | Datei | Starten |
+|---|---|---|
+| Windows | `WerkFab-<Version>-windows-x64-setup.exe` | Installer ausführen. Er installiert für den angemeldeten Benutzer, legt Startmenü- und Desktop-Eintrag an und bringt eine Deinstallation mit. |
+| Windows, ohne Installation | `WerkFab-<Version>-windows-x64-portable.zip` | Entpacken und `WerkFab.exe` starten. |
+| Linux | `WerkFab-<Version>-linux-x86_64.AppImage` | Ausführbar machen (`chmod +x WerkFab-*.AppImage`) und starten. Oder das `.tar.gz` entpacken und `werkfab` starten. |
+| macOS (Apple Silicon) | `WerkFab-<Version>-macos-arm64.dmg` | Abbild öffnen und WerkFab in „Programme“ ziehen. |
+| macOS (Intel) | `WerkFab-<Version>-macos-x64.dmg` | Ebenso. |
+| Jedes System, im Browser | `WerkFab-<Version>-browser.zip` | Siehe unten. |
+
+Die Apps sind nicht mit einem gekauften Zertifikat signiert. Windows SmartScreen warnt eventuell beim ersten Start („Weitere Informationen“ → „Trotzdem ausführen“). macOS verweigert den ersten Start per Doppelklick: Rechtsklick auf die App → „Öffnen“, oder unter Systemeinstellungen → Datenschutz & Sicherheit erlauben; meldet macOS, die App sei beschädigt, einmal `xattr -dr com.apple.quarantine /Applications/WerkFab.app` ausführen. Die Linux- und macOS-Pakete werden automatisch gebaut und sind auf diesen Systemen nicht von Hand getestet.
 
 ### Browser-Version (offline-fähig)
-Lade `WerkFab-<Version>-browser.zip` aus den [Releases](../../releases) und entpacke es. Dann im Ordner einen lokalen Webserver starten, zum Beispiel:
+Lade `WerkFab-<Version>-browser.zip` und entpacke es. Dann im Ordner einen lokalen Webserver starten, zum Beispiel:
 
 ```bash
 python -m http.server 8765
@@ -110,9 +120,10 @@ startet die Electron-App. Alternativ startet `start.bat` einen lokalen Webserver
 
 | Befehl | Ergebnis |
 |---|---|
-| `npm run build` bzw. `build-exe.bat` | Windows-App in `dist/WerkFab-win32-x64` |
+| `npm run build` bzw. `build-exe.bat` | Windows-App (Ordner) in `dist/WerkFab-win32-x64` |
+| `npm run dist:win` / `dist:linux` / `dist:mac` | Installer bzw. App-Paket in `dist/installers` (Windows-Setup, Linux AppImage und tar.gz, macOS dmg – jeweils auf dem eigenen System) |
 | `npm run build:web` bzw. `build-web.bat` | Browser-Version in `dist/WerkFab-Browser` (+ ZIP über die .bat) |
-| `npm run build:kernel` | Rust-Kern nach WebAssembly (`vendor/openfab-kernel`), benötigt Rust + `wasm32-unknown-unknown` |
+| `npm run build:kernel` | Rust-Kern nach WebAssembly (`vendor/werkfab-kernel`), benötigt Rust + `wasm32-unknown-unknown` |
 
 ## Tests
 
@@ -149,7 +160,7 @@ git tag v1.0.0
 git push origin main --tags
 ```
 
-Der Workflow **Release** (`.github/workflows/release.yml`) testet, baut die Windows-App und die Browser-Version und hängt beide als ZIP an den GitHub-Release. Tags mit Bindestrich (z. B. `v1.0.0-rc.2`) werden als Vorabversion veröffentlicht. Bei jedem Push auf `main` laufen außerdem die Tests (`.github/workflows/ci.yml`).
+Der Workflow **Release** (`.github/workflows/release.yml`) testet, baut die Pakete für Windows, Linux und macOS sowie die Browser-Version und hängt sie an den GitHub-Release. Tags mit Bindestrich (z. B. `v1.0.0-rc.2`) werden als Vorabversion veröffentlicht. Bei jedem Push auf `main` laufen außerdem die Tests (`.github/workflows/ci.yml`).
 
 ---
 
@@ -159,9 +170,9 @@ Der Workflow **Release** (`.github/workflows/release.yml`) testet, baut die Wind
 |---|---|
 | `js/` | Anwendung (ES-Module, ohne Bundler): Modell, Skizze, Solver, CAM, Simulation, Postprozessoren, Oberfläche |
 | `css/`, `icons/` | Oberfläche und Symbole |
-| `electron/` | Hülle für die Windows-App |
+| `electron/` | Hülle für die Desktop-Apps (Windows, Linux, macOS) |
 | `vendor/` | Mitgelieferte Bibliotheken (OpenCascade/replicad, three.js, Clipper, opentype.js …) |
-| `rust/openfab-kernel/` | Experimenteller eigener Geometriekern in Rust (truck), als WebAssembly eingebunden |
+| `rust/werkfab-kernel/` | Experimenteller eigener Geometriekern in Rust (truck), als WebAssembly eingebunden |
 | `tools/` | Build- und Testskripte |
 
 Standardmäßig rechnet WerkFab mit **OpenCascade** (über replicad/WebAssembly). Der Rust-Kern ist eine experimentelle Alternative, die über die Kern-Schnittstelle umgeschaltet werden kann.

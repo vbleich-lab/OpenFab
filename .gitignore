@@ -1,7 +1,7 @@
 # Abhängigkeiten und Build-Ausgaben
 node_modules/
 dist/
-rust/openfab-kernel/target/
+rust/werkfab-kernel/target/
 
 # Lokale Werkzeug-Einstellungen
 .claude/
