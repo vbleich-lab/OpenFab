@@ -1,7 +1,7 @@
 {
   "name": "werkfab",
   "productName": "WerkFab",
-  "version": "1.0.0-rc.6",
+  "version": "1.0.0-rc.7",
   "description": "WerkFab CAD/CAM – design and CNC machining, offline",
   "license": "GPL-3.0-or-later",
   "repository": {

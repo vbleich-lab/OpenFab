@@ -8069,6 +8069,12 @@ function openDrawing() {
   renderDrawing(true);
 }
 
+// The drawing window can also be opened through the window menu: fill the sheet then too.
+{
+  const w = $('#winDrawing');
+  if (w) new MutationObserver(() => { if (!w.hidden && !$('#drawingView')?.firstChild && getModel().bodies.length) renderDrawing(true); }).observe(w, { attributes: true, attributeFilter: ['hidden'] });
+}
+
 function renderDrawing(rebuild = false) {
   const root = $('#drawingView');
   if (!root || wm.get('winDrawing').el.hidden) return;
@@ -9382,7 +9388,7 @@ function openSettings(page) {
     if (page.id === 'keys') { body.append(shortcutsHelp()); return; }
     if (page.id === 'about') {
       body.append(h('div', { class: 'prefs-about' },
-        h('div', { class: 'prefs-logo' }, '◆'),
+        h('div', { class: 'prefs-logo' }, 'W'),
         h('div', null, h('b', null, 'WerkFab CAD/CAM'), h('div', { class: 'hint' }, 'Konstruktion und Fertigung – läuft komplett offline.'),
           h('p', { class: 'hint' }, 'Geometriekern: OpenCascade (über replicad) · Darstellung: three.js · Einstellungen werden auf diesem Rechner gespeichert.'))));
       return;
