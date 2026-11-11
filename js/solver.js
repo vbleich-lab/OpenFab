@@ -65,6 +65,7 @@ function rawValue(e, key) {
 }
 
 function isLocked(e, key, locked) {
+  if (e.proj) return true; // projected geometry belongs to the body: the solver must not move it
   if (e.type === 'poly') { const m = key.match(/^p(\d+)([xy])$/); return locked.has(`${e.id}.pts.${m[1]}.${m[2] === 'x' ? 0 : 1}`); }
   return locked.has(`${e.id}.${LOCK_FIELD[key] || key}`) || (key === 'x1' && locked.has(`${e.id}.x`) && locked.has(`${e.id}.w`));
 }

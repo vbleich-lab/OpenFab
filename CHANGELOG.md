@@ -1,5 +1,56 @@
 # Änderungen
 
+## v1.0.0-rc.8 – 2026-11-11
+
+### Fertigung
+- **Wirbelfräsen (trochoidal)** für Nuten: Das Werkzeug fräst in Kreisen, deren Mitte entlang der Nut wandert, und ist nie über die volle Breite im Eingriff. Für Langlöcher und – mit Angabe der Nutbreite – für offene Linien.
+- **Tauchschruppen**: senkrechte Tauchgänge Reihe für Reihe bis auf das Modell plus Aufmaß, mit kurzem Abheben von der Wand vor dem Rückzug. Für lange Werkzeuge und tiefe Kavitäten.
+- **Bohrungen erkennen**: findet alle Bohrungen entlang der Werkzeugachse, gruppiert sie nach Durchmesser und Art (Durchgang, Sackloch, Senkung, Gewinde) und legt Anbohren, Bohren, Gewindebohren und Senkungen in einem Zug an. Fehlende Werkzeuge werden mit Schnittdaten angelegt.
+- **Manuelle NC**: Kommentar, Programmhalt (M0), wahlweiser Halt (M1), Verweilzeit, Meldung für den Bediener oder eigener NC-Code zwischen den Operationen. Nach einem Programmhalt schaltet die nächste Operation Spindel und Kühlmittel wieder ein.
+- **Bahnmuster**: Die fertige Bahn einer Operation wird linear (Reihen und Spalten), kreisförmig oder gespiegelt wiederholt. Bohrzyklen und Bohrbilder bleiben erhalten; im Spiegelbild wechselt die Radiuskorrektur die Seite.
+- **Torusfräser mit echter Form**: Die 3D-Strategien rechnen den Eckenradius mit (bisher wie ein Schaftfräser, also unnötig weit weg von Schrägen und Rundungen). Simulation, Kollisionsprüfung und der kürzeste sichere Weg kennen die Form ebenfalls; das Aufmaß wirkt senkrecht zur Fläche.
+- **Tauchschruppen kennt die vorigen Operationen**: Wo schon gefräst ist, wird nicht mehr getaucht, und jeder Tauchgang beginnt erst am verbliebenen Material (abschaltbar).
+- **Gewindefräsen aus der Bohrungserkennung**: Für Gewindebohrungen lässt sich statt Gewindebohren auch Gewindefräsen wählen.
+- **Eckenfreistich (Dogbone / T-Bone)** an 2D-Tasche und 2D-Kontur: An jeder scharfen Innenecke fährt der Fräser kurz in die Ecke und zurück, damit ein eckiges Gegenstück hineinpasst.
+- **Restmaterial gegen ein Referenzwerkzeug aus der Liste** (Strategie „Ecke“): Es zählt die Form des vorigen Werkzeugs, zum Beispiel was ein Torusfräser in den Hohlkehlen stehen lässt.
+- **Außengewinde fräsen aus der Bohrungserkennung**: Zapfen mit Gewinde werden erkannt und bekommen eine Operation „Gewindefräsen außen“.
+- **Wirbelfräsen als Kreisbögen im NC-Programm**: Die Kreise sind jetzt fein genug, dass der Postprozessor Bögen ausgibt (im Test 724 statt 5168 Sätze).
+- **Bohrungen anfasen** aus der Bohrungserkennung: eine Fase um die Mündung jeder Bohrung, mit dem Fasenfräser.
+- **Werkzeugwechsel sparen**: ordnet die Operationen eines Setups so, dass gleiche Werkzeuge zusammenrücken – ohne Operationen zu überholen, die an derselben Stelle arbeiten; manuelle NC und Antasten bleiben, wo sie sind.
+- **Vorschubanpassung in Ecken**: langsamerer Vorschub vor und nach scharfen Richtungswechseln (Winkel, Strecke und Prozentwert einstellbar).
+
+### Skizze
+- **Bild nachzeichnen**: Aus einem Bild (PNG, JPG, WebP, GIF, BMP, SVG) werden Kurven – wahlweise Konturen außen und innen, nur Außenkonturen, nur Innenkonturen oder die Mittellinie der Striche. Mit Vorschau, Schwellwert, Invertieren, Genauigkeit und Glätten. Das Ergebnis kommt in die offene Skizze (oder als neue Skizze) und lässt sich als SVG oder DXF speichern; das Bild kann als Vorlage dahinterliegen.
+- **Nachzeichnen erkennt Formen**: gerade Kanten, scharfe Ecken, Rundungen und Kreise werden als Geraden, Drei-Punkt-Bögen und Kreise eingefügt statt als viele kurze Linien (umschaltbar auf Linienzüge). Beim Glätten bleiben Ecken scharf.
+- **Nachzeichnen nach Farben** (einzelne Randpixel zwischen zwei Farben werden bereinigt): Ein Farbbild wird in 2 bis 8 Farben zerlegt; jede angehakte Farbe wird für sich nachgezeichnet und in der SVG-Datei in ihrer Farbe gespeichert.
+- **Bild als Vorlage auf der Skizzenebene** und **Vorlage kalibrieren**: zwei Punkte im Bild anklicken, wirklichen Abstand eingeben – das Bild bekommt den richtigen Maßstab.
+- **SVG und DXF in die offene Skizze einfügen** (eigene Gruppe EINFÜGEN in der Skizzenleiste).
+- **Projizieren erweitert**: einzelne Kanten (Kreise bleiben Kreise, Kreisbögen werden Bögen), der Umriss eines ganzen Körpers und die Schnittkurven der Skizzenebene mit einem Körper. Projizierte Geometrie ist violett.
+- **Projektion folgt dem Körper**: Ändert sich der Körper, wird die projizierte Geometrie beim Neuberechnen mitgeführt (nächste Kante bzw. Fläche gleicher Art). „Verknüpfung lösen“ macht daraus gewöhnliche Skizzengeometrie.
+- **Projektion abgesichert**: Projizierte Geometrie wird vom Löser nicht mehr verschoben, Maße und Abhängigkeiten daran stimmen sofort nach der Neuberechnung, und wenn nach einer großen Änderung nicht eindeutig ist, welche Kante oder Fläche gemeint war, steht ein Warnzeichen an der Skizze und am Element („Geprüft – stimmt“ nimmt es weg).
+- **Verschieben und Drehen mit der Maus**: Ausgangspunkt und Ziel bzw. Drehpunkt und Winkel anklicken, mit Vorschau; der Wert lässt sich danach als Zahl ändern.
+- **Skizzenpalette**: Ansehen, Schnitt an der Skizzenebene, Profile hervorheben, Normal ↔ Konstruktion.
+
+### Konstruktion
+- **Extrusion mit Schrägungswinkel**: Die Seitenwände neigen sich um einen Winkel, auch symmetrisch und nach zwei Seiten. Kreise werden zu Kegeln, Ringe zu Kegelringen (die Öffnung wird enger, wo der Körper breiter wird).
+- **Verrundung mit veränderlichem Radius**: Der Radius wächst gleichmäßig vom Anfang zum Ende der gewählten Kante.
+- **Fläche löschen**: Bohrungen, Taschen, Verrundungen oder Fasen entfernen – die Nachbarflächen schließen die Lücke. Der Schritt rechnet bei Änderungen am Körper mit; dafür lädt beim ersten Mal der große Geometriekern.
+- **Fläche ersetzen**: Eine ebene Fläche wird auf eine andere Ebene gelegt (Grundebene mit Versatz oder Konstruktionsebene, auch geneigt); der Körper wächst bis dorthin oder wird gekürzt.
+- **Verrundung mit Stützpunkten**: Zusätzlich zu Anfangs- und Endradius lassen sich Radien an beliebigen Stellen der Kante vorgeben.
+- **Fläche versetzen**: ebene Flächen verschieben, Bohrungen und Zapfen im Durchmesser ändern.
+- **Ausrichten**: einen Körper mit einer seiner Flächen auf die Fläche eines anderen Körpers legen (gegenüber oder gleich gerichtet, mit Abstand).
+- **Verrundung über Kantenketten durchlaufend**: Der Radius läuft vom Anfang einer Kette aneinanderhängender Kanten bis zu ihrem Ende; Stützpunkte gelten in % der Kettenlänge.
+- **Skizze: Verschieben/Kopieren, Drehen, Skalieren** der gewählten Elemente über Zahlenwerte; Eckenradien und Fasen wachsen beim Skalieren mit.
+- **Trägheitsmomente** Ixx / Iyy / Izz um den Schwerpunkt in den Körpereigenschaften.
+
+### Behoben
+- Viele Warnungen des Postprozessors wurden nie übersetzt, weil das Übersetzungswerkzeug an einer Zeile des Postprozessors aus dem Tritt kam. Sie erscheinen jetzt auf Englisch und Chinesisch.
+
+- IGES-Import und -Export lesen ihre Ergebnisdatei jetzt unabhängig vom Dateinamen, den der große Kern vergibt.
+
+### Tests
+- Neue Prüfungen für alle Punkte oben (`npm run test:cam`, neu: `npm run test:design`); der G-Code-Prüfer wertet M0 als Spindelhalt.
+
 ## v1.0.0-rc.7 – 2026-11-11
 
 ### Neues Programmsymbol

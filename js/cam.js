@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { entityPolys, entityOutlines, buildRegions, signedArea, ensureCCW, pointInPoly, chainLoops } from './profiles.js';
 import { basis, toWorld } from './plane.js';
-import { buildHeightmap, dropCutter as dropCutterRaw } from './heightmap.js';
+import { buildHeightmap, dropCutter as dropCutterRaw, cornerOf } from './heightmap.js';
 
 // Surface of the current 3D operation ("Flächen-Manager"): ignored faces are left out of the
 // base heightmap, avoided / fixture / machined groups add their own clearance (radial = bigger tool, axial = higher).
@@ -18,7 +18,8 @@ function growStl(tool, stl) {
   let m = grownStl.get(tool);
   if (!m) grownStl.set(tool, (m = new Map()));
   let g = m.get(stl);
-  if (!g) m.set(stl, (g = { ...tool, dia: Math.max(0.01, tool.dia + 2 * stl) }));
+  // (a torus cutter grows in its corner radius too: the same middle circle, a thicker tube)
+  if (!g) m.set(stl, (g = { ...tool, dia: Math.max(0.01, tool.dia + 2 * stl), ...(cornerOf(tool) > 0 ? { cornerR: cornerOf(tool) + stl } : {}) }));
   return g;
 }
 function dropCutter(hm, x, y, tool, floor) {
@@ -76,12 +77,17 @@ export const OP_TYPES = {
   circular: 'Kreistasche',
   vcarve: 'V-Gravur',
   probe: 'Antasten (WKS)',
+  plunge3d: 'Tauchschruppen',
+  manual: 'Manuelle NC',
   rotary: '4-Achs-Rotation',
   rotaryRough: '4-Achs-Schruppen',
   rotaryWrap: '4-Achs-Abwickeln',
   ...TURN_OPS,
 };
-export const OPS_3D = ['rough3d', 'parallel3d', 'contour3d', 'horizontal3d', 'steep3d', 'scallop3d', 'spiral3d', 'radial3d', 'adaptive3d', 'pocket3d', 'flat3d', 'ramp3d', 'pencil3d', 'morphspiral3d', 'blend3d', 'guidemorph3d', 'corner3d', 'flow3d', 'morph3d', 'deburr3d', 'geodesic3d'];
+export const OPS_3D = ['rough3d', 'parallel3d', 'contour3d', 'horizontal3d', 'steep3d', 'scallop3d', 'spiral3d', 'radial3d', 'adaptive3d', 'pocket3d', 'flat3d', 'ramp3d', 'pencil3d', 'morphspiral3d', 'blend3d', 'guidemorph3d', 'corner3d', 'flow3d', 'morph3d', 'deburr3d', 'geodesic3d', 'plunge3d'];
+// Manual NC: lines in the program without a toolpath ("Manuelle NC")
+export const MANUAL_KINDS = { comment: 'Kommentar', stop: 'Programmhalt (M0)', optstop: 'Wahlweiser Halt (M1)', dwell: 'Verweilzeit', code: 'NC-Code durchreichen', message: 'Meldung für den Bediener' };
+export const PATTERN_KINDS = { none: 'Kein Muster', linear: 'Linear (Reihen und Spalten)', circular: 'Kreisförmig', mirror: 'Gespiegelt' };
 export const TOOL_TYPES = {
   ball: 'Kugelkopffräser', torus: 'Torusfräser', flat: 'Schaftfräser', facemill: 'Planfräser', tapered: 'Konusfräser', radius: 'Radienfräser', chamfer: 'Gravur-/Fasenfräser',
   dovetail: 'Schwalbenschwanzfräser', lollipop: 'Lollipop-Fräser', slot: 'Nutenfräser', thread: 'Gewindefräser', barrel: 'Kreissegment Tonne', lens: 'Kreissegment Linse', oval: 'Kreissegment Oval', segtaper: 'Kreissegment Verjüngung',
@@ -1020,10 +1026,17 @@ function genContour(op, t, P, h, project) {
   const fFinal = +op.finishFeed || t.feed, ov = +op.overlap || 0;
   // all loops of all offsets; each pass knows whether it is the final one
   const passes = [];
+  let bonesC = 0;
   offsets.forEach((off, oi) => {
     let loops = contourLoops(op, g, off, inside);
     if (!op.keepOrder) loops = nearestOrder(loops, l => l[0]);
-    for (const loop of loops) passes.push({ loop, final: oi >= offsets.length - (op.repeatFinish ? 2 : 1) });
+    const final = oi >= offsets.length - (op.repeatFinish ? 2 : 1);
+    for (const loop of loops) {
+      // relief in the inside corners on the finishing pass (not with compensation at the control: its path is the contour itself)
+      const q = final && !compSide && op.dogbone && op.dogbone !== 'none' ? withDogbones(loop, off, t.dia / 2, op.dogbone) : loop;
+      bonesC += q.dogbones || 0;
+      passes.push({ loop: q, final });
+    }
   });
   if (!passes.length) throw new Error('Werkzeug zu groß für die Kontur');
   const cut = (pass, z, first) => {
@@ -1062,6 +1075,7 @@ function genContour(op, t, P, h, project) {
   } else {
     for (const ps of passes) { lv.forEach((z, i) => cut(ps, z, i === 0)); P.retract(); }
   }
+  if (bonesC) return { dogbones: bonesC, ...(op.ctrlCycle ? { studCycle: null, studCycleWhy: 'Eckenfreistiche gibt es nur als Bahn' } : {}) };
   if (!op.ctrlCycle) return {};
   // "Steuerungszyklus": an outside contour around a rectangle or circle is the control's stud cycle
   // (blank size = finished size + what this operation removes)
@@ -1071,13 +1085,14 @@ function genContour(op, t, P, h, project) {
   const fit = pocketShapes(outers, { dia: 0 });
   if (fit.why) return { studCycle: null, studCycleWhy: fit.why.replace('Tasche', 'Kontur') };
   const removal = Math.max(0.5, offsets[0] - base);
-  return {
+  const resC = {
     studCycle: {
       pockets: fit.shapes.map(s => ({ ...s, kind: s.kind === 'circ' ? 'circ' : 'rect', blank: removal })), top: cycleTop(h), bottom: h.bottom,
       stepdown: lv.length > 1 ? Math.abs(lv[0] - lv[1]) || (h.top - h.bottom) : h.top - h.bottom, stl, overlap: Math.min(1.9999, Math.max(0.1, (nr ? rs : t.dia * 0.4) / (t.dia / 2))),
       climb, feed: fFinal, plunge: t.plunge, clear: P.clear, toolR: t.dia / 2,
     },
   };
+  return resC;
 }
 
 function genChamfer(op, t, P, h, project) {
@@ -1119,6 +1134,40 @@ function pocketRings(region, firstOffset, so) {
     cur = offsetPaths(cur, -so);
   }
   return rings;
+}
+
+// Eckenfreistich ("Dogbone"): a round cutter leaves its radius in every inside corner, so a square part does not
+// fit into a milled pocket. At each sharp corner of the wall pass the cutter makes a short move into the corner
+// and back. loop = tool centre path, off = its distance from the wall, R = cutter radius.
+// kind 'dogbone': along the bisector, just far enough to reach the corner; 'tbone': straight on along the wall.
+export function withDogbones(loop, off, R, kind = 'dogbone') {
+  const n = loop.length;
+  if (n < 3 || !(off > 0) || !(R > 0)) return loop;
+  const out = [];
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    const a = loop[(i - 1 + n) % n], b = loop[i], c = loop[(i + 1) % n];
+    out.push(b);
+    const l1 = Math.hypot(b[0] - a[0], b[1] - a[1]), l2 = Math.hypot(c[0] - b[0], c[1] - b[1]);
+    if (l1 < 1e-6 || l2 < 1e-6) continue;
+    const u = [(b[0] - a[0]) / l1, (b[1] - a[1]) / l1], v = [(c[0] - b[0]) / l2, (c[1] - b[1]) / l2];
+    const turn = Math.acos(Math.max(-1, Math.min(1, u[0] * v[0] + u[1] * v[1])));
+    // rounded corners of an offset are many small turns; a real inside corner is one sharp turn
+    if (turn < 0.7 || turn > Math.PI - 0.35) continue;
+    let d, dir;
+    if (kind === 'tbone') {
+      if (off > R + 1e-6) continue; // with stock to leave the cutter cannot reach the corner this way
+      d = off * Math.tan(turn / 2); dir = u;
+    } else {
+      const w = [u[0] - v[0], u[1] - v[1]], wl = Math.hypot(w[0], w[1]);
+      d = off / Math.cos(turn / 2) - R; dir = [w[0] / wl, w[1] / wl];
+    }
+    if (!(d > 0.01)) continue;
+    out.push([b[0] + dir[0] * d, b[1] + dir[1] * d], [b[0], b[1]]);
+    count++;
+  }
+  out.dogbones = count;
+  return out;
 }
 
 // Clear rings level by level, inside-out, staying down between neighbouring rings.
@@ -1167,10 +1216,14 @@ function genPocket(op, t, P, h, project) {
     if (!rings.length) throw new Error('Kein Restmaterial – der vorige Fräser erreicht schon alles');
   } else rings = pocketRings(region, t.dia / 2 + stl, so);
   if (!rings.length) throw new Error('Werkzeug zu groß für die Tasche');
+  // relief in the inside corners: on the pass along the wall
+  let bones = 0;
+  if (!rest && op.dogbone && op.dogbone !== 'none') rings[0] = rings[0].map(l => { const q = withDogbones(l, t.dia / 2 + stl, t.dia / 2, op.dogbone); bones += q.dogbones || 0; return q; });
   const lv = levels(h.top, h.bottom, +op.stepdown || t.stepdown);
   if (!lv.length) throw new Error('Unterkante liegt über der Oberkante');
   clearRings(P, rings, lv, t, op, so, h.top);
   if (rest) return { rest: true };
+  if (bones) return { dogbones: bones, ...(op.ctrlCycle ? { pocketCycle: null, pocketCycleWhy: 'Eckenfreistiche gibt es nur als Bahn' } : {}) };
   if (!op.ctrlCycle) return {};
   // "Steuerungszyklus": rectangular / circular pockets go to the control's own pocket cycle (the moves here
   // stay for the simulation and for controls without one)
@@ -1832,6 +1885,9 @@ function genSlot(op, t, P, h, project) {
   if (!ents.length) throw new Error('Keine Langlöcher oder offenen Linien in der Auswahl');
   const lv = levels(h.top, h.bottom, +op.stepdown || t.stepdown);
   if (!lv.length) throw new Error('Unterkante liegt über der Oberkante');
+  const troch = op.slotStyle === 'trochoid';
+  const stl = +op.stockToLeave || 0;
+  let nTroch = 0;
   for (const e of ents) {
     let line;
     if (e.type === 'slot') {
@@ -1839,6 +1895,25 @@ function genSlot(op, t, P, h, project) {
       const a = ((+e.rot || 0) * Math.PI) / 180, dx = (Math.cos(a) * e.len) / 2, dy = (Math.sin(a) * e.len) / 2;
       line = [X.tr([+e.cx - dx, +e.cy - dy]), X.tr([+e.cx + dx, +e.cy + dy])];
     } else line = e.pts.map(X.tr);
+    // trochoidal: circles whose centre walks along the centre line – the cutter is never engaged over its full width
+    const width = e.type === 'slot' ? +e.w : +op.slotWidth || 0;
+    const rr = width / 2 - t.dia / 2 - stl;
+    if (troch) {
+      if (!(width > 0)) throw new Error('Für wirbelndes Fräsen entlang einer Linie die Nutbreite angeben');
+      if (rr < 0.05) throw new Error(`Wirbelfräsen: Nut ${f2s(width)} mm ist zu schmal für Fräser Ø${t.dia}${stl ? ' mit Aufmaß' : ''} – kleineren Fräser wählen (etwa 60 % der Nutbreite)`);
+      trochoidPass(P, line, rr, Math.max(0.02, +op.trochoidStep || t.dia * 0.1), lv, t, op.direction !== 'conventional', +op.ramp > 0 ? +op.ramp : 2, h.top);
+      nTroch++;
+      if (e.type === 'slot' && stl <= 0 && op.slotFinish !== false) {
+        const poly = ensureCCW(entityPolys(e)[0].map(X.tr));
+        for (const loop of offsetPaths([toC(poly)], -(t.dia / 2)).map(fromC)) {
+          const l = rotateNearest(op.direction !== 'conventional' ? loop : loop.slice().reverse(), P.p);
+          P.feed(l[0][0], l[0][1], h.bottom, t.feed);
+          P.loopPass(l, h.bottom, t.finishFeed ?? t.feed);
+        }
+      }
+      P.retract();
+      continue;
+    }
     // back and forth along the centre line, one level per pass
     lv.forEach((z, i) => {
       const seq = i % 2 ? line.slice().reverse() : line;
@@ -1856,6 +1931,218 @@ function genSlot(op, t, P, h, project) {
     }
     P.retract();
   }
+}
+
+const f2s = v => String(+(+v).toFixed(3));
+// Circles of radius rr along a centre line, one level after the other. The loop starts at the back (towards the
+// part already cut), so the way from one circle to the next runs through air and only the front half cuts.
+function trochoidPass(P, line, rr, step, lv, t, climb, rampDeg, top) {
+  const segs = [];
+  let L = 0;
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1], b = line[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (l > 1e-9) { segs.push({ a, d: [(b[0] - a[0]) / l, (b[1] - a[1]) / l], s0: L, l }); L += l; }
+  }
+  if (!segs.length) throw new Error('Mittellinie der Nut hat keine Länge');
+  // circle points close enough together that the post processor recognises the arcs (chord error 0.002 mm)
+  const n = Math.max(1, Math.ceil(L / step)), N = Math.max(36, Math.min(360, Math.ceil(Math.PI / Math.acos(Math.max(0, 1 - 0.002 / rr)))));
+  const at = s => { const g = segs.find(q => s <= q.s0 + q.l + 1e-9) || segs[segs.length - 1]; const u = Math.min(g.l, Math.max(0, s - g.s0)); return { c: [g.a[0] + g.d[0] * u, g.a[1] + g.d[1] * u], d: g.d }; };
+  const circle = k => {
+    const { c, d } = at((L * k) / n), a0 = Math.atan2(-d[1], -d[0]), sg = climb ? 1 : -1;
+    return Array.from({ length: N }, (_, i) => { const a = a0 + (sg * 2 * Math.PI * i) / N; return [c[0] + rr * Math.cos(a), c[1] + rr * Math.sin(a)]; });
+  };
+  let zPrev = top;
+  for (const z of lv) {
+    for (let k = 0; k <= n; k++) {
+      const loop = circle(k);
+      if (k === 0) { if (P.p && P.p.z < P.link - 1e-6) P.retract(); P.enterLoop(loop, zPrev, z, t, rampDeg); }
+      else P.feed(loop[0][0], loop[0][1], z, t.transitionFeed ?? t.feed);
+      P.loopPass(loop, z, t.feed);
+    }
+    zPrev = z;
+  }
+}
+
+// Tauchschruppen: the cutter goes straight down like a drill, row by row. The force runs along the spindle,
+// which suits long tools, deep cavities and weak machines. Each plunge ends on the model plus the allowance.
+function genPlunge3d(op, t, P, h, stock, ctx) {
+  if (toolBase(t) !== 'flat') throw new Error('Tauchschruppen braucht ein Werkzeug mit flacher Stirn (Schaft-, Plan- oder Tauchfräser)');
+  const hm = ctx.heightmap(), stl = opStl(op);
+  const along = Math.max(0.05, +op.stepoverMm || t.dia * 0.5), across = Math.max(0.05, +op.rowStep || t.dia * 0.7);
+  const inside = boundaryFn(op, t, stock, hm);
+  const pull = Math.max(0, +(op.pullBack ?? 0.3)), minCut = Math.max(0.05, +(op.minPlunge ?? 0.3)), safe = Math.max(0.2, +(op.safeDist ?? 1));
+  const zTravel = Math.min(P.link, stock.top + safe);
+  // what earlier operations of the setup have cut away is gone: no plunges into air
+  let field = null;
+  const prior = op.usePrior === false ? [] : (ctx.prior || []).filter(r => r && !r.error && !r.disabled && r.moves?.length && r.tool && !r.rotary);
+  if (prior.length) {
+    field = new StockField(stock, null);
+    for (const r of prior) for (let w = 1; w < r.moves.length; w++) if (r.moves[w].t !== 'r' && Number.isFinite(r.moves[w - 1].x)) field.cutMove(r.moves[w - 1], r.moves[w], r.tool);
+  }
+  let n = 0, skipped = 0;
+  for (const row of zigzag(stock, +op.angle || 0, across, along)) {
+    let prev = null;
+    for (const [x, y] of row) {
+      if (!inside(x, y)) { prev = null; continue; }
+      const zs0 = Math.min(h.top, stockTopAt(stock, x, y));
+      const zs = field ? Math.min(zs0, field.maxAlong(x, y, x, y, t.dia / 2)) : zs0;
+      const zt = Math.max(h.bottom, dropCutter(hm, x, y, growStl(t, stl), h.bottom - stl) + stl);
+      if (!(zs - zt >= minCut)) { if (zs0 - zt >= minCut) skipped++; prev = null; continue; }
+      if (!P.p) P.moveAbove(x, y);
+      else { if (P.p.z < zTravel - 1e-6) P.up(P.p.x, P.p.y, zTravel); P.rapid(x, y, Math.max(zTravel, P.p.z)); }
+      if (P.p.z > zs + safe + 1e-6) P.rapid(x, y, zs + safe);
+      P.feed(x, y, zt, t.plunge);
+      // leave the wall before going up: a short move back towards the row already cut, slightly upwards
+      if (pull > 0 && prev) {
+        const dx = prev[0] - x, dy = prev[1] - y, l = Math.hypot(dx, dy) || 1, q = Math.min(pull, l * 0.5);
+        const qx = x + (dx / l) * q, qy = y + (dy / l) * q;
+        // only where the model lets the cutter go there (a wall rising towards the last plunge: straight up instead)
+        if (dropCutter(hm, qx, qy, growStl(t, stl), h.bottom - stl) + stl <= zt + q - 1e-6) P.feed(qx, qy, zt + q, t.feed);
+      }
+      prev = [x, y];
+      n++;
+    }
+  }
+  if (!n) throw new Error(skipped ? 'Kein Material zum Tauchen übrig – die vorigen Operationen haben hier schon alles abgetragen' : 'Kein Material zum Tauchen gefunden – Begrenzung, Höhen oder Rohteil prüfen');
+  return { plunges: n, plungesSaved: skipped };
+}
+
+// Bahnmuster: the finished path of an operation again at other places (linear grid, around a centre, mirrored).
+// Returns the 2D transforms [a, b, c, d, tx, ty] (x' = a·x + b·y + tx, y' = c·x + d·y + ty) of the copies.
+export function patternTransforms(op, org = { x: 0, y: 0 }) {
+  const kind = op.patKind;
+  if (!kind || kind === 'none') return [];
+  const out = [];
+  if (kind === 'linear') {
+    const n1 = Math.max(1, Math.round(+op.patN1 || 1)), n2 = Math.max(1, Math.round(+op.patN2 || 1));
+    const dx1 = +op.patDx1 || 0, dy1 = +op.patDy1 || 0, dx2 = +op.patDx2 || 0, dy2 = +op.patDy2 || 0;
+    for (let j = 0; j < n2; j++) for (let i = 0; i < n1; i++) if (i || j) out.push([1, 0, 0, 1, i * dx1 + j * dx2, i * dy1 + j * dy2]);
+  } else if (kind === 'circular') {
+    const n = Math.max(1, Math.round(+op.patN1 || 1)), total = +op.patAngle || 360;
+    const cx = org.x + (+op.patCx || 0), cy = org.y + (+op.patCy || 0);
+    const stepA = Math.abs(Math.abs(total) - 360) < 1e-9 ? total / n : total / Math.max(1, n - 1);
+    for (let i = 1; i < n; i++) {
+      const a = (stepA * i * Math.PI) / 180, c = Math.cos(a), s2 = Math.sin(a);
+      out.push([c, -s2, s2, c, cx - c * cx + s2 * cy, cy - s2 * cx - c * cy]);
+    }
+  } else if (kind === 'mirror') {
+    const cx = org.x + (+op.patCx || 0), cy = org.y + (+op.patCy || 0);
+    if (op.patAxis === 'y') out.push([1, 0, 0, -1, 0, 2 * cy]); // across a line parallel to X
+    else out.push([-1, 0, 0, 1, 2 * cx, 0]);
+  }
+  return out;
+}
+function applyPattern(res, op, org) {
+  const xfs = patternTransforms(op, org);
+  if (!xfs.length || !res.moves?.length) return;
+  if (xfs.length > 2000) throw new Error('Bahnmuster: mehr als 2000 Kopien');
+  const base = res.moves, all = op.patKeepFirst === false ? [] : base.slice();
+  for (const [a, b, c, d, tx, ty] of xfs) {
+    const flip = a * d - b * c < 0;
+    for (const m of base) {
+      const q = { ...m, x: a * m.x + b * m.y + tx, y: c * m.x + d * m.y + ty };
+      if (flip && q.comp) q.comp = q.comp === 'L' ? 'R' : 'L';
+      all.push(q);
+    }
+  }
+  res.moves = all;
+  // control cycles: drilling points are repeated, shape cycles (pocket, stud) fall back to the path
+  if (res.cycle?.pts) res.cycle = { ...res.cycle, pts: [...(op.patKeepFirst === false ? [] : res.cycle.pts), ...xfs.flatMap(([a, b, c, d, tx, ty]) => res.cycle.pts.map(([x, y]) => [a * x + b * y + tx, c * x + d * y + ty]))] };
+  if (res.pocketCycle) { delete res.pocketCycle; res.pocketCycleWhy = 'Bahnmuster: Ausgabe als Bahn'; }
+  if (res.studCycle) delete res.studCycle;
+  res.pattern = { n: xfs.length + (op.patKeepFirst === false ? 0 : 1), mirror: xfs.some(([a, b, c, d]) => a * d - b * c < 0) };
+}
+
+// Fewer tool changes: an operation moves up to the last earlier operation with the same tool, but never past an
+// operation that works in the same place (their areas overlap) or past a fixed one (manual NC, probing).
+// items: [{ id, tool, fixed, box: [x0, y0, x1, y1] | null, cells: Set | undefined }] in machining order; cells are
+// the squares of a coarse grid the cutter passes over (see opCells) – finer than the box: a contour around the
+// part does not "work at" the holes inside it.
+// Returns { order: [id …], before, after } (numbers of tool changes).
+export function orderByTool(items) {
+  const list = items.slice();
+  const overlap = (a, b) => {
+    if (!a.box || !b.box) return true;
+    if (a.box[2] < b.box[0] || b.box[2] < a.box[0] || a.box[3] < b.box[1] || b.box[3] < a.box[1]) return false;
+    if (!a.cells || !b.cells) return true;
+    const [small, big] = a.cells.size < b.cells.size ? [a.cells, b.cells] : [b.cells, a.cells];
+    for (const k of small) if (big.has(k)) return true;
+    return false;
+  };
+  const changes = l => { let n = 0, cur = null; for (const o of l) { if (!o.tool) continue; if (cur !== null && o.tool !== cur) n++; cur = o.tool; } return n; };
+  const before = changes(list);
+  for (let i = 1; i < list.length; i++) {
+    const op = list[i];
+    if (op.fixed || !op.tool || list[i - 1].tool === op.tool) continue;
+    let j = -1;
+    for (let k = i - 1; k >= 0; k--) {
+      if (list[k].fixed) break;
+      if (list[k].tool === op.tool) { j = k; break; }
+      if (overlap(list[k], op)) break;
+    }
+    if (j < 0) continue;
+    list.splice(i, 1);
+    list.splice(j + 1, 0, op);
+  }
+  return { order: list.map(o => o.id), before, after: changes(list) };
+}
+
+// The squares (size mm) of a grid that the cutter of radius R touches on its feed moves.
+export function opCells(moves, R, size = 2) {
+  const cells = new Set(), n = Math.ceil(R / size);
+  const mark = (x, y) => {
+    const ci = Math.floor(x / size), cj = Math.floor(y / size);
+    for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) {
+      // nearest point of the square to the cutter axis
+      const qx = Math.max((ci + i) * size, Math.min(x, (ci + i + 1) * size)), qy = Math.max((cj + j) * size, Math.min(y, (cj + j + 1) * size));
+      if (Math.hypot(qx - x, qy - y) <= R) cells.add((ci + i) * 100003 + (cj + j));
+    }
+  };
+  for (let k = 1; k < moves.length; k++) {
+    const a = moves[k - 1], b = moves[k];
+    if (b.t === 'r' || !Number.isFinite(a.x) || !Number.isFinite(b.x)) continue;
+    const L = Math.hypot(b.x - a.x, b.y - a.y), steps = Math.max(1, Math.ceil(L / size));
+    for (let q = 0; q <= steps; q++) mark(a.x + ((b.x - a.x) * q) / steps, a.y + ((b.y - a.y) * q) / steps);
+  }
+  return cells;
+}
+
+// Vorschubanpassung: slower before and after sharp changes of direction, where the cutter wraps into the material.
+export function cornerFeed(moves, angleDeg = 25, factor = 0.5, dist = 2) {
+  const n = moves.length;
+  if (n < 3 || !(factor > 0 && factor < 1) || !(dist > 0)) return { moves, corners: 0 };
+  const plain = m => m.t === 'f' && !m.dwell && m.a == null && !m.lead && !m.polar && !m.live;
+  const len = new Float64Array(n), dir = new Array(n).fill(null);
+  for (let i = 1; i < n; i++) {
+    const a = moves[i - 1], b = moves[i];
+    if (!plain(b) || !Number.isFinite(a.x)) continue;
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, l = Math.hypot(dx, dy, dz);
+    len[i] = l;
+    if (l > 1e-9 && Math.hypot(dx, dy) > 1e-6) dir[i] = [dx / l, dy / l, dz / l];
+  }
+  const sEnd = new Float64Array(n), sStart = new Float64Array(n), cosLim = Math.cos((angleDeg * Math.PI) / 180);
+  let corners = 0;
+  for (let i = 1; i < n - 1; i++) {
+    const u = dir[i], v = dir[i + 1];
+    if (!u || !v || u[0] * v[0] + u[1] * v[1] + u[2] * v[2] >= cosLim) continue;
+    corners++;
+    let rem = dist;
+    for (let k = i; k >= 1 && rem > 1e-9 && dir[k]; k--) { sEnd[k] = Math.max(sEnd[k], Math.min(len[k], rem)); rem -= len[k]; }
+    rem = dist;
+    for (let k = i + 1; k < n && rem > 1e-9 && dir[k]; k++) { sStart[k] = Math.max(sStart[k], Math.min(len[k], rem)); rem -= len[k]; }
+  }
+  if (!corners) return { moves, corners: 0 };
+  const out = [moves[0]];
+  for (let i = 1; i < n; i++) {
+    const m = moves[i], L = len[i], a = sStart[i], b = sEnd[i];
+    if (!(a > 0 || b > 0)) { out.push(m); continue; }
+    const slow = Math.max(1, Math.round(m.f * factor)), p = moves[i - 1];
+    const at = u => ({ ...m, x: p.x + (m.x - p.x) * u, y: p.y + (m.y - p.y) * u, z: p.z + (m.z - p.z) * u });
+    if (a + b >= L - 1e-6) { out.push({ ...m, f: slow, slow: true }); continue; }
+    if (a > 0) out.push({ ...at(a / L), f: slow, slow: true });
+    if (b > 0) { out.push(at(1 - b / L)); out.push({ ...m, f: slow, slow: true }); } else out.push(m);
+  }
+  return { moves: out, corners };
 }
 
 function genCircular(op, t, P, h, project) {
@@ -2463,7 +2750,8 @@ function toolLift(tool, d) {
   }
   if (tool.type === 'ball') return r - Math.sqrt(Math.max(0, r * r - d * d));
   if (tool.type === 'chamfer' || tool.type === 'drill') return Math.max(0, d - (tool.tip || 0) / 2) / Math.tan(((tool.angle || 90) / 2) * (Math.PI / 180));
-  return 0;
+  const cr = cornerOf(tool);
+  return cr > 0 && d > r - cr ? cr - Math.sqrt(Math.max(0, cr * cr - (d - (r - cr)) * (d - (r - cr)))) : 0;
 }
 // Surface a tool leaves when its tip follows the grid T: lowest edge over all positions that reach the cell.
 function machinedSurface(hm, T, tool, stl = 0) {
@@ -2491,13 +2779,18 @@ function machinedSurface(hm, T, tool, stl = 0) {
 function genCorner3d(op, t, P, h, stock, ctx) {
   const stl = opStl(op);
   const { hm, T } = heightGrid(ctx, stock, t, stl, -Infinity);
-  const prev = +op.restDia || t.dia * 2;
-  if (prev <= t.dia) throw new Error('Referenzwerkzeug muss größer als das Werkzeug sein');
-  const Tp = heightGrid(ctx, stock, { ...t, dia: prev }, stl, -Infinity).T;
+  // reference: a tool of the library with its own shape (ball, flat, torus), or only a diameter with this tool's shape
+  const lib = op.restTool ? (CUR?.project?.cam?.tools || []).find(x => x.id === op.restTool) : null;
+  if (op.restTool && !lib) throw new Error('Referenzwerkzeug nicht mehr in der Werkzeugliste');
+  const prev = lib ? +lib.dia : +op.restDia || t.dia * 2;
+  if (!lib && prev <= t.dia) throw new Error('Referenzwerkzeug muss größer als das Werkzeug sein');
+  const ref = lib ? { ...lib, type: toolBase(lib), kind: lib.kind || lib.type } : { ...t, dia: prev };
+  if (lib && !['ball', 'flat'].includes(ref.type)) throw new Error('Als Referenz einen Kugel-, Schaft- oder Torusfräser wählen');
+  const Tp = heightGrid(ctx, stock, ref, stl, -Infinity).T;
   const tol = +op.restTol || 0.02;
   // rest material = what the reference tool leaves standing minus what this tool leaves, both as machined
   // surfaces (not tool-centre heights: next to a vertical wall both cut the same, only their centres differ)
-  const Mp = machinedSurface(hm, Tp, { ...t, dia: prev }, stl), Ms = machinedSurface(hm, T, t, stl);
+  const Mp = machinedSurface(hm, Tp, ref, stl), Ms = machinedSurface(hm, T, t, stl);
   let mask = new Uint8Array(hm.nx * hm.ny);
   // neither tool cuts below the part (+ stock to leave): compare what stands above it
   for (let k = 0; k < mask.length; k++) if (hm.h[k] > -Infinity && Math.max(Mp[k], hm.h[k] + stl) - Math.max(Ms[k], hm.h[k] + stl) > tol) mask[k] = 1;
@@ -3037,7 +3330,17 @@ export function leanMoves(moves, tol = 0.0005) {
   return moves.filter((_, k) => keep[k]);
 }
 
+export function manualResult(op) {
+  const kind = op.manualKind in MANUAL_KINDS ? op.manualKind : 'comment';
+  const sec = kind === 'dwell' ? Math.max(0, +op.manualSec || 0) : 0;
+  const text = String(op.manualText ?? '').trim();
+  if ((kind === 'comment' || kind === 'code' || kind === 'message') && !text) throw new Error(kind === 'code' ? 'NC-Code eintragen' : 'Text eintragen');
+  if (kind === 'dwell' && !(sec > 0)) throw new Error('Verweilzeit in Sekunden eintragen');
+  return { moves: [], manual: { kind, text, sec }, length: 0, time: sec };
+}
+
 export function generateOp(op, project, stock, ctx) {
+  if (op.type === 'manual') return manualResult(op);
   let t = project.cam.tools.find(x => x.id === op.tool);
   if (!t) throw new Error('Kein Werkzeug gewählt');
   // cutting data preset of the tool ("Schnittdaten")
@@ -3119,6 +3422,7 @@ function generateOpInner(op, project, stock, ctx, t, s) {
     case 'radial3d': genRadial3d(op, t, P, h, stock, ctx); break;
     case 'project3d': genProject3d(op, t, P, h, stock, ctx, project); break;
     case 'slot': genSlot(op, t, P, h, project); break;
+    case 'plunge3d': extra = genPlunge3d(op, t, P, h, stock, ctx) || {}; break;
     case 'circular': genCircular(op, t, P, h, project); break;
     case 'vcarve': genVcarve(op, t, P, h, project); break;
     case 'parallel3d': genParallel3d(op, t, P, h, stock, ctx); break;
@@ -3126,7 +3430,13 @@ function generateOpInner(op, project, stock, ctx, t, s) {
   }
   P.end();
   // a quarter of the operation's tolerance: arc fitting in the post (half of it) still accepts the thinned arcs
-  const moves = leanMoves(rapidMode(P.m, op, h), Math.min(0.002, Math.max(0.0002, (+op.tolerance || 0.01) / 4)));
+  let moves = leanMoves(rapidMode(P.m, op, h), Math.min(0.002, Math.max(0.0002, (+op.tolerance || 0.01) / 4)));
+  // slower around sharp corners ("Vorschubanpassung"); never on drilling cycles and probing
+  if (op.feedOpt && !['drill', 'probe', 'plunge3d'].includes(op.type)) {
+    const cf = cornerFeed(moves, +op.feedOptAngle || 25, Math.min(0.95, Math.max(0.05, (+op.feedOptPct || 50) / 100)), +op.feedOptDist > 0 ? +op.feedOptDist : t.dia / 2);
+    moves = cf.moves;
+    extra = { ...extra, feedOpt: { corners: cf.corners } };
+  }
   return { moves, heights: h, tool: t, ...extra, ...stats(moves, ctx.rapid) };
 }
 
@@ -3185,7 +3495,7 @@ class StockField {
   }
   // cutting profile of a tool: height above its tip at distance d from the axis
   static profile(tool) {
-    const R = Math.max(0.05, (+tool.dia || 1) / 2), half = ((+tool.angle || 90) / 2) * (Math.PI / 180), tip = (+tool.tip || 0) / 2, cr = Math.min(R, +tool.cornerRadius || 0);
+    const R = Math.max(0.05, (+tool.dia || 1) / 2), half = ((+tool.angle || 90) / 2) * (Math.PI / 180), tip = (+tool.tip || 0) / 2, cr = cornerOf(tool);
     if (tool.type === 'ball') return d => R - Math.sqrt(Math.max(0, R * R - d * d));
     if (tool.type === 'chamfer' || tool.type === 'drill' || tool.type === 'center' || tool.type === 'spot') return d => Math.max(0, d - tip) / Math.tan(half);
     if (cr > 0) return d => (d <= R - cr ? 0 : cr - Math.sqrt(Math.max(0, cr * cr - (d - (R - cr)) ** 2)));
@@ -3369,7 +3679,7 @@ export function generateSetup(project, allBodies, setup, prevGen = null, modelKe
   const bodies = setupBodies(allBodies, setup);
   if (setup.kind === 'turn') {
     const m = findMachine(project, setup.machine);
-    return generateTurnSetup(project, bodies, setup, m, m?.rapid || RAPID_FEED, { curves: (op, toolR) => liveCurves(op, project, toolR) });
+    return generateTurnSetup(project, bodies, setup, m, m?.rapid || RAPID_FEED, { curves: (op, toolR) => liveCurves(op, project, toolR), manual: manualResult });
   }
   T = setupMatrix(setup);
   const results = new Map();
@@ -3413,6 +3723,10 @@ export function generateSetup(project, allBodies, setup, prevGen = null, modelKe
       const t0 = performance.now();
       ctx.prior = ops.slice(0, ops.indexOf(op)).map(o => results.get(o.id)).filter(Boolean);
       res = generateOp(op, project, stock, ctx);
+      if (op.patKind && op.patKind !== 'none' && !res.rotary && !res.manual && op.type !== 'probe') {
+        applyPattern(res, op, originOf(setup, stock));
+        Object.assign(res, stats(res.moves, ctx.rapid));
+      }
       // "Kürzester sicherer Weg": needs the material as it stands before this operation
       if (op.retractPolicy === 'stock' && res.moves?.length && res.tool && !res.rotary && op.type !== 'probe' && !(setup.fixtures || []).length) {
         fieldUpTo(ops.indexOf(op));

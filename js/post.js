@@ -402,7 +402,7 @@ export function fitArcs(moves, tol = 0.005, helix = true) {
 function activeOps(project, results, ops = project.cam.ops) {
   return ops.filter(op => {
     const r = results.get(op.id);
-    return op.enabled !== false && r && !r.error && r.moves.length;
+    return op.enabled !== false && r && !r.error && (r.moves.length || !!r.manual);
   });
 }
 
@@ -700,7 +700,7 @@ export function postProps(def, values = {}) {
 }
 
 const SMOOTH_TOL = { low: 0.05, medium: 0.02, high: 0.005 };
-const ROUGH_OPS = ['face', 'pocket', 'adaptive', 'rough3d', 'contour3d'];
+const ROUGH_OPS = ['face', 'pocket', 'adaptive', 'rough3d', 'contour3d', 'plunge3d'];
 
 // Euler angles for PLANE SPATIAL (rotations about the fixed machine axes X, then Y, then Z)
 function tiltAngles(setup, prefer) {
@@ -811,7 +811,7 @@ export function runPost(def, project, gen, opts = {}) {
   if (P.writeMachine && machine) W.expand(`# Maschine: ${machine.name}`);
   if (P.writeVersion) W.expand('# WerkFab CAD/CAM 1.0');
   if (P.writeToolList) {
-    const used = [...new Map(ops.map(op => [results.get(op.id).tool.id, results.get(op.id).tool])).values()];
+    const used = [...new Map(ops.filter(op => results.get(op.id).tool).map(op => [results.get(op.id).tool.id, results.get(op.id).tool])).values()];
     if (used.length) W.expand('# Werkzeuge:');
     for (const t of used) W.expand(`# T${t.number} D${+(+t.dia).toFixed(3)} ${t.name}`);
   }
@@ -873,10 +873,38 @@ export function runPost(def, project, gen, opts = {}) {
   };
 
   const labels = [];
-  let tool = null, totalTime = 0;
-  const tcallOf = t => (hh && P.toolAsName ? `"${ascii(t.name).replace(/"/g, '').toUpperCase().slice(0, 32)}"` : String(t.number));
+  let tool = null, totalTime = 0, codeWarned = false;
+  const tcallOf = t => (hh && P.toolAsName ? `"${ascii(t.name).split('"').join('').toUpperCase().slice(0, 32)}"` : String(t.number));
+  // after a program stop the spindle and the coolant are switched on again by the next operation
+  let respin = false;
   ops.forEach((op, oi) => {
     const r = results.get(op.id);
+    // ---- manual NC: lines without a toolpath ----
+    if (r.manual) {
+      const mn = r.manual, plain = x => String(x).replace(/[{}]/g, '');
+      totalTime += r.time || 0;
+      const rawLine = text => W.out.push({ text, src: null });
+      if (mn.kind === 'comment') for (const line of plain(mn.text).split('\n')) W.expand('# ' + line);
+      else if (mn.kind === 'stop' || mn.kind === 'optstop') {
+        if (mn.text) for (const line of plain(mn.text).split('\n')) W.expand('# ' + line);
+        rawLine(mn.kind === 'stop' ? 'M0' : 'M1');
+        if (mn.kind === 'stop') { respin = tool !== null; cool = 'off'; }
+      } else if (mn.kind === 'dwell') {
+        if (def.dwell) W.expand(def.dwell, { ...base, dwell: mn.sec, dwellms: String(Math.round(mn.sec * 1000)) });
+        else warnings.push(`${op.name}: Dieser Postprozessor hat keine Vorlage für die Verweilzeit – übersprungen`);
+      } else if (mn.kind === 'message') {
+        const txt = ascii(plain(mn.text)).replace(/[()\x22\n]/g, ' ').trim();
+        if (fam === 'sinumerik') rawLine('MSG(' + JSON.stringify(txt) + ')');
+        else if ((fam === 'fanuc' && !okuma) || /linuxcnc/.test(String(def.id))) rawLine('(MSG, ' + txt + ')');
+        else W.expand('# ' + txt);
+      } else if (mn.kind === 'code') {
+        for (const line of String(mn.text).split('\n')) if (line.trim()) rawLine(line.trim());
+        W.resetModal();
+        if (!codeWarned) warnings.push('Durchgereichter NC-Code wird unverändert ausgegeben und nicht geprüft – er muss zur Steuerung passen und darf das Werkzeug nicht in eine unbekannte Lage bringen');
+        codeWarned = true;
+      }
+      return;
+    }
     const t = r.tool;
     const probe = op.type === 'probe';
     totalTime += r.time;
@@ -905,11 +933,13 @@ export function runPost(def, project, gen, opts = {}) {
       if (!probe && !live) W.expand(def.spindleOn, tv);
       tool = t.id;
       if (P.preloadTool) {
-        const next = ops.slice(oi + 1).map(x => results.get(x.id).tool).find(x => x.id !== t.id);
+        const next = ops.slice(oi + 1).map(x => results.get(x.id).tool).find(x => x && x.id !== t.id);
         if (next) W.expand(hh ? `TOOL DEF ${tcallOf(next)}` : `T${next.number}`);
       }
     } else if (def.resetModalPerOp) W.resetModal();
     if (lathe && !live && wasLive && !toolChanged) W.expand(def.spindleOn, tv);
+    else if (respin && !toolChanged && !probe && !live) { if (def.spindleOn) W.expand(def.spindleOn, tv); else if (hh) W.out.push({ text: 'M3', src: null }); }
+    respin = false;
     if (live && !liveMode) {
       if (def.liveOn) W.expand(W.tag(def.liveOn, 'liveOn'), tv);
       else warnings.push(`${op.name}: Postprozessor ohne Vorlage „C-Achse und angetriebenes Werkzeug ein“ – C-Achse und Werkzeugspindel von Hand einschalten`);

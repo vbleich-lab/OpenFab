@@ -45,6 +45,7 @@ export function lintIso(code, opts = {}) {
 
     // ---- Sinumerik statements ----
     if (D.siemens) {
+      if (/^MSG\("[^"]*"\)$/.test(t)) return; // message on the screen of the control
       if (t === 'MCALL') { if (!st.mcall) bad('MCALL ohne aktiven modalen Zyklus'); st.mcall = false; st.cycle = null; return; }
       const sc = t.match(SIEMENS_CALL);
       if (sc) {
@@ -128,7 +129,7 @@ export function lintIso(code, opts = {}) {
         if (!st.abs) bad('Programmende im Kettenmaß (G91)');
         st.spindle = false;
       }
-      if (c === 0 || c === 1) { /* stop */ }
+      if (c === 0) st.spindle = false; // program stop: the spindle stands until it is started again
     }
     if (m.includes(3) && m.includes(5)) bad('M3 und M5 im selben Satz');
     // radius compensation

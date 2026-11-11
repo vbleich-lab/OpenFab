@@ -52,6 +52,16 @@ export const OPS = [
   { ...o, id: 'th', name: 'Gewindefraesen', type: 'thread', tool: 'T6', sketch: 'skBig', ...deep },
   { ...o, id: 'ch', name: 'Fase', type: 'chamfer', tool: 'T5', sketch: 'skBoss' },
   { ...o, id: 'pa', name: 'Parallel', type: 'parallel3d', tool: 'T4', boundary: 'box' },
+  // manual NC lines, trochoidal slot, toolpath pattern, corner feed, plunge roughing
+  { ...o, id: 'mn1', name: 'Hinweis', type: 'manual', manualKind: 'comment', manualText: 'Spaene entfernen' },
+  { ...o, id: 'mn2', name: 'Halt', type: 'manual', manualKind: 'stop', manualText: 'Teil pruefen' },
+  { ...o, id: 'mn3', name: 'Warten', type: 'manual', manualKind: 'dwell', manualSec: 1.5 },
+  { ...o, id: 'mn4', name: 'Meldung', type: 'manual', manualKind: 'message', manualText: 'Nut messen' },
+  { ...o, id: 'sl', name: 'Nut wirbelnd', type: 'slot', tool: 'T2', sketch: 'skSlot', slotStyle: 'trochoid', multiDepth: false, ...deep },
+  { ...o, id: 'mn5', name: 'Wahlhalt', type: 'manual', manualKind: 'optstop' },
+  { ...o, id: 'dp', name: 'Bohren Muster', type: 'drill', tool: 'T3', sketch: 'skOne', patKind: 'linear', patN1: 3, patDx1: 9, ...deep },
+  { ...o, id: 'c7', name: 'Kontur Eckenvorschub Spiegel', type: 'contour', tool: 'T1', sketch: 'skBoss', side: 'outside', compType: 'control', leadIn: 3, feedOpt: true, feedOptAngle: 10, patKind: 'mirror', patAxis: 'x', patCx: 150 },
+  { ...o, id: 'pl', name: 'Tauchschruppen', type: 'plunge3d', tool: 'T1', stockToLeave: 0.5, stepoverMm: 4, rowStep: 5 },
   { ...o, id: 'f2', name: 'Vorne Planen', type: 'face', tool: 'T1', setup: 'S2' },
   { ...o, id: 'pa2', name: 'Vorne Kontur 3D', type: 'contour3d', tool: 'T1', setup: 'S2' },
 ];

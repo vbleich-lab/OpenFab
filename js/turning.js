@@ -710,6 +710,7 @@ export function generateTurnSetup(project, bodies, setup, machine, rapid, hooks 
   for (const op of ops) {
     if (op.enabled === false) { results.set(op.id, { moves: [], disabled: true }); continue; }
     try {
+      if (op.type === 'manual' && hooks.manual) { results.set(op.id, hooks.manual(op)); continue; }
       const t0 = project.cam.tools.find(x => x.id === op.tool);
       if (!t0) throw new Error('Kein Werkzeug gewählt');
       // cutting data of the operation dialog (empty = from the tool)

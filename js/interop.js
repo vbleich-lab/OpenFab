@@ -63,10 +63,32 @@ export async function takeBlobs(p) {
 // talks to the main kernel through STEP text.
 const FULL_OC = new URL('../vendor/opencascade-full/opencascade.wasm.js', import.meta.url).href;
 const FULL_WASM = new URL('../vendor/opencascade-full/opencascade.wasm.wasm', import.meta.url).href;
-let fullOC = null;
+let fullOC = null, fullInst = null;
+const fullWaiters = [];
 async function loadFullOC() {
-  if (!fullOC) fullOC = import(FULL_OC).then(m => new m.default({ locateFile: () => FULL_WASM }));
+  if (!fullOC) fullOC = import(FULL_OC).then(m => new m.default({ locateFile: () => FULL_WASM })).then(oc => {
+    fullInst = oc;
+    for (const fn of fullWaiters.splice(0)) { try { fn(); } catch { /* listener's business */ } }
+    return oc;
+  });
   return fullOC;
+}
+// Steps of the model history that need the full kernel run synchronously once it is loaded.
+export const fullKernelReady = () => !!fullInst;
+export function requestFullKernel() { loadFullOC().catch(() => { fullOC = null; }); }
+export function onFullKernel(fn) { if (fullInst) fn(); else fullWaiters.push(fn); }
+
+// The writers of the full kernel do not always keep the file name they are given: the text of the file that
+// appeared in the folder is returned, whatever it is called.
+function writtenText(oc, want, write) {
+  const had = new Set(oc.FS.readdir('/'));
+  try { oc.FS.unlink('/' + want); had.delete(want); } catch { /* not there */ }
+  write('/' + want);
+  const made = oc.FS.readdir('/').filter(n => !had.has(n));
+  if (!made.length) throw new Error('Das Ergebnis konnte nicht geschrieben werden');
+  const text = oc.FS.readFile('/' + (made.includes(want) ? want : made[0]), { encoding: 'utf8' });
+  for (const n of made) { try { oc.FS.unlink('/' + n); } catch { /* stays */ } }
+  return text;
 }
 
 export async function igesToStep(igesText) {
@@ -98,8 +120,7 @@ export async function igesToStep(igesText) {
   } catch { out = sh; }
   const w = new oc.STEPControl_Writer_1();
   w.Transfer(out, oc.STEPControl_StepModelType.STEPControl_AsIs, true);
-  w.Write('/out.step');
-  return oc.FS.readFile('/out.step', { encoding: 'utf8' });
+  return writtenText(oc, 'out.step', name => w.Write(name));
 }
 
 export async function stepToIges(stepText) {
@@ -111,8 +132,150 @@ export async function stepToIges(stepText) {
   const w = new oc.IGESControl_Writer_2('MM', 1); // 1 = B-rep solids (MSBO)
   w.AddShape(rd.OneShape());
   w.ComputeModel();
-  w.Write_2('/x.igs', false);
-  return oc.FS.readFile('/x.igs', { encoding: 'utf8' });
+  return writtenText(oc, 'x.igs', name => w.Write_2(name, false));
+}
+
+// Remove faces from a solid so that the neighbouring faces grow together over the gap (holes, pockets, fillets,
+// chamfers, bosses disappear). Needs the full kernel; the solid travels there and back as STEP text.
+// points: one point on each face to remove. Returns { step, before, after } (volumes in mm³).
+export async function removeFaces(stepText, points) { return removeFacesCore(await loadFullOC(), stepText, points); }
+export function fullRemoveFaces(stepText, points) {
+  if (!fullInst) throw new Error('Der große Geometriekern ist noch nicht geladen');
+  return removeFacesCore(fullInst, stepText, points);
+}
+// Fillet whose radius follows points along the edge: law = [[u, r] …] with u from 0 (start) to 1 (end).
+// edges: one point on each edge (its middle). Returns { step, before, after, edges }.
+export function fullFilletLaw(stepText, edges, law) {
+  const oc = fullInst;
+  if (!oc) throw new Error('Der große Geometriekern ist noch nicht geladen');
+  oc.FS.writeFile('/fl.step', stepText);
+  const rd = new oc.STEPControl_Reader_1();
+  if (rd.ReadFile('/fl.step').value !== 1) throw new Error('Körper konnte nicht übergeben werden');
+  rd.TransferRoots();
+  const shape = rd.OneShape();
+  const vol = sh => { const p = new oc.GProp_GProps_1(); oc.BRepGProp.VolumeProperties_1(sh, p, false, false, false); return p.Mass(); };
+  const all = [];
+  const ex = new oc.TopExp_Explorer_2(shape, oc.TopAbs_ShapeEnum.TopAbs_EDGE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+  for (; ex.More(); ex.Next()) {
+    const e = oc.TopoDS.Edge_1(ex.Current()), c = new oc.BRepAdaptor_Curve_2(e), p = c.Value((c.FirstParameter() + c.LastParameter()) / 2);
+    all.push({ e, m: [p.X(), p.Y(), p.Z()] });
+  }
+  const mk = new oc.BRepFilletAPI_MakeFillet(shape, oc.ChFi3d_FilletShape.ChFi3d_Rational);
+  const used = [];
+  const nearestEdge = mp => { let best = null, bd = 0.05; for (const a of all) { const d = Math.hypot(a.m[0] - mp[0], a.m[1] - mp[1], a.m[2] - mp[2]); if (d < bd) { bd = d; best = a; } } return best; };
+  const setLaw = (pairs, put) => { const arr = new oc.TColgp_Array1OfPnt2d_2(1, pairs.length); pairs.forEach(([u, r], i) => arr.SetValue(i + 1, new oc.gp_Pnt2d_3(u, r))); put(arr); };
+  const ends = e => { const c = new oc.BRepAdaptor_Curve_2(e), p0 = c.Value(c.FirstParameter()), p1 = c.Value(c.LastParameter()), pm = c.Value((c.FirstParameter() + c.LastParameter()) / 2); return { f: [p0.X(), p0.Y(), p0.Z()], l: [p1.X(), p1.Y(), p1.Z()], m: [pm.X(), pm.Y(), pm.Z()] }; };
+  const d3 = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+  if (edges.some(q => q.a)) {
+    // Edges with their own radii at both ends ({ p, a, ra, b, rb, inner }): the kernel rounds the whole chain of
+    // tangent edges an edge belongs to as one contour; every edge of that contour gets its piece of the course.
+    // Position 0 of an edge's law is the start of its curve. Contour edges that were not chosen keep the radius
+    // of the nearest chosen end.
+    const todo = edges.slice();
+    let ic = 0;
+    while (todo.length) {
+      const q = todo.shift(), first = nearestEdge(q.p);
+      if (!first || used.some(u => u.IsSame(first.e))) continue;
+      mk.Add_1(first.e);
+      ic++;
+      const nb = mk.NbEdges(ic), known = [], open = [];
+      for (let j = 1; j <= nb; j++) {
+        const ce = mk.Edge(ic, j), en = ends(ce);
+        used.push(ce);
+        const own = [q, ...todo].find(o => d3(o.p, en.m) < 0.05);
+        if (!own) { open.push({ j, en }); continue; }
+        const k = todo.indexOf(own);
+        if (k >= 0) todo.splice(k, 1);
+        let pairs = [[0, own.ra], ...(own.inner || []), [1, own.rb]];
+        if (d3(en.f, own.b) < d3(en.f, own.a)) pairs = pairs.map(([u, r]) => [1 - u, r]).reverse();
+        setLaw(pairs, arr => mk.SetRadius_4(arr, ic, j));
+        known.push([own.a, own.ra], [own.b, own.rb]);
+      }
+      // the rest of the contour: outwards from the chosen edges, each with the radius where it joins
+      while (open.length) {
+        let best = 0, bd = Infinity, r = known[0]?.[1] ?? 1;
+        open.forEach((o, i) => { for (const [p, rad] of known) { const d = Math.min(d3(o.en.f, p), d3(o.en.l, p)); if (d < bd) { bd = d; best = i; r = rad; } } });
+        const o = open.splice(best, 1)[0];
+        mk.SetRadius_1(r, ic, o.j);
+        known.push([o.en.f, r], [o.en.l, r]);
+      }
+    }
+  } else for (const q of edges) {
+    const best = nearestEdge(q);
+    if (!best || used.some(u => u.IsSame(best.e))) continue;
+    used.push(best.e);
+    setLaw(law, arr => mk.Add_5(arr, best.e));
+  }
+  if (!used.length) throw new Error('Keine Kanten gewählt (oder nicht mehr gefunden)');
+  mk.Build();
+  if (!mk.IsDone()) throw new Error('Verrundung mit diesen Radien nicht möglich – Radien verkleinern');
+  const res = mk.Shape(), before = vol(shape), after = vol(res);
+  if (res.IsNull() || !(after > 0)) throw new Error('Verrundung mit diesen Radien nicht möglich – Radien verkleinern');
+  const w = new oc.STEPControl_Writer_1();
+  w.Transfer(res, oc.STEPControl_StepModelType.STEPControl_AsIs, true);
+  return { step: writtenText(oc, 'flout.step', name => w.Write(name)), before, after, edges: used.length };
+}
+function removeFacesCore(oc, stepText, points) {
+  oc.FS.writeFile('/df.step', stepText);
+  const rd = new oc.STEPControl_Reader_1();
+  if (rd.ReadFile('/df.step').value !== 1) throw new Error('Körper konnte nicht übergeben werden');
+  rd.TransferRoots();
+  const shape = rd.OneShape();
+  if (shape.IsNull()) throw new Error('Körper konnte nicht übergeben werden');
+  const vol = s => { const p = new oc.GProp_GProps_1(); oc.BRepGProp.VolumeProperties_1(s, p, false, false, false); return p.Mass(); };
+  const df = new oc.BRepAlgoAPI_Defeaturing();
+  df.SetShape(shape);
+  const chosen = [];
+  for (const p of points) {
+    const v = new oc.BRepBuilderAPI_MakeVertex(new oc.gp_Pnt_3(p[0], p[1], p[2])).Vertex();
+    let best = null, bd = Infinity;
+    const ex = new oc.TopExp_Explorer_2(shape, oc.TopAbs_ShapeEnum.TopAbs_FACE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+    for (; ex.More(); ex.Next()) {
+      const f = ex.Current();
+      const d = new oc.BRepExtrema_DistShapeShape_2(v, f, oc.Extrema_ExtFlag.Extrema_ExtFlag_MIN, oc.Extrema_ExtAlgo.Extrema_ExtAlgo_Grad).Value();
+      if (d < bd) { bd = d; best = f; }
+    }
+    if (!best || bd > 0.05) continue;
+    if (chosen.some(f => f.IsSame(best))) continue;
+    chosen.push(best);
+    df.AddFaceToRemove(best);
+  }
+  // a round hole is often two half faces of one cylinder: the other half goes with the chosen one
+  const cylOf = face => {
+    try {
+      const ad = new oc.BRepAdaptor_Surface_2(oc.TopoDS.Face_1(face), true);
+      if (ad.GetType() !== oc.GeomAbs_SurfaceType.GeomAbs_Cylinder) return null;
+      const c = ad.Cylinder(), ax = c.Axis(), L = ax.Location(), D = ax.Direction();
+      return { r: c.Radius(), p: [L.X(), L.Y(), L.Z()], d: [D.X(), D.Y(), D.Z()] };
+    } catch { return null; }
+  };
+  const sameCyl = (u, v) => {
+    if (Math.abs(u.r - v.r) > 1e-6) return false;
+    const dot = u.d[0] * v.d[0] + u.d[1] * v.d[1] + u.d[2] * v.d[2];
+    if (Math.abs(Math.abs(dot) - 1) > 1e-6) return false;
+    const w = [v.p[0] - u.p[0], v.p[1] - u.p[1], v.p[2] - u.p[2]], t = w[0] * u.d[0] + w[1] * u.d[1] + w[2] * u.d[2];
+    return Math.hypot(w[0] - t * u.d[0], w[1] - t * u.d[1], w[2] - t * u.d[2]) < 1e-6;
+  };
+  const cyls = chosen.map(cylOf).filter(Boolean);
+  if (cyls.length) {
+    const ex = new oc.TopExp_Explorer_2(shape, oc.TopAbs_ShapeEnum.TopAbs_FACE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+    for (; ex.More(); ex.Next()) {
+      const face = ex.Current();
+      if (chosen.some(q => q.IsSame(face))) continue;
+      const c = cylOf(face);
+      if (c && cyls.some(q => sameCyl(q, c))) { chosen.push(face); df.AddFaceToRemove(face); }
+    }
+  }
+  if (!chosen.length) throw new Error('Die gewählten Flächen wurden am Körper nicht gefunden – neu auswählen');
+  df.Build();
+  if (!df.IsDone()) throw new Error('Die Nachbarflächen lassen sich nicht über die Lücke verlängern');
+  const res = df.Shape(), before = vol(shape), after = vol(res);
+  if (res.IsNull() || !(after > 0)) throw new Error('Die Nachbarflächen lassen sich nicht über die Lücke verlängern');
+  if (Math.abs(after - before) < 1e-6 * Math.max(1, before)) throw new Error('Nichts geändert: Die Nachbarflächen schließen diese Lücke nicht – zusammengehörige Flächen gemeinsam wählen (z. B. Wand und Boden einer Tasche)');
+  const w = new oc.STEPControl_Writer_1();
+  w.Transfer(res, oc.STEPControl_StepModelType.STEPControl_AsIs, true);
+  const step = writtenText(oc, 'dfout.step', name => w.Write(name));
+  return { step, before, after, faces: chosen.length };
 }
 
 // Synchronous read with the main kernel (used while rebuilding the history).
@@ -121,6 +284,11 @@ export function stepSolids(key) {
   if (solidCache.has(key)) return solidCache.get(key).map(s => s.clone());
   const text = getBlob(key);
   if (!text) throw new Error('Importdatei fehlt – Projekt mit eingebetteter Datei (.ofab) öffnen');
+  return solidsFromStepText(text, key);
+}
+// the same from STEP text; key names the entry in the cache (and the temporary file)
+export function solidsFromStepText(text, key) {
+  if (solidCache.has(key)) return solidCache.get(key).map(s => s.clone());
   const oc = R.getOC();
   const fn = `imp_${key}.step`;
   oc.FS.writeFile('/' + fn, text);

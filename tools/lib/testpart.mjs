@@ -46,6 +46,15 @@ export function partBodies() {
 // out (lift or sideways).
 function penetration(s, p, tool) {
   const { r, ball } = tool;
+  if (!ball && tool.rc > 0) {
+    const rc = tool.rc, rf = r - rc, zc = p[2] + rc;
+    if (s.kind === 'box') {
+      const dx = Math.max(s.min[0] - p[0], 0, p[0] - s.max[0]), dy = Math.max(s.min[1] - p[1], 0, p[1] - s.max[1]);
+      return rc - Math.hypot(Math.max(0, Math.hypot(dx, dy) - rf), Math.max(0, zc - s.max[2]));
+    }
+    const d = Math.hypot(p[0] - s.c[0], p[1] - s.c[1]);
+    return s.r + rc - Math.hypot(Math.max(0, d - rf), Math.max(0, zc - s.c[2]));
+  }
   if (s.kind === 'box') {
     const dx = Math.max(s.min[0] - p[0], 0, p[0] - s.max[0]);
     const dy = Math.max(s.min[1] - p[1], 0, p[1] - s.max[1]);

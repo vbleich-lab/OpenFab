@@ -246,6 +246,26 @@ export function rotateEntity(e, deg, [ox, oy] = [0, 0]) {
   return c;
 }
 
+// Copy of an entity scaled by k about a fixed point (sizes, corner radii and chamfers grow with it).
+export function scaleEntity(e, k, [ox, oy] = [0, 0]) {
+  const S = ([x, y]) => [ox + (+x - ox) * k, oy + (+y - oy) * k];
+  const c = JSON.parse(JSON.stringify(e)), m = v => +(+v * k).toFixed(6);
+  const each = (o, fn) => (o ? Object.fromEntries(Object.entries(o).map(([key, v]) => [key, fn(v)])) : o);
+  if (e.type === 'poly') {
+    c.pts = e.pts.map(S);
+    if (e.radii) c.radii = each(e.radii, m);
+    if (e.chamfers) c.chamfers = each(e.chamfers, v => (Array.isArray(v) ? v.map(m) : m(v)));
+  } else if (e.type === 'rect') {
+    [c.x, c.y] = S([e.x, e.y]); c.w = m(e.w); c.h = m(e.h);
+    if (+e.r) c.r = m(e.r);
+  } else if (e.type === 'text') { [c.x, c.y] = S([e.x, e.y]); c.size = m(e.size || 10); }
+  else {
+    [c.cx, c.cy] = S([e.cx, e.cy]);
+    for (const key of ['r', 'rx', 'ry', 'len', 'w']) if (e[key] != null) c[key] = m(e[key]);
+  }
+  return c;
+}
+
 export function entityOutline(e) {
   if (e.type === 'poly') return { pts: curvePts(e), closed: !!e.closed };
   const p = entityPoly(e);

@@ -42,12 +42,12 @@ function run(op) {
 
 // ---- 1. milling: every strategy generates, and the 3D ones stay out of the part ----
 const SK = { contour: 'skBoss', pocket: 'skPocket', adaptive: 'skPocket', chamfer: 'skBoss', trace: 'skBoss', vcarve: 'skBoss', drill: 'skHoles', bore: 'skBig', thread: 'skBig', circular: 'skBig', slot: 'skSlot', blend3d: 'skGuide', guidemorph3d: 'skGuide', flow3d: 'skDome', morph3d: 'skDome', project3d: 'skDome', probe: 'skBoss' };
-const TOOL = { drill: 'T3', thread: 'T6', bore: 'T1', circular: 'T1', slot: 'T2', chamfer: 'T5', vcarve: 'T5', deburr3d: 'T5', probe: 'P1', trace: 'T2' };
+const TOOL = { drill: 'T3', thread: 'T6', bore: 'T1', circular: 'T1', slot: 'T2', plunge3d: 'T1', chamfer: 'T5', vcarve: 'T5', deburr3d: 'T5', probe: 'P1', trace: 'T2' };
 // these cut into geometry on purpose (edges, engraving) or into holes the test part does not model
 const NO_GOUGE_CHECK = new Set(['chamfer', 'trace', 'vcarve', 'deburr3d', 'drill', 'bore', 'thread', 'circular', 'slot', 'probe', 'project3d']);
 const EXTRA = { contour: { side: 'outside' }, probe: { probeMode: 'z' } };
 const { TURN_OPS } = await import('../js/turning.js');
-const MILL = Object.keys(cam.OP_TYPES).filter(t => !(t in TURN_OPS) && !t.startsWith('rotary'));
+const MILL = Object.keys(cam.OP_TYPES).filter(t => !(t in TURN_OPS) && !t.startsWith('rotary') && t !== 'manual');
 
 const cases = [];
 for (const type of MILL) cases.push({ type, tool: TOOL[type] || (cam.OPS_3D.includes(type) ? 'T4' : 'T1') });
@@ -78,11 +78,176 @@ for (const c of cases) {
   const t = toolOf(p, c.tool);
   // effective stock to leave: the operation's own value, 0.3 is the default of the roughing strategies
   const stl = c.stockToLeave ?? (['rough3d', 'adaptive3d', 'pocket3d'].includes(c.type) ? 0.3 : 0);
+  if (c.type === 'plunge3d') ok(label + ' taucht nur senkrecht ins Material', r.plunges > 50 && r.moves.every((m, k) => m.t === 'r' || !k || m.z >= r.moves[k - 1].z - 1e-9 || Math.hypot(m.x - r.moves[k - 1].x, m.y - r.moves[k - 1].y) < 1e-9), `${r.plunges} Tauchgänge`);
   const chk = checkMoves(r.moves, g.T, { r: t.dia / 2, ball: t.type === 'ball' });
   const tol = ['rough3d', 'adaptive3d', 'pocket3d'].includes(c.type) ? ROUGH_TOL : TOL;
   const feedOk = chk.feed.pen <= tol - stl, rapidOk = chk.rapid.pen <= tol;
   ok(label + ' ohne Verletzung', feedOk && rapidOk,
     `${n} Bew., ${ms} ms, tiefster Punkt ${(chk.feed.pen + stl).toFixed(3)} mm ${stl ? 'ins Aufmaß' : 'ins Teil'}${feedOk ? '' : ' bei ' + JSON.stringify(chk.feed.at)}${rapidOk ? '' : `, Eilgang ${chk.rapid.pen.toFixed(3)} bei ${JSON.stringify(chk.rapid.at)}`}`);
+}
+
+// ---- 1a. trochoidal slot, plunge roughing, toolpath pattern, corner feed, manual NC ----
+{
+  // slot 12 x 7 at (100, 8), cutter T2: every feed point of the cut must stay inside the slot outline
+  const mk = extra => { const p = project(); p.features.find(f => f.id === 'skSlot').entities[0].w = 7; p.cam.ops = [{ id: 'o1', name: 'Nut', setup: 'S1', enabled: true, type: 'slot', tool: 'T2', sketch: 'skSlot', entities: 'all', ...extra }]; return { p, g: cam.generateSetup(p, bodies, p.cam.setups[0], null, null) }; };
+  const { p, g } = mk({ slotStyle: 'trochoid' });
+  const r = g.results.get('o1'), R = toolOf(p, 'T2').dia / 2;
+  if (r.error) ok('Wirbelnut erzeugt Bahnen', false, r.error);
+  else {
+    const h = r.heights;
+    let worst = 0;
+    for (const m of r.moves) {
+      if (m.t === 'r' || m.z > h.top - 1e-6) continue;
+      const dx = Math.max(0, Math.abs(m.x - 100) - 6), d = Math.hypot(dx, m.y - 8) + R - 3.5;
+      worst = Math.max(worst, d);
+    }
+    ok('Wirbelnut bleibt in der Nut', worst <= 0.002, `größte Überschreitung ${worst.toFixed(4)} mm, ${r.moves.length} Bewegungen`);
+    const line = mk({}).g.results.get('o1');
+    ok('Wirbelnut: Kreise statt Vollschnitt', r.length > line.length * 3 && r.moves.some(m => m.t === 'f' && m.z < h.top && Math.abs(m.y - 8) > 0.5), `Weg ${r.length.toFixed(0)} mm gegen ${line.length.toFixed(0)} mm auf der Mittellinie`);
+    hhLint(p, g, 'Wirbelnut');
+  }
+  const bad = mk({ slotStyle: 'trochoid', stockToLeave: 3 }).g.results.get('o1');
+  ok('Wirbelnut: zu großer Fräser wird gemeldet', !!bad.error, bad.error || 'kein Fehler');
+
+  // pattern: 3 x 2 grid, a circle of 4, a mirror image
+  const pat = extra => { const q = project(); q.cam.ops = [{ id: 'o1', name: 'Bohren', setup: 'S1', enabled: true, type: 'drill', tool: 'T3', sketch: 'skHoles', entities: 'all', ...extra }]; return { q, g: cam.generateSetup(q, bodies, q.cam.setups[0], null, null) }; };
+  const base = pat({}).g.results.get('o1');
+  const lin = pat({ patKind: 'linear', patN1: 3, patDx1: 200, patN2: 2, patDy2: 150 }).g.results.get('o1');
+  const feeds = r2 => r2.moves.filter(m => m.t === 'f').length;
+  ok('Bahnmuster linear 3 × 2: sechsfache Bahn, Zykluspunkte dabei', feeds(lin) === 6 * feeds(base) && lin.cycle.pts.length === 6 * base.cycle.pts.length && lin.pattern.n === 6, `${feeds(base)} → ${feeds(lin)} Vorschubsätze, ${lin.cycle.pts.length} Bohrpunkte`);
+  const xs = lin.moves.map(m => m.x), ys = lin.moves.map(m => m.y), bx = base.moves.map(m => m.x), by = base.moves.map(m => m.y);
+  ok('Bahnmuster linear: Abstände stimmen', Math.abs(Math.max(...xs) - Math.max(...bx) - 400) < 1e-6 && Math.abs(Math.max(...ys) - Math.max(...by) - 150) < 1e-6);
+  const cir = pat({ patKind: 'circular', patN1: 4, patAngle: 360, patCx: 0, patCy: 0 });
+  const rc = cir.g.results.get('o1'), org = cam.originOf(cir.q.cam.setups[0], cir.g.stock);
+  const rad = m => Math.hypot(m.x - org.x, m.y - org.y), nb = base.moves.length;
+  let dev = 0;
+  for (let k = 0; k < nb; k++) for (let c = 1; c < 4; c++) dev = Math.max(dev, Math.abs(rad(rc.moves[c * nb + k]) - rad(rc.moves[k])), Math.abs(rc.moves[c * nb + k].z - rc.moves[k].z));
+  const a0 = Math.atan2(rc.moves[1].y - org.y, rc.moves[1].x - org.x), a1 = Math.atan2(rc.moves[nb + 1].y - org.y, rc.moves[nb + 1].x - org.x);
+  ok('Bahnmuster kreisförmig: vier Kopien um den Nullpunkt, je 90°', rc.moves.length === 4 * nb && dev < 1e-6 && Math.abs((((a1 - a0) * 180) / Math.PI + 360) % 360 - 90) < 1e-6, `Radiusabweichung ${dev.toExponential(1)}`);
+  const mir = (() => { const q = project(); q.cam.ops = [{ id: 'o1', name: 'Kontur', setup: 'S1', enabled: true, type: 'contour', tool: 'T1', sketch: 'skBoss', entities: 'all', side: 'outside', compType: 'control', leadIn: 3, patKind: 'mirror', patAxis: 'x', patCx: 0 }]; const g2 = cam.generateSetup(q, bodies, q.cam.setups[0], null, null); return { r: g2.results.get('o1'), org: cam.originOf(q.cam.setups[0], g2.stock) }; })();
+  const half = mir.r.moves.length / 2, sides = k => new Set(mir.r.moves.slice(k * half, (k + 1) * half).filter(m => m.comp).map(m => m.comp));
+  ok('Bahnmuster gespiegelt: Spiegelbild, Radiuskorrektur wechselt die Seite', !mir.r.error && Math.abs(mir.r.moves[half + 3].x - (2 * mir.org.x - mir.r.moves[3].x)) < 1e-9 && [...sides(0)].join() === 'L' && [...sides(1)].join() === 'R', `${[...sides(0)]} → ${[...sides(1)]}`);
+
+  // corner feed on a square: slower stretches before and after each corner, path unchanged
+  const sq = [{ t: 'r', x: 0, y: 0, z: 5 }, { t: 'f', x: 0, y: 0, z: -1, f: 300 }, { t: 'f', x: 20, y: 0, z: -1, f: 1000 }, { t: 'f', x: 20, y: 20, z: -1, f: 1000 }, { t: 'f', x: 0, y: 20, z: -1, f: 1000 }, { t: 'f', x: 0, y: 0, z: -1, f: 1000 }, { t: 'r', x: 0, y: 0, z: 5 }];
+  const cf = cam.cornerFeed(sq, 25, 0.5, 2);
+  const lenOf = ms => ms.reduce((a, m, i) => a + (i ? Math.hypot(m.x - ms[i - 1].x, m.y - ms[i - 1].y, m.z - ms[i - 1].z) : 0), 0);
+  let slowLen = 0;
+  cf.moves.forEach((m, i) => { if (m.slow) slowLen += Math.hypot(m.x - cf.moves[i - 1].x, m.y - cf.moves[i - 1].y, m.z - cf.moves[i - 1].z); });
+  ok('Vorschubanpassung: drei Ecken, je 2 mm davor und danach mit halbem Vorschub', cf.corners === 3 && cf.moves.filter(m => m.slow).every(m => m.f === 500) && Math.abs(slowLen - 12) < 1e-9 && Math.abs(lenOf(cf.moves) - lenOf(sq)) < 1e-9 && !!cf.moves.find(m => m.z === -1 && m.f === 300), `${cf.corners} Ecken, ${slowLen} mm langsam`);
+  const circ = [{ t: 'r', x: 10, y: 0, z: -1 }, ...Array.from({ length: 73 }, (_, i) => ({ t: 'f', x: 10 * Math.cos((i * 5 * Math.PI) / 180), y: 10 * Math.sin((i * 5 * Math.PI) / 180), z: -1, f: 1000 }))];
+  ok('Vorschubanpassung: ein Kreis bleibt unverändert', cam.cornerFeed(circ, 25, 0.5, 2).corners === 0);
+  const fo = run({ type: 'contour', tool: 'T1', sketch: 'skBoss', entities: 'all', side: 'outside', feedOpt: true });
+  ok('Vorschubanpassung an der Kontur', !fo.r.error && !!fo.r.feedOpt && fo.r.moves.some(m => m.slow) === (fo.r.feedOpt.corners > 0), `${fo.r.feedOpt?.corners} Ecken`);
+
+  // manual NC lines in every built-in post
+  const q = project();
+  const mo = { setup: 'S1', enabled: true, type: 'manual' };
+  q.cam.ops = [
+    { ...mo, id: 'm1', name: 'Hinweis', manualKind: 'comment', manualText: 'Spannpratzen umsetzen' },
+    { id: 'f1', name: 'Planen', setup: 'S1', enabled: true, type: 'face', tool: 'T1' },
+    { ...mo, id: 'm2', name: 'Halt', manualKind: 'stop', manualText: 'Spaene entfernen' },
+    { ...mo, id: 'm3', name: 'Warten', manualKind: 'dwell', manualSec: 2.5 },
+    { ...mo, id: 'm4', name: 'Code', manualKind: 'code', manualText: 'M9' },
+    { id: 'f2', name: 'Kontur', setup: 'S1', enabled: true, type: 'contour', tool: 'T1', sketch: 'skBoss', entities: 'all', side: 'outside' },
+    { ...mo, id: 'm5', name: 'Wahlhalt', manualKind: 'optstop' },
+    { ...mo, id: 'm6', name: 'Leer', manualKind: 'comment', manualText: '' },
+  ];
+  const gm = cam.generateSetup(q, bodies, q.cam.setups[0], null, null);
+  gm.setup = q.cam.setups[0];
+  ok('Manuelle NC: Ergebnis ohne Bahn, leerer Text wird gemeldet', gm.results.get('m2').manual?.kind === 'stop' && gm.results.get('m3').time === 2.5 && !!gm.results.get('m6').error, gm.results.get('m6').error);
+  for (const id of ['heidenhain', 'fanuc', 'sinumerik', 'linuxcnc', 'grbl', 'okuma-mill']) {
+    let code = '';
+    try { code = post.postProcess(q, gm, null, { postId: id }).code; } catch (e) { ok(`Manuelle NC ${id}`, false, e.message); continue; }
+    const L = code.split('\n'), at = re => L.findIndex(l => re.test(l));
+    const iStop = at(/(^|\s)M0?0\s*$/), iOpt = at(/(^|\s)M0?1\s*$/), iNote = at(/Spannpratzen umsetzen/i), iDwell = at(/G0?4\b|V\.ZEIT/), iFirstTool = at(/TOOL CALL|M0?6\b|^(N\d+ )?T\d/);
+    // after the stop the spindle starts again before the next cut
+    const rest = L.slice(iStop + 1), respin = rest.findIndex(l => /M0?3\b/.test(l)), nextCut = rest.findIndex(l => /(G0?1\b| F\d|R0 F)/.test(l) && !/G0?4/.test(l));
+    ok(`Manuelle NC ${id}: Kommentar vor dem ersten Werkzeug, Halt, Verweilzeit, Wahlhalt, Spindel danach wieder ein`, iNote >= 0 && (iFirstTool < 0 ? id === 'grbl' : iNote < iFirstTool && iStop > iFirstTool) && iDwell > iStop && iOpt > iDwell && respin >= 0 && respin < nextCut,
+      `Zeilen: Hinweis ${iNote}, Werkzeug ${iFirstTool}, Halt ${iStop}, Verweilen ${iDwell}, Wahlhalt ${iOpt}, M3 +${respin}, Schnitt +${nextCut}`);
+  }
+  hhLint(q, gm, 'Manuelle NC');
+}
+
+// ---- 1t. torus (bull-nose) cutter with its real shape ----
+{
+  const { dropTri, cornerOf } = await import('../js/heightmap.js');
+  const big = 1000, near = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
+  // plane z = x as one large triangle: flat Ø8 rests on its rim (4), a ball R4 at 4·√2 − 4, a torus R4 r2 in between
+  const slope = [-big, -big, -big, big, -big, big, 0, big, 0];
+  const flat = dropTri(slope, 0, 0, 0, 4, false), ball = dropTri(slope, 0, 0, 0, 4, true), tor = dropTri(slope, 0, 0, 0, 4, false, 2);
+  ok('Torusfräser auf 45°-Schräge: zwischen Kugel und Schaftfräser, Wert 2·√2', near(flat, 4) && near(ball, 4 * Math.SQRT2 - 4) && near(tor, 2 * Math.SQRT2), `flach ${flat.toFixed(4)}, Torus ${tor.toFixed(4)}, Kugel ${ball.toFixed(4)}`);
+  // a point and a level edge 3 mm beside the axis lie under the corner radius: the tip sinks by 2 − √3 below them
+  const tiny = [3, 0, 0, 3.0001, 0, -50, 3, 0.0001, -50], edge = [3, -big, 0, 3, big, 0, 60, 0, -500];
+  ok('Torusfräser über einer Ecke und einer Kante: taucht um 2 − √3 ein', near(dropTri(tiny, 0, 0, 0, 4, false, 2), -(2 - Math.sqrt(3)), 1e-4) && near(dropTri(edge, 0, 0, 0, 4, false, 2), -(2 - Math.sqrt(3)), 1e-4) && near(dropTri(edge, 0, 0, 0, 4, false), 0), dropTri(edge, 0, 0, 0, 4, false, 2).toFixed(5));
+  const level = [-big, -big, 5, big, -big, 5, 0, big, 5];
+  ok('Torusfräser auf ebener Fläche wie ein Schaftfräser; Eckenradius nur bei Torus und Schaftfräser', near(dropTri(level, 0, 0, 0, 4, false, 2), 5) && cornerOf({ type: 'flat', kind: 'torus', dia: 8, cornerR: 2 }) === 2 && cornerOf({ type: 'torus', dia: 8, cornerR: 9 }) === 4 && cornerOf({ type: 'ball', dia: 8, cornerR: 2 }) === 0 && cornerOf({ type: 'flat', kind: 'tapered', dia: 8, cornerR: 1 }) === 0);
+
+  const withTools = () => { const p = project(); p.cam.tools.push({ id: 'TR', number: 30, name: 'Torus Ø8 R2', type: 'flat', kind: 'torus', dia: 8, cornerR: 2, rpm: 9000, feed: 1200, plunge: 400, stepdown: 2, stepover: 0.4 }, { id: 'TF', number: 31, name: 'Schaft Ø8', type: 'flat', dia: 8, rpm: 9000, feed: 1200, plunge: 400, stepdown: 2, stepover: 0.4 }); return p; };
+  const gen = (type, tool, extra = {}) => { const p = withTools(); p.cam.ops = [{ id: 'o1', name: type, setup: 'S1', enabled: true, type, tool, ...extra }]; const g = cam.generateSetup(p, bodies, p.cam.setups[0], null, null); return { g, r: g.results.get('o1') }; };
+  for (const [type, extra, stl] of [['parallel3d', { stepoverMm: 1 }, 0], ['contour3d', { stepdown: 1 }, 0], ['scallop3d', { stepoverMm: 1 }, 0], ['parallel3d', { stepoverMm: 1, stockToLeave: 0.5 }, 0.5], ['adaptive3d', {}, 0.3]]) {
+    const { g, r } = gen(type, 'TR', extra);
+    if (r.error || !r.moves.length) { ok(`Torus ${type}: erzeugt Bahnen`, false, r.error || ''); continue; }
+    const chk = checkMoves(r.moves, g.T, { r: 4, rc: 2 }), tol = type === 'adaptive3d' ? ROUGH_TOL : TOL;
+    ok(`Torus ${type}${stl ? ` mit Aufmaß ${stl}` : ''}: ohne Verletzung (geprüft mit der Torusform)`, chk.feed.pen <= tol - stl && chk.rapid.pen <= tol, `tiefster Punkt ${(chk.feed.pen + stl).toFixed(3)} mm ${stl ? 'ins Aufmaß' : 'ins Teil'}, ${r.moves.length} Bew.`);
+  }
+  // the torus reaches deeper next to the dome than the flat cutter of the same diameter, and both leave the part alone
+  // right beside the dome (R18 around 62/40) the flat cutter rests on its rim, the torus rolls further down
+  const low = r => Math.min(...r.moves.filter(m => m.t === 'f' && Math.abs(m.y - 40) < 1.1 && m.x > 78.5 && m.x < 80.5).map(m => m.z));
+  const a = gen('parallel3d', 'TR', { stepoverMm: 1 }).r, b = gen('parallel3d', 'TF', { stepoverMm: 1 }).r;
+  ok('Torus kommt neben der Kuppel tiefer als der Schaftfräser gleichen Durchmessers', low(a) < low(b) - 0.05, `tiefste Höhe ${low(a).toFixed(3)} gegen ${low(b).toFixed(3)}`);
+}
+
+// ---- 1p. plunge roughing knows what earlier operations removed ----
+{
+  const o = { setup: 'S1', enabled: true };
+  const mk = extra => {
+    const p = project();
+    // the same plunge pattern once before: only the cusps between its plunges are left
+    p.cam.ops = [{ ...o, id: 'r', name: 'Tauchen davor', type: 'plunge3d', tool: 'T1', stockToLeave: 0.6 },
+      { ...o, id: 'o1', name: 'Tauchen', type: 'plunge3d', tool: 'T1', stockToLeave: 0.5, ...extra }];
+    const g = cam.generateSetup(p, bodies, p.cam.setups[0], null, null);
+    return { g, r: g.results.get('o1') };
+  };
+  const alone = run({ type: 'plunge3d', tool: 'T1', stockToLeave: 0.5 }).r, after = mk({}), off = mk({ usePrior: false }).r;
+  if (after.r.error) ok('Tauchschruppen nach dem Schruppen', false, after.r.error);
+  else {
+    const chk = checkMoves(after.r.moves, after.g.T, { r: toolOf(project(), 'T1').dia / 2, ball: false });
+    ok('Tauchschruppen nach einem ersten Tauchgang: deutlich weniger Tauchgänge, keine Verletzung', after.r.plunges < alone.plunges * 0.8 && after.r.plungesSaved > 0 && after.r.time < alone.time * 0.8 && chk.feed.pen <= TOL - 0.5,
+      `${alone.plunges} → ${after.r.plunges} Tauchgänge (${after.r.plungesSaved} entfallen), ${(alone.time / 60).toFixed(1)} → ${(after.r.time / 60).toFixed(1)} min`);
+    ok('Tauchschruppen: Schalter „Vorige Operationen berücksichtigen“ aus = wie allein', off.plunges === alone.plunges);
+  }
+}
+
+// ---- 1d. dogbone corners, rest finishing against a torus cutter ----
+{
+  // square path 20 x 20 around a 26 x 26 pocket, cutter R3: the corners of the pocket lie 3·√2 from the path corners
+  const sq = [[0, 0], [20, 0], [20, 20], [0, 20]];
+  const db = cam.withDogbones(sq, 3, 3, 'dogbone'), tb = cam.withDogbones(sq, 3, 3, 'tbone');
+  const reach = (path, c) => Math.min(...path.map(p => Math.hypot(p[0] - c[0], p[1] - c[1])));
+  const corners = [[-3, -3], [23, -3], [23, 23], [-3, 23]];
+  ok('Dogbone: jede Ecke wird erreicht, der Weg geht in die Ecke und zurück', db.dogbones === 4 && db.length === 12 && corners.every(c => Math.abs(reach(db, c) - 3) < 1e-9), `${db.dogbones} Ecken, Abstand ${reach(db, corners[0]).toFixed(4)}`);
+  ok('T-Bone: entlang der Wand um den Fräserradius', tb.dogbones === 4 && corners.every(c => Math.abs(reach(tb, c) - 3) < 1e-9) && tb.some(p => Math.abs(p[0] - 23) < 1e-9 && Math.abs(p[1]) < 1e-9));
+  const round = Array.from({ length: 72 }, (_, i) => [10 * Math.cos((i * Math.PI) / 36), 10 * Math.sin((i * Math.PI) / 36)]);
+  ok('Dogbone: runde Bahnen bleiben unverändert; mit Aufmaß kein T-Bone', cam.withDogbones(round, 3, 3).length === 72 && cam.withDogbones(sq, 3.5, 3, 'tbone').dogbones === 0 && cam.withDogbones(sq, 3.5, 3).dogbones === 4);
+  // on the operations: pocket and inside contour of the test part get reliefs, the path grows
+  for (const type of ['pocket', 'contour']) {
+    const extra = type === 'contour' ? { side: 'inside' } : {};
+    const a = run({ type, tool: 'T2', sketch: 'skPocket', entities: 'all', ...extra }).r, b = run({ type, tool: 'T2', sketch: 'skPocket', entities: 'all', dogbone: 'dogbone', ...extra }).r;
+    ok(`Dogbone an ${type === 'pocket' ? '2D-Tasche' : '2D-Kontur innen'}`, !b.error && (b.dogbones > 0 ? b.length > a.length : true), b.error || `${b.dogbones ?? 0} Ecken, Weg ${a.length.toFixed(0)} → ${b.length.toFixed(0)} mm`);
+  }
+
+  // rest finishing: what a torus Ø8 R1 leaves in the fillets, taken by a ball Ø6 – less to do than against a flat Ø8
+  const tools = p => p.cam.tools.push({ id: 'TR1', number: 32, name: 'Torus Ø8 R1', type: 'flat', kind: 'torus', dia: 8, cornerR: 1, rpm: 9000, feed: 1200, plunge: 400, stepdown: 2, stepover: 0.4 }, { id: 'TF8', number: 33, name: 'Schaft Ø8', type: 'flat', dia: 8, rpm: 9000, feed: 1200, plunge: 400, stepdown: 2, stepover: 0.4 }, { id: 'TB8', number: 34, name: 'Kugel Ø8', type: 'ball', dia: 8, rpm: 9000, feed: 1200, plunge: 400, stepdown: 2, stepover: 0.1 });
+  const rest = ref => { const p = project(); tools(p); p.cam.ops = [{ id: 'o1', name: 'Ecke', setup: 'S1', enabled: true, type: 'corner3d', tool: 'T4', restTool: ref, stepoverMm: 0.6, stepdown: 0.6 }]; const g = cam.generateSetup(p, bodies, p.cam.setups[0], null, null); return { g, r: g.results.get('o1') }; };
+  const rt = rest('TR1'), rf = rest('TF8'), rb = rest('TB8');
+  if (rt.r.error || rf.r.error || rb.r.error) ok('Restmaterial gegen Referenzwerkzeug aus der Liste', false, rt.r.error || rf.r.error || rb.r.error);
+  else {
+    const chk = checkMoves(rt.r.moves, rt.g.T, { r: 3, ball: true });
+    ok('Restmaterial gegen Torusfräser: Bahnen ohne Verletzung, weniger Weg als gegen Kugel Ø8', chk.feed.pen <= TOL && rt.r.length < rb.r.length, `Weg gegen Torus ${rt.r.length.toFixed(0)}, Schaft ${rf.r.length.toFixed(0)}, Kugel ${rb.r.length.toFixed(0)} mm`);
+  }
+  const bad = (() => { const p = project(); p.cam.ops = [{ id: 'o1', name: 'Ecke', setup: 'S1', enabled: true, type: 'corner3d', tool: 'T4', restTool: 'gibtsnicht' }]; return cam.generateSetup(p, bodies, p.cam.setups[0], null, null).results.get('o1'); })();
+  ok('Restmaterial: fehlendes Referenzwerkzeug wird gemeldet', !!bad.error, bad.error);
 }
 
 // ---- 1b. links over the remaining material ("Kürzester sicherer Weg") ----
@@ -457,4 +622,27 @@ const bbox = pts => pts.reduce((b, q) => q.map((v, i) => [Math.min(b[i][0], v), 
   const o = cam.orderHoles(holes, h => [h.x, h.y], 'shortest');
   ok('Bohrreihenfolge: jede Bohrung genau einmal', o.items.length === 300 && new Set(o.items.map(h => h.id)).size === 300);
   ok('Bohrreihenfolge: kürzer als die Eingabereihenfolge', o.len < o.before * 0.3, `${o.len.toFixed(0)} statt ${o.before.toFixed(0)} mm`);
+}
+
+// ---- operation order by tool changes ----
+{
+  const A = [0, 0, 10, 10], B = [50, 0, 60, 10];
+  const o = (id, tool, box, fixed = false) => ({ id, tool, box, fixed });
+  // T1 here, T2 there, T1 there, T2 here: the third joins the first (it does not work where the second does)
+  const r1 = cam.orderByTool([o('a', 'T1', A), o('b', 'T2', B), o('c', 'T1', B.map((v, i) => v + (i % 2 ? 20 : 0))), o('d', 'T2', A)]);
+  ok('Werkzeugwechsel sparen: gleiche Werkzeuge rücken zusammen', r1.order.join('') === 'acbd' && r1.before === 3 && r1.after === 1, `${r1.order.join(' ')}: ${r1.before} → ${r1.after}`);
+  // rough (T1), finish (T2) on the same place, then T1 again on that place: nothing may overtake
+  const r2 = cam.orderByTool([o('a', 'T1', A), o('b', 'T2', A), o('c', 'T1', A)]);
+  ok('Werkzeugwechsel sparen: an derselben Stelle wird nicht überholt', r2.order.join('') === 'abc' && r2.after === r2.before);
+  const r3 = cam.orderByTool([o('a', 'T1', A), o('m', null, null, true), o('b', 'T2', B), o('c', 'T1', B.map((v, i) => v + (i % 2 ? 20 : 0)))]);
+  ok('Werkzeugwechsel sparen: manuelle NC bleibt eine Grenze', r3.order.join('') === 'ambc');
+}
+{
+  // a ring around the part and a hole inside it: the boxes overlap, the places they work at do not
+  const ring = Array.from({ length: 73 }, (_, i) => ({ t: i ? 'f' : 'r', x: 30 * Math.cos((i * Math.PI) / 36), y: 30 * Math.sin((i * Math.PI) / 36), z: -1, f: 500 }));
+  const hole = [{ t: 'r', x: 0, y: 0, z: 5 }, { t: 'f', x: 0, y: 0, z: -5, f: 100 }];
+  const cr = cam.opCells(ring, 3), ch = cam.opCells(hole, 4);
+  const it = (id, tool, moves, R) => ({ id, tool, fixed: false, box: [Math.min(...moves.map(m => m.x)) - R, Math.min(...moves.map(m => m.y)) - R, Math.max(...moves.map(m => m.x)) + R, Math.max(...moves.map(m => m.y)) + R], cells: cam.opCells(moves, R) });
+  const r = cam.orderByTool([it('a', 'T1', ring, 3), it('b', 'T2', hole, 4), it('c', 'T1', ring, 3)]);
+  ok('Werkzeugwechsel sparen: Kontur außen und Bohrung innen stören sich nicht', [...ch].every(k => !cr.has(k)) && r.order.join('') === 'acb' && r.after === 1, `${cr.size} / ${ch.size} Felder, ${r.before} → ${r.after}`);
 }

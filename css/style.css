@@ -911,6 +911,19 @@ select option:disabled { color: var(--muted); }
 .op-tool select { width: 100%; padding: 6px 8px; }
 .row.ovr input { color: var(--accent); font-weight: 600; }
 .csec { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; padding: 8px 0 6px; border-top: 1px solid var(--line); font-weight: 700; font-size: 12.5px; color: var(--text); cursor: pointer; user-select: none; }
+.trace-wrap { display: flex; gap: 14px; align-items: flex-start; }
+.trace-view { flex: 1; min-width: 0; max-width: 100%; max-height: 62vh; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.trace-side { width: 300px; flex: none; }
+.trace-side input[type=range] { width: 100%; }
+.trace-colors { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.trace-colors label { display: flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 11.5px; }
+.trace-colors i { width: 16px; height: 16px; border-radius: 3px; border: 1px solid #0006; display: inline-block; }
+.calib-dot { position: fixed; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff; background: #e03131; box-shadow: 0 0 0 1px #0008; pointer-events: none; z-index: 50; }
+.manual-text { width: 100%; box-sizing: border-box; resize: vertical; min-height: 54px; font: 12.5px/1.45 ui-monospace, Consolas, monospace; background: var(--bg2, #12171d); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 2px 0 6px; }
+.hole-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.hole-tbl th, .hole-tbl td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.hole-tbl th { font-weight: 700; color: var(--muted, #8b96a1); }
+.hole-tbl td.new { color: var(--accent); }
 .csec input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
 .csec.dis { opacity: .55; cursor: default; }
 .bmodes { display: flex; gap: 4px; }

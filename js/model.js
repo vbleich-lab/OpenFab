@@ -6,12 +6,13 @@ import { entityPolys, entityOutlines, entityOutline, buildRegions, chainLoops, c
 import { cornerPlan, hasCorners } from './sketchcorner.js';
 import { basis, planeMatrix, sketchPlane, toWorld, axisRef, planeRef } from './plane.js';
 import { sheetSolid } from './sheetmetal.js';
-import { stepSolids } from './interop.js';
+import { stepSolids, solidsFromStepText, fullKernelReady, requestFullKernel, fullRemoveFaces, fullFilletLaw } from './interop.js';
+import { silhouette, planeCut, curveEntity, chainLoop } from './projection.js';
 
 export const FEATURE_TYPES = {
   sketch: 'Skizze', extrude: 'Extrusion', revolve: 'Rotation', hole: 'Bohrung',
   loft: 'Erhebung', sweep: 'Sweep', freeform: 'Freiformfläche', sheet: 'Blech', box: 'Quader', cylinder: 'Zylinder', sphere: 'Kugel',
-  fillet: 'Verrundung', chamfer: 'Fase', shell: 'Schale', thicken: 'Aufdicken',
+  fillet: 'Verrundung', chamfer: 'Fase', shell: 'Schale', thicken: 'Aufdicken', delface: 'Fläche löschen', replaceface: 'Fläche ersetzen', offsetface: 'Fläche versetzen', align: 'Ausrichten',
   surfloft: 'Flächen-Erhebung', surftrim: 'Trimmen', surfextend: 'Verlängern', fill: 'Rand füllen', surfextrude: 'Flächen-Extrusion', surfrevolve: 'Flächen-Rotation', patch: 'Flicken', offsetsurf: 'Versatzfläche', stitch: 'Zusammenfügen', draft: 'Formschräge', split: 'Körper teilen',
   pattern: 'Muster', mirror: 'Spiegeln', move: 'Verschieben', combine: 'Kombinieren', import: 'Import',
   pipe: 'Rohr', coil: 'Feder', scale: 'Skalieren', thread: 'Gewinde',
@@ -102,6 +103,8 @@ function regionDrawings(sk, ids) {
   return regions.map(r => {
     let d = drawingOf(r.id);
     for (const h of r.holeIds) d = d.cut(drawingOf(h));
+    // the outline and the openings on their own (tapered extrusion of round profiles with openings)
+    d.__parts = { outer: () => drawingOf(r.id), holes: r.holeIds.map(h => () => drawingOf(h)) };
     return d;
   });
 }
@@ -116,11 +119,46 @@ function extrudeTool(sk, f) {
   const p = sketchPlane(sk);
   const shifted = off => rPlane({ ...p, o: p.o.map((c, i) => c + p.n[i] * off) });
   const solids = [];
+  // "Schrägungswinkel": the side faces lean by the angle, measured from the sketch plane where the profile keeps
+  // its size. Positive = the body gets wider away from the sketch, negative = narrower.
+  const taper0 = +f.taper || 0, taper = taper0;
+  if (Math.abs(taper) >= 89) fail('Schrägungswinkel muss kleiner als 89° sein');
+  const side = (dr, dist, taper = taper0) => {
+    const straight = dr.clone().sketchOnPlane(rPlane(p)).extrude(dist);
+    if (!taper) return straight;
+    const lean = ang => straight.clone().draft(ang, ff => ff.not(x => x.parallelTo(rPlane(p))), rPlane(p));
+    const v0 = R.measureVolume(straight), right = s => !!s && (R.measureVolume(s) > v0) === (taper > 0);
+    try {
+      let out = lean(taper);
+      // the kernel's sign depends on the pulling direction: the volume tells which way it went
+      if (!right(out)) out = lean(-taper);
+      if (right(out)) return out;
+    } catch { /* round profiles: second way below */ }
+    try {
+      // circles, ellipses, curves: straight walls from the profile to its offset at the far end (a cone for a circle)
+      const delta = Math.abs(dist) * Math.tan((taper * Math.PI) / 180);
+      const a = dr.clone().sketchOnPlane(rPlane(p)), b = dr.clone().offset(delta).sketchOnPlane(shifted(dist));
+      if (typeof a.loftWith === 'function' && typeof b.loftWith === 'function') {
+        const out = a.loftWith([b], { ruled: true });
+        if (right(out)) return out;
+      }
+    } catch { /* next way below */ }
+    // a round profile with openings (a ring): the outline and every opening on their own – an opening gets
+    // narrower where the body gets wider
+    const parts = dr.__parts;
+    if (parts?.holes.length) {
+      let out = side(parts.outer(), dist, taper);
+      for (const hole of parts.holes) out = out.cut(side(hole(), dist, -taper));
+      if (right(out)) return out;
+    }
+    fail('Schrägungswinkel lässt sich an diesem Profil nicht erzeugen (zu großer Winkel: die Wände würden sich schneiden, oder Freiformkurven)');
+  };
   for (const dr of ds) {
-    if (f.extent === 'sym') solids.push(dr.clone().sketchOnPlane(shifted(-d / 2)).extrude(d));
+    if (f.extent === 'sym' && !taper) solids.push(dr.clone().sketchOnPlane(shifted(-d / 2)).extrude(d));
+    else if (f.extent === 'sym') solids.push(side(dr, d / 2), side(dr, -d / 2));
     else {
-      solids.push(dr.clone().sketchOnPlane(rPlane(p)).extrude(d));
-      if (f.extent === 'two' && +f.distance2) solids.push(dr.clone().sketchOnPlane(rPlane(p)).extrude(-f.distance2));
+      solids.push(side(dr, d));
+      if (f.extent === 'two' && +f.distance2) solids.push(side(dr, -f.distance2));
     }
   }
   return fuseAll(solids);
@@ -373,7 +411,10 @@ export function cylinderFaces(bodies) {
         const [lo, hi] = fc.boundingBox.bounds;
         const ts = [];
         for (const x of [lo[0], hi[0]]) for (const y of [lo[1], hi[1]]) for (const z of [lo[2], hi[2]]) ts.push(V.dot(V.sub([x, y, z], loc), dir));
-        out.push({ bi, loc, dir, r: cy.Radius(), pt, outside: V.dot([nn.x, nn.y, nn.z], radial) > 0, t0: Math.min(...ts), t1: Math.max(...ts) });
+        // how far the face goes around the axis (a hole is 2π over its faces, a fillet a quarter turn)
+        let span = null;
+        try { const ad = new oc.BRepAdaptor_Surface(fc.wrapped, true); span = Math.abs(ad.LastUParameter() - ad.FirstUParameter()); } catch { /* not in this kernel build */ }
+        out.push({ bi, loc, dir, r: cy.Radius(), pt, span, outside: V.dot([nn.x, nn.y, nn.z], radial) > 0, t0: Math.min(...ts), t1: Math.max(...ts) });
       } catch { /* skip faces OpenCascade cannot evaluate */ }
     }
   });
@@ -1090,6 +1131,39 @@ function patternTools(src, f, features = []) {
   return out;
 }
 
+// ---------- steps that run in the full kernel ----------
+// The body goes there and back as STEP text. Results are kept by the content of the body and the arguments, so
+// a step is computed once per state of the body. Until the full kernel is loaded the step reports that (the
+// app recomputes when it is there).
+function stepTextOf(shape) {
+  const oc = R.getOC(), w = new oc.STEPControl_Writer(), pr = new oc.Message_ProgressRange();
+  try {
+    oc.Interface_Static.SetIVal('write.step.schema', 5);
+    w.Transfer(shape.wrapped, oc.STEPControl_StepModelType.STEPControl_AsIs, true, pr);
+    if (w.Write('fk.step') !== oc.IFSelect_ReturnStatus.IFSelect_RetDone) throw new Error('Körper konnte nicht übergeben werden');
+    const text = oc.FS.readFile('/fk.step', { encoding: 'utf8' });
+    oc.FS.unlink('/fk.step');
+    return text;
+  } finally { w.delete(); pr.delete(); }
+}
+const fullCache = new Map();
+const textHash = t => { let h1 = 5381, h2 = 52711; for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); h1 = (h1 * 33) ^ c; h2 = (h2 * 33) ^ c; } return ((h1 >>> 0) * 4096 + (h2 >>> 0)).toString(36); };
+function viaFullKernel(shape, args, fn) {
+  if (!shape?.wrapped) fail('Dieser Schritt braucht einen Körper des Standardkerns');
+  const text = stepTextOf(shape), data = text.slice(Math.max(0, text.indexOf('DATA;'))); // the header carries a time stamp
+  const key = textHash(data + JSON.stringify(args));
+  let out = fullCache.get(key);
+  if (!out) {
+    if (!fullKernelReady()) { requestFullKernel(); fail('Der große Geometriekern wird geladen – dieser Schritt rechnet gleich von selbst nach'); }
+    try { out = fn(text).step; } catch (err) { fail(err.message || String(err)); }
+    fullCache.set(key, out);
+    while (fullCache.size > 40) fullCache.delete(fullCache.keys().next().value);
+  }
+  const solids = solidsFromStepText(out, 'fk' + key);
+  if (!solids.length) fail('Das Ergebnis des Geometriekerns ist unlesbar');
+  return solids[0];
+}
+
 function runFeature(f, ctx) {
   const { bodies, sketches, tools } = ctx;
   if (f.type === 'import') {
@@ -1185,9 +1259,173 @@ function runFeature(f, ctx) {
     applyOp(bodies, tool, op, f.id, target);
     return;
   }
+  if (f.type === 'delface') {
+    // the chosen faces go, the neighbours grow together over the gap (holes, pockets, fillets, chamfers)
+    if (!(f.faces || []).length) fail('Flächen wählen, die verschwinden sollen');
+    const hit = bodiesWithPoints(bodies, f.faces).sort((p, q) => q.own.length - p.own.length)[0];
+    if (!hit) fail('Gewählte Flächen nicht mehr gefunden – neu auswählen');
+    hit.b.shape = viaFullKernel(hit.b.shape, ['delface', hit.own], text => fullRemoveFaces(text, hit.own));
+    return;
+  }
+  if (f.type === 'offsetface') {
+    // a face moves along its normal: a flat face shifts, a hole or a pin changes its diameter.
+    // Positive = outwards (more material): a hole gets narrower, a pin thicker.
+    const d = +f.distance || 0;
+    if (!d) fail('Abstand ist 0');
+    if (!(f.faces || []).length) fail('Flächen wählen, die versetzt werden sollen');
+    const oc = R.getOC();
+    let done = 0;
+    for (const p of f.faces) {
+      const hit = bodies.find(b => { const bb = b.shape.boundingBox?.bounds; return bb && [0, 1, 2].every(k => p[k] >= bb[0][k] - 1e-3 && p[k] <= bb[1][k] + 1e-3) && new R.FaceFinder().containsPoint(p).find(b.shape).length; });
+      if (!hit) continue;
+      const fc = new R.FaceFinder().containsPoint(p).find(hit.shape)[0];
+      const nv = fc.normalAt(p), n = V.norm([nv.x, nv.y, nv.z]);
+      if (fc.geomType === 'PLANE') {
+        if (d > 0) hit.shape = hit.shape.fuse(R.basicFaceExtrusion(fc.clone(), new R.Vector(V.mul(n, d))));
+        else {
+          const oP = V.add(p, V.mul(n, d)), [lo, hi] = hit.shape.boundingBox.bounds, S = 4 * Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) + 10;
+          const xd = V.norm(Math.abs(n[2]) < 0.9 ? V.cross(n, [0, 0, 1]) : V.cross(n, [1, 0, 0]));
+          const res = hit.shape.cut(R.drawRectangle(2 * S, 2 * S).sketchOnPlane(new R.Plane(oP, xd, n)).extrude(2 * S));
+          if (!res || res.isNull || !(R.measureVolume(res) > 1e-9)) fail('Von dem Körper bliebe nichts übrig – Abstand prüfen');
+          hit.shape = res;
+        }
+      } else if (fc.geomType === 'CYLINDRE') {
+        const cy = new oc.BRepAdaptor_Surface(fc.wrapped, true).Cylinder(), ax = cy.Axis(), L = ax.Location(), Dd = ax.Direction();
+        const loc = [L.X(), L.Y(), L.Z()], dir = V.norm([Dd.X(), Dd.Y(), Dd.Z()]), r = cy.Radius();
+        const radial = V.sub(V.sub(p, loc), V.mul(dir, V.dot(V.sub(p, loc), dir))), outside = V.dot(n, radial) > 0;
+        const [lo, hi] = fc.boundingBox.bounds, ts = [];
+        for (const x of [lo[0], hi[0]]) for (const y of [lo[1], hi[1]]) for (const z of [lo[2], hi[2]]) ts.push(V.dot(V.sub([x, y, z], loc), dir));
+        const t0 = Math.min(...ts), t1 = Math.max(...ts), rn = outside ? r + d : r - d;
+        if (!(rn > 0.01)) fail('Der Durchmesser würde null oder negativ – Abstand verkleinern');
+        const cyl = rad => R.makeCylinder(rad, t1 - t0, V.add(loc, V.mul(dir, t0)), dir);
+        if (outside) hit.shape = d > 0 ? hit.shape.fuse(cyl(rn)) : hit.shape.cut(cyl(r).cut(cyl(rn)));
+        else hit.shape = d < 0 ? hit.shape.cut(cyl(rn)) : hit.shape.fuse(cyl(r).cut(cyl(rn)));
+      } else fail('Nur ebene Flächen und Zylinderflächen (Bohrungen, Zapfen) lassen sich versetzen');
+      done++;
+    }
+    if (!done) fail('Gewählte Flächen nicht mehr gefunden – neu auswählen');
+    return;
+  }
+  if (f.type === 'align') {
+    // the body of the first face moves so that this face lies on the second one (facing it, or the same way round)
+    const [from, to] = f.faces || [];
+    if (!from || !to) fail('Zwei Flächen wählen: erst die am Körper, der bewegt wird, dann die Zielfläche');
+    const faceOn = p => { for (const b of bodies) { const bb = b.shape.boundingBox?.bounds; if (!bb || ![0, 1, 2].every(k => p[k] >= bb[0][k] - 1e-3 && p[k] <= bb[1][k] + 1e-3)) continue; const fs = new R.FaceFinder().containsPoint(p).find(b.shape); if (fs.length) { const nv = fs[0].normalAt(p); return { b, n: V.norm([nv.x, nv.y, nv.z]) }; } } return null; };
+    const A = faceOn(from), B = faceOn(to);
+    if (!A || !B) fail('Gewählte Flächen nicht mehr gefunden – neu auswählen');
+    if (A.b === B.b) fail('Die beiden Flächen müssen an verschiedenen Körpern liegen');
+    const want = f.flip ? B.n : V.mul(B.n, -1), dot = Math.max(-1, Math.min(1, V.dot(A.n, want)));
+    let shape = A.b.shape;
+    if (dot < 1 - 1e-9) {
+      const axis = dot > -1 + 1e-9 ? V.norm(V.cross(A.n, want)) : perp(A.n);
+      shape = shape.rotate((Math.acos(dot) * 180) / Math.PI, from, axis);
+    }
+    A.b.shape = shape.translate(V.add(V.sub(to, from), V.mul(B.n, +f.offset || 0)));
+    return;
+  }
+  if (f.type === 'replaceface') {
+    // a flat face moves onto another plane: the body is extended up to it or cut back to it, the side walls follow
+    if (!(f.faces || []).length) fail('Die Fläche wählen, die ersetzt werden soll');
+    const pl = planeRef(f.planeRef || 'XY', ctx.features);
+    if (!pl) fail('Zielebene fehlt');
+    const off = +f.offset || 0, nP0 = V.norm(pl.n), oP = pl.o.map((c, i) => c + nP0[i] * off);
+    let done = 0;
+    for (const p of f.faces) {
+      const hit = bodies.find(b => { const bb = b.shape.boundingBox?.bounds; return bb && [0, 1, 2].every(k => p[k] >= bb[0][k] - 1e-3 && p[k] <= bb[1][k] + 1e-3) && new R.FaceFinder().containsPoint(p).find(b.shape).length; });
+      if (!hit) continue;
+      const fc = new R.FaceFinder().containsPoint(p).find(hit.shape)[0];
+      if (fc.geomType !== 'PLANE') fail('Nur ebene Flächen lassen sich ersetzen');
+      const nv = fc.normalAt(p), n = V.norm([nv.x, nv.y, nv.z]);
+      let nP = nP0, along = V.dot(n, nP);
+      if (Math.abs(along) < 0.05) fail('Die Zielebene steht senkrecht zur Fläche – so lässt sie sich nicht ersetzen');
+      if (along < 0) { nP = V.mul(nP, -1); along = -along; }
+      // how far the face has to travel along its normal to reach the plane, at its farthest corner
+      let far = -Infinity;
+      for (const ed of fc.edges) for (const t of [0, 0.25, 0.5, 0.75, 1]) { const q = ed.pointAt(t); far = Math.max(far, V.dot(V.sub(oP, [q.x, q.y, q.z]), nP) / along); }
+      let shape = hit.shape;
+      if (far > 1e-6) shape = shape.fuse(R.basicFaceExtrusion(fc.clone(), new R.Vector(V.mul(n, far + 1))));
+      // everything beyond the plane goes
+      const [lo, hi] = shape.boundingBox.bounds, S = 4 * Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) + 10;
+      const xd = V.norm(Math.abs(nP[2]) < 0.9 ? V.cross(nP, [0, 0, 1]) : V.cross(nP, [1, 0, 0]));
+      const block = R.drawRectangle(2 * S, 2 * S).sketchOnPlane(new R.Plane(oP, xd, nP)).extrude(2 * S);
+      const res = shape.cut(block);
+      if (!res || res.isNull || !(R.measureVolume(res) > 1e-9)) fail('Von dem Körper bliebe nichts übrig – Zielebene oder Versatz prüfen');
+      hit.shape = res;
+      done++;
+    }
+    if (!done) fail('Gewählte Fläche nicht mehr gefunden – neu auswählen');
+    return;
+  }
   if (f.type === 'fillet' || f.type === 'chamfer') {
     const v = f.type === 'fillet' ? +f.radius : +f.distance;
     if (!(v > 0)) fail('Größe fehlt');
+    // "Veränderlicher Radius": the radius runs from one value at the start of each edge to another at its end
+    const v2 = f.type === 'fillet' && f.variable ? +f.radius2 : 0;
+    if (f.type === 'fillet' && f.variable) {
+      if (!(v2 > 0)) fail('Endradius fehlt');
+      if (f.all) fail('Veränderlicher Radius: einzelne Kanten wählen statt „Alle Kanten“');
+      // further radius points along the edge: [[position 0…1, radius] …] – computed in the full kernel
+      const mid = (f.law || []).map(q => [+q[0], +q[1]]).filter(q => q[0] > 0 && q[0] < 1 && q[1] > 0).sort((p, q) => p[0] - q[0]);
+      if (f.chain) {
+        // one radius course over the whole chain of edges: every edge gets the piece that falls on it
+        const course = [[0, f.flip ? v2 : v], ...(f.flip ? mid.map(([u, r]) => [1 - u, r]).reverse() : mid), [1, f.flip ? v : v2]];
+        const rAt = u => { for (let k = 1; k < course.length; k++) if (u <= course[k][0] + 1e-12) { const [u0, r0] = course[k - 1], [u1, r1] = course[k]; return r0 + ((r1 - r0) * (u - u0)) / Math.max(1e-12, u1 - u0); } return course[course.length - 1][1]; };
+        let nc = 0;
+        for (const b of bodies) {
+          const m = edgeMatcher(b.shape, f.edges || []);
+          if (!m.count) continue;
+          const es = b.shape.edges.filter(e => m.fn(e)).map(e => { const a = e.pointAt(0), z = e.pointAt(1), c = e.pointAt(0.5); return { a: [a.x, a.y, a.z], b: [z.x, z.y, z.z], p: [c.x, c.y, c.z], len: e.length }; });
+          const near3 = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 0.01;
+          // order the edges end to end, starting at an end that no other edge shares
+          const left = es.slice(), chain = [];
+          const freeEnd = e => [e.a, e.b].find(p => !es.some(o => o !== e && (near3(o.a, p) || near3(o.b, p))));
+          let cur = left.find(freeEnd) || left[0], at = freeEnd(cur) || cur.a;
+          while (cur) {
+            left.splice(left.indexOf(cur), 1);
+            const fwd = near3(cur.a, at);
+            chain.push({ e: cur, fwd });
+            at = fwd ? cur.b : cur.a;
+            cur = left.find(o => near3(o.a, at) || near3(o.b, at));
+          }
+          if (left.length) fail('Durchlaufender Radius: Die gewählten Kanten müssen eine zusammenhängende Kette bilden');
+          const total = chain.reduce((t, c) => t + c.e.len, 0);
+          let run = 0;
+          const laws = chain.map(({ e, fwd }) => {
+            const u0 = run / total, u1 = (run + e.len) / total;
+            run += e.len;
+            // radius points of the course that fall on this edge, as positions from its end a to its end b
+            const inner = course.filter(([u]) => u > u0 + 1e-9 && u < u1 - 1e-9).map(([u, r]) => { const t = (u - u0) / (u1 - u0); return [fwd ? t : 1 - t, r]; }).sort((p, q) => p[0] - q[0]);
+            return { p: e.p, a: e.a, b: e.b, ra: rAt(fwd ? u0 : u1), rb: rAt(fwd ? u1 : u0), inner };
+          });
+          nc += laws.length;
+          b.shape = viaFullKernel(b.shape, ['filletchain', laws], text => fullFilletLaw(text, laws, []));
+        }
+        if (!nc) fail('Keine Kanten gewählt (oder nicht mehr gefunden)');
+        return;
+      }
+      if (mid.length) {
+        const law = [[0, v], ...mid, [1, v2]].map(([u, r]) => [f.flip ? 1 - u : u, r]).sort((p, q) => p[0] - q[0]);
+        let nl = 0;
+        for (const b of bodies) {
+          const refs = (f.edges || []).filter(r => edgeMatcher(b.shape, [r]).count);
+          if (!refs.length) continue;
+          nl += refs.length;
+          b.shape = viaFullKernel(b.shape, ['filletlaw', refs, law], text => fullFilletLaw(text, refs, law));
+        }
+        if (!nl) fail('Keine Kanten gewählt (oder nicht mehr gefunden)');
+        return;
+      }
+      let nv = 0;
+      for (const b of bodies) {
+        const m = edgeMatcher(b.shape, f.edges || []);
+        if (!m.count) continue;
+        nv += m.count;
+        const rr = f.flip ? [v2, v] : [v, v2];
+        try { b.shape = b.shape.fillet(e => (m.fn(e) ? rr : null)); } catch { fail('Verrundung mit veränderlichem Radius nicht möglich – Radien verkleinern oder die Kante einzeln wählen'); }
+      }
+      if (!nv) fail('Keine Kanten gewählt (oder nicht mehr gefunden)');
+      return;
+    }
     let n = 0;
     for (const b of bodies) {
       if (f.all) { b.shape = f.type === 'fillet' ? b.shape.fillet(v) : b.shape.chamfer(v); n++; continue; }
@@ -1312,6 +1550,103 @@ function dropSnap(s) {
   for (const b of s.bodies) dropShape(b.shape);
   for (const t of Object.values(s.tools)) dropShape(t.tool);
 }
+// ---------- projected sketch geometry that follows the bodies ----------
+// A link says what is projected: { kind: 'edge', ref (edge midpoint), gt (curve type) }, { kind: 'face', ref (face
+// centre), gt, n (normal) }, { kind: 'body' | 'cut', body (id) }. projectGeometry finds it again on the bodies as
+// they are now (the nearest edge / face of the same kind) and returns its picture on the sketch plane B plus the
+// link with the new reference. A face link may carry `at` (a clicked point) to name the face exactly.
+export function projectGeometry(link, bodies, B) {
+  const v = new THREE.Vector3(), r4 = x => +x.toFixed(4), r5 = x => +x.toFixed(5);
+  const L = p => { v.set(p.x ?? p[0], p.y ?? p[1], p.z ?? p[2]).sub(B.o); return [v.dot(B.x), v.dot(B.y), v.dot(B.n)]; };
+  const dist = (p, r) => Math.hypot(p.x - r[0], p.y - r[1], p.z - r[2]);
+  const occ = bodies.filter(b => b.shape?.wrapped);
+  const sample = ed => { const N = ed.geomType === 'LINE' ? 1 : 64; return Array.from({ length: N + 1 }, (_, i) => L(ed.pointAt(i / N))); };
+  if (link.kind === 'edge') {
+    let best = null, bd = Infinity, same = null, sd = Infinity;
+    for (const b of occ) for (const ed of b.shape.edges) {
+      const m = ed.pointAt(0.5), d = dist(m, link.ref);
+      if (d < bd) { bd = d; best = { ed, m, b }; }
+      if (ed.geomType === link.gt && d < sd) { sd = d; same = { ed, m, b }; }
+    }
+    const hit = same || best;
+    if (!hit) return null;
+    // unsure: no edge of the same kind, or the edge has moved and another one of the same kind lies about as near
+    const moved = dist(hit.m, link.ref);
+    let unsure = !!link.gt && !same;
+    if (!unsure && moved > 0.01) {
+      for (const b of occ) for (const ed of b.shape.edges) {
+        if (ed.geomType !== hit.ed.geomType) continue;
+        const q = ed.pointAt(0.5);
+        if (Math.hypot(q.x - hit.m.x, q.y - hit.m.y, q.z - hit.m.z) < 1e-9) continue; // the chosen edge itself
+        if (dist(q, link.ref) < moved * 1.5 + 0.2) { unsure = true; break; }
+      }
+    }
+    const ent = curveEntity(sample(hit.ed));
+    return { ents: ent ? [ent] : [], link: { kind: 'edge', ref: [hit.m.x, hit.m.y, hit.m.z].map(r5), gt: hit.ed.geomType, body: hit.b.id, ...(unsure ? { warn: true } : {}) } };
+  }
+  if (link.kind === 'face') {
+    const centre = fc => { try { const c = fc.center; if (c) return c; } catch { /* below */ } return fc.pointOnSurface(0.5, 0.5); };
+    const normal = (fc, c) => { const nv = fc.normalAt(c), l = Math.hypot(nv.x, nv.y, nv.z) || 1; return [nv.x / l, nv.y / l, nv.z / l]; };
+    let hit = null, second = Infinity, first = Infinity;
+    if (link.at) {
+      for (const b of [...occ].sort((p, q) => (q.id === link.body) - (p.id === link.body))) {
+        const fs = new R.FaceFinder().containsPoint(link.at).find(b.shape);
+        if (fs.length) { hit = { fc: fs[0], b }; break; }
+      }
+    } else {
+      let bd = Infinity;
+      for (const b of occ) for (const fc of b.shape.faces) {
+        if (link.gt && fc.geomType !== link.gt) continue;
+        const c = centre(fc);
+        if (link.n) { const n = normal(fc, c); if (n[0] * link.n[0] + n[1] * link.n[1] + n[2] * link.n[2] < 0.7) continue; }
+        const d = dist(c, link.ref);
+        if (d < bd) { second = bd; bd = d; first = d; hit = { fc, b }; } else if (d < second) second = d;
+      }
+    }
+    if (!hit) return null;
+    const ents = [];
+    for (const w of hit.fc.wires) {
+      const loop = chainLoop(w.edges.map(sample));
+      const e = loop && curveEntity(loop, !w.edges.every(ed => ed.geomType === 'LINE'));
+      if (e && e.closed !== false) ents.push(e);
+    }
+    const c = centre(hit.fc);
+    const unsureF = !link.at && first > 0.01 && second < first * 1.5 + 0.2;
+    return { ents, link: { kind: 'face', ref: [c.x, c.y, c.z].map(r5), gt: hit.fc.geomType, n: normal(hit.fc, c).map(r5), body: hit.b.id, ...(unsureF ? { warn: true } : {}) } };
+  }
+  const b = bodies.find(x => x.id === link.body) || bodies[0];
+  if (!b) return null;
+  let nTri, tri, loc;
+  if (b.geometry?.index) {
+    const idx = b.geometry.index.array, pos = b.geometry.attributes.position.array;
+    nTri = idx.length / 3; tri = (t, k) => idx[t * 3 + k]; loc = i => L([pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]]);
+  } else {
+    const m = kernelOf(b.shape).mesh(b.shape);
+    nTri = m.triangles.length / 3; tri = (t, k) => m.triangles[t * 3 + k]; loc = i => L([m.vertices[i * 3], m.vertices[i * 3 + 1], m.vertices[i * 3 + 2]]);
+  }
+  const polys = link.kind === 'body' ? silhouette(nTri, tri, loc) : planeCut(nTri, tri, loc);
+  return { ents: polys.map(p => ({ type: 'poly', closed: p.closed, pts: p.pts.map(q => q.map(r4)) })), link: { kind: link.kind, body: b.id } };
+}
+// Bring the linked elements of a sketch up to date with the bodies (while the timeline is recomputed).
+export function updateProjections(sk, bodies) {
+  const groups = new Map();
+  for (const e of sk.entities || []) if (e.proj?.g) (groups.get(e.proj.g) || groups.set(e.proj.g, []).get(e.proj.g)).push(e);
+  if (!groups.size) return false;
+  const B = basis(sk);
+  for (const [g, olds] of groups) {
+    let res = null;
+    try { res = projectGeometry(olds[0].proj, bodies, B); } catch { /* keep the old picture */ }
+    if (!res || !res.ents.length) continue;
+    const at = sk.entities.indexOf(olds[0]), cons = olds[0].cons ? { cons: true } : {};
+    // a doubt stays until the user has looked at it (the next pass finds the edge where it is now, without doubt)
+    const warn = res.link.warn || olds[0].proj.warn ? { warn: true } : {};
+    const fresh = res.ents.map((e, k) => ({ ...e, id: olds[k]?.id || `${g}_${k}`, projected: true, proj: { ...res.link, g, ...warn }, ...cons }));
+    sk.entities = sk.entities.filter(e => !olds.includes(e));
+    sk.entities.splice(Math.min(at, sk.entities.length), 0, ...fresh);
+  }
+  return true;
+}
+
 // derived values a feature writes back (followed cylinder axes, sketch planes on construction planes)
 const PATCH_KEYS = ['pts', 'r', 'plane'];
 function takeSnap(ctx, errors, patches) {
@@ -1434,6 +1769,8 @@ function* regenSteps(project, upTo = null) {
       if (f.type === 'sketch') {
         // a sketch on a construction plane follows it (the plane may depend on a cylinder updated just before)
         if (f.planeRef) { const pl = planeRef(f.planeRef, project.features); if (pl) f.plane = pl; }
+        // projected geometry follows the bodies as they are at this point of the timeline
+        if (f.entities?.some(e => e.proj)) { try { updateProjections(f, ctx.bodies); } catch { /* keeps the stored picture */ } }
         ctx.sketches[f.id] = f;
         break run;
       }
@@ -1457,6 +1794,7 @@ function* regenSteps(project, upTo = null) {
     const pv = {};
     for (const k of PATCH_KEYS) if (f[k] !== undefined && (k !== 'plane' || f.planeRef)) pv[k] = f[k];
     if (Object.keys(pv).length && (f.planeRef || f.kind === 'cyl' || f.kind === 'tangent' || f.type === 'emboss')) patches[f.id] = JSON.parse(JSON.stringify(pv));
+    if (f.type === 'sketch' && !f.suppressed && f.entities?.some(e => e.proj)) patches[f.id] = { ...(patches[f.id] || {}), entities: JSON.parse(JSON.stringify(f.entities)) };
     if (!snapCache.has(keys[i])) {
       snapCache.set(keys[i], takeSnap(ctx, errors, patches));
       while (snapCache.size > SNAP_MAX) { const [k0, s0] = snapCache.entries().next().value; snapCache.delete(k0); dropSnap(s0); }
@@ -1559,7 +1897,7 @@ export function sketchVisual(sketch, { active = false, selectedId = null, dark =
       if (o.closed) pts.push(pts[0].clone());
       //: under-defined geometry is blue, fully defined is black/white
       const base = active ? (constrained ? (dark ? 0xe6edf3 : 0x1d2733) : dark ? 0x5aaaf0 : 0x1f6fd1) : o.closed ? (dark ? 0xe0b25a : 0x7a5a1e) : dark ? 0x9aa7b4 : 0x8a96a3;
-      const col = e.id === selectedId ? 0x0696d7 : e.cons ? (dark ? 0xff9a3c : 0xe07000) : base;
+      const col = e.id === selectedId ? 0x0696d7 : e.cons ? (dark ? 0xff9a3c : 0xe07000) : e.proj?.warn ? 0xe8590c : e.projected && active ? (dark ? 0xc98bea : 0x9b3fc4) : base;
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), e.cons ? consMat(col, active) : lineMat(col, active));
       if (e.cons) line.computeLineDistances();
       line.renderOrder = 5;

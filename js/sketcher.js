@@ -41,6 +41,7 @@ export class Sketcher {
     this.offsetVal = 2; // last offset distance (preview and prompt)
     this.xformIds = []; // entities the mirror / pattern tools work on (set when the tool starts)
     this.patternVal = { nx: 3, ny: 1, n: 6, ang: 360 }; // last pattern counts (preview and prompt)
+    this.xbase = null; // move / rotate tools: the first clicked point (start of the move, pivot of the turn)
     this.locks = {};        // values typed while drawing
     this.segDims = [];      // typed line lengths, per polyline segment
     this.inp = null;        // value boxes while drawing
@@ -239,6 +240,15 @@ export class Sketcher {
       this.dimPreview = pv;
       if (changed) this.hooks.overlay();
       this.hooks.tip(pv ? 'Klicken: Bemaßung hier ablegen' : this.dim.refs.length ? 'Zweites Element wählen' : 'Linie, Kreis oder Punkt wählen', e);
+      return;
+    }
+    if (this.tool === 'xmove' || this.tool === 'xrot') {
+      this.cur = this.snap(p);
+      this.drawPreview();
+      const q = this.xbase && this.xformValue(this.cur), c = v => String(+(+v).toFixed(2)).replace('.', ',');
+      this.hooks.tip(this.tool === 'xmove'
+        ? (q ? `Klicken: um X ${c(q.dx)} / Y ${c(q.dy)} mm verschieben · Esc beendet` : 'Ausgangspunkt anklicken · Esc beendet')
+        : (q ? `Klicken: um ${c(q.ang)}° drehen · Esc beendet` : 'Drehpunkt anklicken · Esc beendet'), e);
       return;
     }
     if (this.tool === 'mirror' || this.tool === 'prect' || this.tool === 'pcirc') {
@@ -542,9 +552,31 @@ export class Sketcher {
     return Number.isFinite(x0) ? [(x0 + x1) / 2, (y0 + y1) / 2] : [0, 0];
   }
 
+  // what the move / rotate tool would do with the mouse at sp: { dx, dy } or { c, ang } (angle in steps of 1°,
+  // measured from the direction pivot → middle of the elements, or from +X when the pivot is that middle)
+  xformValue(sp) {
+    const b = this.xbase;
+    if (!b) return null;
+    if (this.tool === 'xmove') { const [dx, dy] = this.axisLock(sp[0] - b[0], sp[1] - b[1]); return { dx: +dx.toFixed(3), dy: +dy.toFixed(3) }; }
+    const o = this.xformOrigin(), ref = Math.hypot(o[0] - b[0], o[1] - b[1]) > 1e-6 ? Math.atan2(o[1] - b[1], o[0] - b[0]) : 0;
+    if (Math.hypot(sp[0] - b[0], sp[1] - b[1]) < 1e-9) return { c: b, ang: 0 };
+    let ang = ((Math.atan2(sp[1] - b[1], sp[0] - b[0]) - ref) * 180) / Math.PI;
+    ang = Math.round((((ang + 180) % 360) + 360) % 360 - 180);
+    return { c: [+b[0].toFixed(3), +b[1].toFixed(3)], ang };
+  }
+
   click(e) {
     const raw = this.localPoint(e);
     if (!raw) return;
+
+    if (this.tool === 'xmove' || this.tool === 'xrot') {
+      const sp = this.snap(raw);
+      if (!this.xbase) { this.xbase = sp; this.cur = sp; this.drawPreview(); return; }
+      const q = this.xformValue(sp);
+      this.xbase = null;
+      this.hooks.xform?.(this.tool, q);
+      return;
+    }
 
     if (this.tool === 'project') { this.hooks.project(e); return; }
 
@@ -861,6 +893,24 @@ export class Sketcher {
 
   drawPreview() {
     this.vp.clear(this.preview);
+    if (this.active && this.cur && (this.tool === 'xmove' || this.tool === 'xrot')) {
+      // the elements where they would land, and the way of the mouse from the first point
+      this.preview.matrix.copy(planeMatrix(this.sketch));
+      const mat = new THREE.LineBasicMaterial({ color: 0xff7a00, depthTest: false, transparent: true });
+      const add = pts => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(q => new THREE.Vector3(q[0], q[1], 0.06))), mat); l.renderOrder = 11; this.preview.add(l); };
+      const r = this.vp.worldPerPixel() * 6, at = this.xbase || this.cur;
+      if (Number.isFinite(r)) add(Array.from({ length: 25 }, (_, i) => [at[0] + r * Math.cos((i / 24) * Math.PI * 2), at[1] + r * Math.sin((i / 24) * Math.PI * 2)]));
+      const q = this.xformValue(this.cur);
+      if (!q) return;
+      add([this.xbase, this.cur]);
+      for (const id of this.xformIds) {
+        const x = this.entities.find(y => y.id === id);
+        if (!x) continue;
+        const c = this.tool === 'xmove' ? translateEntity(x, q.dx, q.dy) : rotateEntity(x, q.ang, q.c);
+        for (const o of entityOutlines(c)) add(o.closed ? [...o.pts, o.pts[0]] : o.pts);
+      }
+      return;
+    }
     if (this.active && this.cur && (this.tool === 'mirror' || this.tool === 'prect' || this.tool === 'pcirc')) {
       // the copies the tool would make, drawn as outlines
       const src = this.xformIds.map(id => this.entities.find(x => x.id === id)).filter(Boolean);

@@ -148,8 +148,69 @@ function inTri2(V, o, x, y) {
   const e = 1e-12;
   return !((d1 < -e || d2 < -e || d3 < -e) && (d1 > e || d2 > e || d3 > e));
 }
-// Lowest tip Z of a ball (radius r) or flat cutter at (x, y) touching triangle v: facet, edges and corners.
-export function dropTri(V, o, x, y, r, ball) {
+// Corner radius of a torus (bull-nose) cutter: an end mill whose flat end runs into the wall with a radius.
+// 0 for every other tool. (Inside the CAM a torus cutter has type 'flat' and kind 'torus'.)
+export function cornerOf(tool) {
+  if (!tool || tool.profile) return 0;
+  const k = tool.kind || tool.type;
+  if ((k !== 'torus' && k !== 'flat') || (tool.type !== 'flat' && tool.type !== 'torus')) return 0;
+  return Math.max(0, Math.min((+tool.dia || 0) / 2, +tool.cornerR || 0));
+}
+// Torus cutter (radius r, corner radius rc) on one triangle. The cutter is a flat disc of radius r - rc with a
+// ball of radius rc rolled around it; at distance d from the axis its cutting edge lies lift(d) above the tip.
+function dropTriTorus(V, o, x, y, r, rc) {
+  let best = -Infinity;
+  const rf = r - rc, rr = r * r;
+  const lift = d => (d <= rf ? 0 : rc - Math.sqrt(Math.max(0, rc * rc - (d - rf) * (d - rf))));
+  const ux = V[o + 3] - V[o + 0], uy = V[o + 4] - V[o + 1], uz = V[o + 5] - V[o + 2], wx = V[o + 6] - V[o + 0], wy = V[o + 7] - V[o + 1], wz = V[o + 8] - V[o + 2];
+  let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+  const L = Math.sqrt(nx * nx + ny * ny + nz * nz);
+  if (L > 1e-12) {
+    if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    nx /= L; ny /= L; nz /= L;
+    if (nz > 1e-6) {
+      const plane = (qx, qy) => V[o + 2] - (nx * (qx - V[o + 0]) + ny * (qy - V[o + 1])) / nz;
+      const lh = Math.sqrt(nx * nx + ny * ny);
+      if (lh < 1e-9) { if (inTri2(V, o, x, y)) best = V[o + 2]; }
+      else {
+        // a slope touches the rounded corner on its uphill side: tube centre = contact + rc * n
+        const qx = x - (rf * nx) / lh - rc * nx, qy = y - (rf * ny) / lh - rc * ny;
+        if (inTri2(V, o, qx, qy)) best = plane(qx, qy) + rc * nz - rc;
+      }
+    }
+  }
+  for (let e = 0; e < 3; e++) {
+    const a = e * 3, b = ((e + 1) % 3) * 3;
+    const Px = V[o + a], Py = V[o + a + 1], Pz = V[o + a + 2];
+    const dx = Px - x, dy = Py - y, d2 = dx * dx + dy * dy;
+    if (d2 <= rr) { const c = Pz - lift(Math.sqrt(d2)); if (c > best) best = c; }
+    const Dx = V[o + b] - Px, Dy = V[o + b + 1] - Py, Dz = V[o + b + 2] - Pz;
+    const A = Dx * Dx + Dy * Dy;
+    if (A < 1e-18) continue;
+    // the part of the edge under the cutter, then the highest tip along it (samples, refined around the best)
+    const B = 2 * (dx * Dx + dy * Dy), C = d2 - rr, disc = B * B - 4 * A * C;
+    if (disc < 0) continue;
+    const sq = Math.sqrt(disc), s0 = Math.max(0, (-B - sq) / (2 * A)), s1 = Math.min(1, (-B + sq) / (2 * A));
+    if (s0 >= s1) continue;
+    const g = s => Pz + s * Dz - lift(Math.min(r, Math.hypot(dx + s * Dx, dy + s * Dy)));
+    const N = 8;
+    let bi = 0, bv = -Infinity;
+    for (let i = 0; i <= N; i++) { const v = g(s0 + ((s1 - s0) * i) / N); if (v > bv) { bv = v; bi = i; } }
+    let lo = s0 + ((s1 - s0) * Math.max(0, bi - 1)) / N, hi = s0 + ((s1 - s0) * Math.min(N, bi + 1)) / N;
+    for (let it = 0; it < 18; it++) {
+      const m1 = lo + (hi - lo) * 0.382, m2 = lo + (hi - lo) * 0.618;
+      if (g(m1) < g(m2)) lo = m1; else hi = m2;
+    }
+    bv = Math.max(bv, g((lo + hi) / 2));
+    if (bv > best) best = bv;
+  }
+  return best;
+}
+
+// Lowest tip Z of a ball (radius r), flat or torus cutter (corner radius rc) at (x, y) touching triangle v:
+// facet, edges and corners.
+export function dropTri(V, o, x, y, r, ball, rc = 0) {
+  if (!ball && rc > 0) return dropTriTorus(V, o, x, y, r, rc);
   let best = -Infinity;
   const rr = r * r;
   // facet
@@ -213,6 +274,9 @@ export function dropCutter(hm, x, y, tool, floor) {
   const rr = r * r;
   const half = ((tool.angle || 90) / 2) * (Math.PI / 180);
   const tipR = (tool.tip || 0) / 2;
+  // torus cutter: flat up to r - cr, then the corner radius
+  const cr = cornerOf(tool), rf = r - cr;
+  const lift = d2 => { const d = Math.sqrt(d2); return d <= rf ? 0 : cr - Math.sqrt(Math.max(0, cr * cr - (d - rf) * (d - rf))); };
   let best = -Infinity;
   const at = (z, d2) => {
     if (tool.profile) {
@@ -221,7 +285,7 @@ export function dropCutter(hm, x, y, tool, floor) {
     }
     if (tool.type === 'ball') return z + Math.sqrt(rr - d2) - r;
     if (tool.type === 'chamfer' || tool.type === 'drill') return z - Math.max(0, Math.sqrt(d2) - tipR) / Math.tan(half);
-    return z;
+    return cr > 0 ? z - lift(d2) : z;
   };
   // extra samples on step edges (they lie within one grid step of their cell)
   if (hm.vPts) {
@@ -255,16 +319,18 @@ export function dropCutter(hm, x, y, tool, floor) {
         c = z - (pr[k][1] * (1 - w) + pr[k + 1][1] * w);
       } else if (tool.type === 'ball') c = z + Math.sqrt(rr - d2) - r;
       else if (tool.type === 'chamfer' || tool.type === 'drill') c = z - Math.max(0, Math.sqrt(d2) - tipR) / Math.tan(half);
+      else if (cr > 0) c = z - lift(d2);
       if (c > best) best = c;
     }
   }
   // flat end: the rim can rest on a slope between the grid points (a slope rising inside the circle is missed by
   // the point samples). Sample the rim on the bilinear surface, where the four cells around it are one continuous
   // surface – real steps are covered by the edge samples above.
-  if (!tool.profile && tool.type !== 'ball' && tool.type !== 'chamfer' && tool.type !== 'drill' && r > 0) {
-    const n = Math.max(16, Math.ceil((2 * Math.PI * r) / (res * 0.5))), lim = 2 * res;
+  if (!tool.profile && tool.type !== 'ball' && tool.type !== 'chamfer' && tool.type !== 'drill' && rf > 0) {
+    // (torus: the rim of its flat part)
+    const n = Math.max(16, Math.ceil((2 * Math.PI * rf) / (res * 0.5))), lim = 2 * res;
     for (let q = 0; q < n; q++) {
-      const a = (q / n) * 2 * Math.PI, fi = (x + r * Math.cos(a) - minX) / res, fj = (y + r * Math.sin(a) - minY) / res;
+      const a = (q / n) * 2 * Math.PI, fi = (x + rf * Math.cos(a) - minX) / res, fj = (y + rf * Math.sin(a) - minY) / res;
       const i = Math.floor(fi), j = Math.floor(fj);
       if (i < 0 || j < 0 || i >= nx - 1 || j >= ny - 1) continue;
       const k = j * nx + i, h00 = h[k], h10 = h[k + 1], h01 = h[k + nx], h11 = h[k + nx + 1];
@@ -293,7 +359,7 @@ export function dropCutter(hm, x, y, tool, floor) {
           const t = list[e];
           if (stamp[t] === gen || tz[t] <= best) continue; // the tip cannot rise above the triangle's top corner
           stamp[t] = gen;
-          const c = dropTri(tv, t * 9, x, y, r, ball);
+          const c = dropTri(tv, t * 9, x, y, r, ball, cr);
           if (c > best) best = c;
         }
       }
@@ -311,7 +377,7 @@ export function dropCutter(hm, x, y, tool, floor) {
         const ax = nrm[2 * k], ay = nrm[2 * k + 1], lh = Math.sqrt(ax * ax + ay * ay);
         if (lh < 1e-3) continue; // horizontal
         let qx, qy;
-        if (ball) { qx = x - r * ax; qy = y - r * ay; } else { qx = x - (r * ax) / lh; qy = y - (r * ay) / lh; }
+        if (ball) { qx = x - r * ax; qy = y - r * ay; } else { qx = x - (rf * ax) / lh - cr * ax; qy = y - (rf * ay) / lh - cr * ay; }
         if (Math.abs(qx - (minX + i * res)) > m || Math.abs(qy - py) > m) continue;
         testAround(qx, qy);
       }

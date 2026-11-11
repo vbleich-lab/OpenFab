@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { stockTopAt, stockBotAt, STOCK_MATERIALS } from './cam.js';
 import { shaftDia, fluteLen } from './tooldraw.js';
+import { cornerOf } from './heightmap.js';
 
 // cutting length when the tool library has none: drills are long, mills ~3×Ø
 export const defaultFluteLen = t => (t.type === 'drill' ? 8 : 3) * t.dia;
@@ -116,7 +117,7 @@ export class StockSim {
     const r = tool.dia / 2;
     const half = ((tool.angle || 90) / 2) * (Math.PI / 180);
     const tipR = (tool.tip || 0) / 2;
-    const kind = tool.type;
+    const kind = tool.type, cr = cornerOf(tool);
     const { minX, minY } = this.stock;
     const i0 = Math.max(0, Math.floor((x - r - minX) / this.dx));
     const i1 = Math.min(this.nx - 1, Math.ceil((x + r - minX) / this.dx));
@@ -137,6 +138,7 @@ export class StockSim {
         if (d2 > rr) continue;
         let zc = z;
         if (kind === 'ball') zc = z + r - Math.sqrt(rr - d2);
+        else if (cr > 0) { const d = Math.sqrt(d2); if (d > r - cr) zc = z + cr - Math.sqrt(Math.max(0, cr * cr - (d - (r - cr)) * (d - (r - cr)))); }
         else if (kind === 'chamfer' || kind === 'drill') zc = z + Math.max(0, Math.sqrt(d2) - tipR) / Math.tan(half);
         const hv = this.h[row + i];
         if (hv > shankZ + 0.01 && hv > this.b[row + i]) shankHit = true;

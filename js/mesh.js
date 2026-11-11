@@ -2,6 +2,42 @@
 // A mesh is { pos: Float32Array (x,y,z per vertex), idx: Uint32Array (3 per triangle) }.
 import * as THREE from 'three';
 
+// Volume, centre of mass and moments of inertia of a closed triangle mesh (density 1): exact integrals over the
+// triangles (divergence theorem). I = [Ixx, Iyy, Izz, Ixy, Iyz, Izx] about axes through the centre of mass
+// parallel to X, Y, Z; units mm³, mm, mm⁵.
+export function meshInertia(geometry) {
+  const pos = geometry.attributes.position, idx = geometry.index;
+  const nTri = (idx ? idx.count : pos.count) / 3, g = new Float64Array(10);
+  const sub = (w0, w1, w2) => {
+    const t0 = w0 + w1, f1 = t0 + w2, t1 = w0 * w0, t2 = t1 + w1 * t0, f2 = t2 + w2 * f1, f3 = w0 * t1 + w1 * t2 + w2 * f2;
+    return [f1, f2, f3, f2 + w0 * (f1 + w0), f2 + w1 * (f1 + w1), f2 + w2 * (f1 + w2)];
+  };
+  for (let t = 0; t < nTri; t++) {
+    const a = idx ? idx.getX(3 * t) : 3 * t, b = idx ? idx.getX(3 * t + 1) : 3 * t + 1, c = idx ? idx.getX(3 * t + 2) : 3 * t + 2;
+    const x0 = pos.getX(a), y0 = pos.getY(a), z0 = pos.getZ(a), x1 = pos.getX(b), y1 = pos.getY(b), z1 = pos.getZ(b), x2 = pos.getX(c), y2 = pos.getY(c), z2 = pos.getZ(c);
+    const a1 = x1 - x0, b1 = y1 - y0, c1 = z1 - z0, a2 = x2 - x0, b2 = y2 - y0, c2 = z2 - z0;
+    const d0 = b1 * c2 - b2 * c1, d1 = a2 * c1 - a1 * c2, d2 = a1 * b2 - a2 * b1;
+    const X = sub(x0, x1, x2), Y = sub(y0, y1, y2), Z = sub(z0, z1, z2);
+    g[0] += d0 * X[0];
+    g[1] += d0 * X[1]; g[2] += d1 * Y[1]; g[3] += d2 * Z[1];
+    g[4] += d0 * X[2]; g[5] += d1 * Y[2]; g[6] += d2 * Z[2];
+    g[7] += d0 * (y0 * X[3] + y1 * X[4] + y2 * X[5]);
+    g[8] += d1 * (z0 * Y[3] + z1 * Y[4] + z2 * Y[5]);
+    g[9] += d2 * (x0 * Z[3] + x1 * Z[4] + x2 * Z[5]);
+  }
+  const mult = [1 / 6, 1 / 24, 1 / 24, 1 / 24, 1 / 60, 1 / 60, 1 / 60, 1 / 120, 1 / 120, 1 / 120];
+  for (let i = 0; i < 10; i++) g[i] *= mult[i];
+  const vol = g[0];
+  if (!(Math.abs(vol) > 1e-12)) return null;
+  const cx = g[1] / vol, cy = g[2] / vol, cz = g[3] / vol;
+  const s = Math.sign(vol);
+  return {
+    volume: Math.abs(vol), com: [cx, cy, cz],
+    I: [s * (g[5] + g[6] - vol * (cy * cy + cz * cz)), s * (g[4] + g[6] - vol * (cz * cz + cx * cx)), s * (g[4] + g[5] - vol * (cx * cx + cy * cy)),
+      -s * (g[7] - vol * cx * cy), -s * (g[8] - vol * cy * cz), -s * (g[9] - vol * cz * cx)],
+  };
+}
+
 // ---------- reading ----------
 export function parseSTL(buf) {
   const dv = new DataView(buf);

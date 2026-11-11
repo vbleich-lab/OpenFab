@@ -20,7 +20,7 @@ p.cam.ops = OPS;
 const gens = p.cam.setups.map(st => { const g = cam.generateSetup(p, bodies, st, null, null); g.setup = st; return g; });
 for (const g of gens) for (const op of g.ops) {
   const r = g.results.get(op.id);
-  ok(`Erzeugt: ${op.name}`, r && !r.error && (r.moves?.length > 0 || r.probe), r?.error || '');
+  ok(`Erzeugt: ${op.name}`, r && !r.error && (r.moves?.length > 0 || r.probe || r.manual), r?.error || '');
 }
 
 const VARIANTS = {

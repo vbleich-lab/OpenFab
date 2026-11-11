@@ -32,6 +32,8 @@ jobs:
         run: npm run test:lathe
       - name: Zeichnung (Maße, Winkel, Hinweise)
         run: npm run test:drawing
+      - name: Konstruktion (Trägheitsmomente, Skizze skalieren)
+        run: npm run test:design
       - name: Sprachen (Wörterbücher, Übersetzung zur Laufzeit)
         run: npm run test:i18n
       - name: Updates (Versionsvergleich)

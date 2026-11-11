@@ -8,18 +8,20 @@ import { initUpdates, checkForUpdates } from './update.js';
 import { setActiveKernel, activeKernelId, getKernel } from './kern/index.js';
 import './kern/rust.js';
 import { THREAD_SIZES, meshBody } from './model.js';
-import { sheetBase, regenerate, regenerateAsync, estimateRegen, featureKey, sketchVisual, edgeMidpoint, edgeRefMatches, exportSTEP, bodyProps, interference, FEATURE_TYPES, OPS, SOLID_SOURCES, cylinderInfo, cylinderFaces } from './model.js';
+import { sheetBase, regenerate, regenerateAsync, estimateRegen, featureKey, sketchVisual, edgeMidpoint, edgeRefMatches, exportSTEP, bodyProps, interference, FEATURE_TYPES, OPS, SOLID_SOURCES, cylinderInfo, cylinderFaces, projectGeometry, clearTimelineCache } from './model.js';
 import { Sketcher } from './sketcher.js';
-import { buildHeightmap } from './heightmap.js';
-import { generateSetup, stockTopAt, stockBotAt, opHeights, originOf, originLabel, orientationLabel, OP_TYPES, DRILL_CYCLES, ORIGINS, TOOL_TYPES, ORIENTATIONS, RAPID_FEED, setupMatrix, sketchHorizontalIn, OPS_3D, PROBE_MODES, toolBase, STOCK_MODES, STOCK_MATERIALS, BOUNDARY_MODES, setupBodies, heightSpec, HEIGHT_KEYS, HEIGHT_FROM, applyCutData } from './cam.js';
+import { buildHeightmap, cornerOf } from './heightmap.js';
+import { generateSetup, stockTopAt, stockBotAt, opHeights, originOf, originLabel, orientationLabel, OP_TYPES, DRILL_CYCLES, ORIGINS, TOOL_TYPES, ORIENTATIONS, RAPID_FEED, setupMatrix, sketchHorizontalIn, OPS_3D, PROBE_MODES, MANUAL_KINDS, PATTERN_KINDS, orderByTool, opCells, toolBase, STOCK_MODES, STOCK_MATERIALS, BOUNDARY_MODES, setupBodies, heightSpec, HEIGHT_KEYS, HEIGHT_FROM, applyCutData } from './cam.js';
 import { postProcess, runPost, allPosts, findPost, copyPost, setPostLibrary, SECTIONS, VARIABLES, POST_PROPS, POST_PROP_GROUPS, postProps, propApplies, propType, COOLANT_MODES } from './post.js';
 import { allMachines, findMachine, copyMachine, newMachine, machineChecks, KIN_TYPES, kinAngles } from './machines.js';
 import { StockSim, defaultFluteLen, defaultHolderDia, defaultStickout } from './sim.js';
 import { exampleProject, exampleTurning } from './example.js';
-import { describeEntity, entityPolys, translateEntity, rotateEntity, mirrorEntity as mirrorAbout } from './profiles.js';
+import { describeEntity, entityPolys, translateEntity, rotateEntity, scaleEntity, mirrorEntity as mirrorAbout } from './profiles.js';
+import { meshInertia } from './mesh.js';
 import { applyCorners, cornerPlan } from './sketchcorner.js';
 import { offsetEntities } from './sketchoffset.js';
 import { parseDXF, writeDXF } from './dxf.js';
+import { inkFromRGBA, traceImage, toSketch, toSVG, toEntities, quantize, inkOfColors, simplify as simplifyLine } from './trace.js';
 import { loadFonts, FONTS } from './fonts.js';
 import { solveSketch, lockedFields, sketchHandles, constraintFor, dimensionFor, dimBase, measure as measureDim, refKind, refEntity, CONSTRAINTS, GLYPH, DIM_KINDS } from './solver.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -27,7 +29,7 @@ import { BASE_PLANES, sketchPlane, planeLabel, planeOffset, planeFromFace, basis
 import { resolveProject, paramScope, evalExpr } from './params.js';
 import { ICONS } from './icons.js';
 import { getSettings, saveSettings, resetSettings, DEFAULTS, MOUSE_PRESETS } from './settings.js';
-import { getBlob, putBlob, loadBlobs, withBlobs, takeBlobs, igesToStep, stepToIges, parseToolLibrary, convertCps } from './interop.js';
+import { getBlob, putBlob, loadBlobs, withBlobs, takeBlobs, igesToStep, stepToIges, onFullKernel, requestFullKernel, parseToolLibrary, convertCps } from './interop.js';
 import { makeDrawing, SHEETS, VIEWS as DRAW_VIEWS } from './drawing.js';
 import { bodyMatrix, hasAssembly, transformShape, JOINT_TYPES, JOINT_DOF, jointValues } from './assembly.js';
 import { flatPattern, polyEdges, bendAllowance } from './sheetmetal.js';
@@ -369,6 +371,29 @@ function installModel(key, r, t0) {
   // "indirect" keeps the triangle order – faceOf (triangle → B-rep face) depends on it
   for (const b of r.bodies) { try { if (b.geometry.index && b.geometry.attributes.position.count) b.geometry.computeBoundsTree({ indirect: true }); } catch { /* raycast falls back */ } }
   model = { key, ...r, box, ms: performance.now() - t0 };
+  syncProjections();
+}
+// Projected sketch geometry was brought up to date while the model was computed. The stored sketch gets the new
+// picture too (not an undo step), so that dimensions and constraints attached to it are solved with it: that
+// changes the project once more, and the next pass finds nothing left to do.
+let projSync = 0;
+function syncProjections() {
+  if (state.sketchId || replayCount() != null) return;
+  const rf = resolvedCache.p?.features || [];
+  let changed = false;
+  for (const f of rf) {
+    if (f.type !== 'sketch' || f.suppressed || !f.entities?.some(e => e.proj)) continue;
+    const raw = state.project.features.find(x => x.id === f.id);
+    if (!raw) continue;
+    const now = f.entities.filter(e => e.proj), was = raw.entities.filter(e => e.proj);
+    if (JSON.stringify(now) === JSON.stringify(was)) continue;
+    raw.entities = [...raw.entities.filter(e => !e.proj), ...JSON.parse(JSON.stringify(now))];
+    changed = true;
+  }
+  if (!changed) { projSync = 0; return; }
+  if (++projSync > 3) return; // never more than a few passes in a row
+  persist();
+  setTimeout(() => renderAll(), 0);
 }
 function getModel() {
   const rp = resolved();
@@ -715,6 +740,7 @@ function pressPullPick(e, meshes, m) {
 }
 
 let lastClipCount = 0;
+let sketchSlice = false; // "Schnitt" of the sketch palette: hide what lies in front of the sketch plane
 function applySection() {
   const sct = state.section;
   let planes = null;
@@ -722,7 +748,11 @@ function applySection() {
     const n = new THREE.Vector3(...{ x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[sct.axis]).multiplyScalar(sct.flip ? 1 : -1);
     planes = [new THREE.Plane(n, sct.flip ? -sct.offset : sct.offset)];
   }
-  const count = planes ? 1 : 0;
+  if (sketchSlice && state.sketchId) {
+    const sk = resolved().features.find(f => f.id === state.sketchId);
+    if (sk) { const B = basis(sk); (planes ||= []).push(new THREE.Plane(B.n.clone().negate(), B.n.dot(B.o) + 0.001)); }
+  }
+  const count = planes ? planes.length : 0;
   for (const m of [matBody, matGhost, matEdge, matEdgeGhost, matMesh, matMeshSel, ...bodyMats.values()]) {
     m.clippingPlanes = planes;
     if (count !== lastClipCount) m.needsUpdate = true;
@@ -2215,14 +2245,24 @@ function toolbarTabs() {
         T('ellipse', 'Ellipse', 'ellipse', 'E'), T('spline', 'Spline', 'spline', 'B'), T('ngon', 'Polygon', 'ngon', 'P'), T('slot', 'Langloch', 'slot', 'O'), tbtn('text', 'Text', () => sketcher.setTool('text'), sketcher.tool === 'text' ? 'active' : '', 'Text'),
         ...[['rectc', 'Mittelpunkt-Rechteck', 'rectc'], ['rect3', '3-Punkt-Rechteck', 'rect3'], ['circle2', '2-Punkt-Kreis', 'circle2'], ['circle3', '3-Punkt-Kreis', 'circle3'], ['arcc', 'Mittelpunkt-Bogen', 'arcc'], ['arct', 'Tangentialbogen', 'arct']]
           .map(([icon, label, tool]) => tbtn(icon, label, () => sketcher.setTool(tool), sketcher.tool === tool ? 'active' : '', label)),
-        T('project', 'Projizieren', 'project', 'J'), tbtn('example', 'DXF-Import', () => $('#dxfInput').click(), '', 'DXF in diese Skizze importieren')),
+        tbtn('project', 'Projizieren', () => startProject('face'), sketcher.tool === 'project' && projectMode === 'face' ? 'active' : '', 'Projizieren (J): Fläche oder Kante eines Körpers anklicken – ihr Abbild kommt in die Skizze'),
+        tbtn('combine', 'Körperumriss projizieren', () => startProject('body'), sketcher.tool === 'project' && projectMode === 'body' ? 'active' : '', 'Körperumriss projizieren: Körper anklicken – sein Schattenriss auf der Skizzenebene'),
+        tbtn('section', 'Schnittkurven', () => startProject('cut'), sketcher.tool === 'project' && projectMode === 'cut' ? 'active' : '', 'Schnittkurven: Körper anklicken – wo die Skizzenebene ihn schneidet')),
+      tgroup('EINFÜGEN', tbtn('decal', 'Bild nachzeichnen', traceImageDialog, '', 'Bild nachzeichnen: aus einem Bild Konturen oder Mittellinien als Skizzenkurven, SVG oder DXF erzeugen'),
+        tbtn('canvas', 'Bild als Vorlage', insertCanvas, '', 'Bild als Vorlage auf die Skizzenebene legen (zum Nachzeichnen von Hand)'),
+        tbtn('measure', 'Vorlage kalibrieren', () => calibrateCanvas(), '', 'Vorlage kalibrieren: zwei Punkte im Bild anklicken und ihren wirklichen Abstand eingeben'),
+        tbtn('svgfile', 'SVG einfügen', insertSVG, '', 'SVG-Datei in diese Skizze einfügen'),
+        tbtn('dxffile', 'DXF einfügen', () => $('#dxfInput').click(), '', 'DXF-Datei in diese Skizze einfügen')),
       tgroup('ÄNDERN', T('trim', 'Stutzen', 'trim', 'T'), tbtn('extend', 'Verlängern', () => sketcher.setTool('extend'), sketcher.tool === 'extend' ? 'active' : '', 'Verlängern: offenes Linienende bis zur nächsten Kante'),
         tbtn('fillet', 'Abrunden', sketchFillet, sketcher.tool === 'fillet' ? 'active' : '', 'Abrunden: Ecken anklicken (Linienzug, Rechteck, zwei Linien)'),
         tbtn('edgechamfer', 'Fase', sketchChamfer, sketcher.tool === 'chamfer' ? 'active' : '', 'Fase: Ecken anklicken (Linienzug, Rechteck, zwei Linien)'),
         tbtn('offset', 'Versatz', sketchOffset, sketcher.tool === 'offset' ? 'active' : '', 'Versatz: neben eine Kontur fahren (Vorschau), klicken, Abstand bestätigen – auch offene Linienzüge'),
         tbtn('sketchMirror', 'Spiegeln', sketchMirror, sketcher.tool === 'mirror' ? 'active' : '', 'Spiegeln: Elemente wählen, dann die Spiegelachse anklicken (Vorschau)'),
         tbtn('patternRect', 'Rechteck-Muster', () => sketchPattern('rect'), sketcher.tool === 'prect' ? 'active' : '', 'Rechteckige Anordnung: Elemente wählen, dann den Abstand zeigen (Vorschau)'),
-        tbtn('patternCirc', 'Kreis-Muster', () => sketchPattern('circ'), sketcher.tool === 'pcirc' ? 'active' : '', 'Runde Anordnung: Elemente wählen, dann den Mittelpunkt zeigen (Vorschau)')),
+        tbtn('patternCirc', 'Kreis-Muster', () => sketchPattern('circ'), sketcher.tool === 'pcirc' ? 'active' : '', 'Runde Anordnung: Elemente wählen, dann den Mittelpunkt zeigen (Vorschau)'),
+        tbtn('move', 'Verschieben/Kopieren', () => sketchMoveTool('xmove'), sketcher.tool === 'xmove' ? 'active' : '', 'Verschieben oder kopieren: Elemente wählen, dann Ausgangspunkt und Zielpunkt anklicken (Vorschau); der Weg lässt sich danach als Zahl ändern'),
+        tbtn('revolve', 'Drehen', () => sketchMoveTool('xrot'), sketcher.tool === 'xrot' ? 'active' : '', 'Drehen: Elemente wählen, dann Drehpunkt anklicken und den Winkel mit der Maus zeigen (Vorschau); auch als Kopie'),
+        tbtn('scale', 'Skalieren', () => sketchTransform('scale'), '', 'Skalieren: Elemente wählen, dann Faktor und Fixpunkt angeben')),
       tgroup('ABHÄNGIGKEITEN',
         Object.assign(gbtn('↔', 'Bemaßung', addDimension, 'Bemaßung (D): Kante, Kreis oder Punkte anklicken, Maß wegziehen und ablegen'), { className: 'tbtn gl' + (sketcher.tool === 'dim' ? ' active' : '') }),
         ...['coincident', 'horizontal', 'vertical', 'parallel', 'perpendicular', 'equal', 'tangent', 'concentric', 'midpoint', 'symmetric', 'collinear', 'fix']
@@ -2241,7 +2281,9 @@ function toolbarTabs() {
     tbtn('importdef', 'Vorgaben importieren', importDefaults, '', 'Gesicherte Vorgaben laden'), tbtn('resetdef', 'Auf Vorgaben zurücksetzen', resetDefaults, '', 'Einstellungen auf den Auslieferungszustand'),
     tbtn('gear', 'Einstellungen', openSettings));
   const AKTIONEN = () => tgroup('AKTIONEN', tbtn('sim', 'Simulieren', openSim, sim.open ? 'active' : ''), tbtn('post', 'NC-Programm', () => select('post')), tbtn('sheet', 'Einrichteblatt', openSetupSheet));
-  const SETUP = () => tgroup('SETUP', tbtn('setup', 'Setup', () => select('setup', activeSetupId())), tbtn('setup', 'Neues Setup', addSetup));
+  const SETUP = () => tgroup('SETUP', tbtn('setup', 'Setup', () => select('setup', activeSetupId())), tbtn('setup', 'Neues Setup', addSetup),
+    tbtn('post', 'Manuelle NC', () => addOp('manual'), '', 'Manuelle NC: Kommentar, Programmhalt, Verweilzeit oder eigener NC-Code zwischen den Operationen'),
+    tbtn('tasks', 'Werkzeugwechsel sparen', optimizeOpOrder, '', 'Reihenfolge der Operationen so ändern, dass seltener das Werkzeug gewechselt wird – ohne Operationen zu überholen, die an derselben Stelle arbeiten'));
   if (state.workspace === 'render') {
     tabs.RENDERN = [
       tgroup('EINRICHTEN', tbtn('appearance', 'Darstellung', openAppearance, '', 'Darstellung (A): Material auf Körper ziehen'), tbtn('scene', 'Szeneneinstellungen', () => { state.sel = null; renderAll(); }, '', 'Umgebung, Helligkeit, Hintergrund, Boden')),
@@ -2271,6 +2313,10 @@ function toolbarTabs() {
       tgroup('ÄNDERN',
         tbtn('presspull', 'Drücken/Ziehen', startPressPull, state.pick?.mode === 'presspull' ? 'active' : '', 'Drücken/Ziehen (Q)'),
         C('fillet', 'Verrundung', 'fillet', null, 'F'), C('edgechamfer', 'Fase', 'chamfer'), C('shell', 'Schale', 'shell'), C('draft', 'Formschräge', 'draft'), C('scale', 'Skalieren', 'scale'),
+        tbtn('split', 'Fläche löschen', () => createFeature('delface'), '', 'Fläche löschen: Bohrungen, Taschen, Verrundungen oder Fasen entfernen – die Nachbarflächen schließen die Lücke'),
+        tbtn('presspull', 'Fläche ersetzen', () => createFeature('replaceface'), '', 'Fläche ersetzen: eine ebene Fläche auf eine andere Ebene legen – der Körper wächst oder wird gekürzt'),
+        tbtn('presspull', 'Fläche versetzen', () => createFeature('offsetface'), '', 'Fläche versetzen: ebene Flächen verschieben, Bohrungen und Zapfen im Durchmesser ändern'),
+        tbtn('move', 'Ausrichten', () => createFeature('align'), '', 'Ausrichten: einen Körper mit einer seiner Flächen auf die Fläche eines anderen Körpers legen'),
         C('split', 'Teilen', 'split'), C('move', 'Verschieben', 'move', null, 'M'), C('combine', 'Kombinieren', 'combine'),
         tbtn('appearance', 'Darstellung', openAppearance, appPanel ? 'active' : '', 'Darstellung (A)'),
         tbtn('params', 'Parameter', () => select('params'))),
@@ -2278,6 +2324,8 @@ function toolbarTabs() {
       tgroup('BAUGRUPPE', tbtn('move', 'Positionieren', placeSelectedBody, '', 'Körper als Komponente positionieren'), tbtn('revolve', 'Gelenk', addJoint), tbtn('cpoint', 'Gelenkursprung', addJointOrigin, state.pick?.mode === 'jorigin' ? 'active' : '', 'Gelenkursprung auf einem Körper setzen (später beim Gelenk anklickbar)'), tbtn('sim', 'Bewegung', motionStudy, motion.on ? 'active' : '', 'Bewegungsstudie mit Kollisionsprüfung')),
       PRUEFEN(),
       tgroup('EINFÜGEN', tbtn('decal', 'Aufkleber', insertDecal, '', 'Aufkleber: Bild auf eine Körperfläche legen'), tbtn('canvas', 'Ansichtsbereich', insertCanvas, '', 'Ansichtsbereich: Vorlagebild auf einer Ebene'),
+        tbtn('decal', 'Bild nachzeichnen', traceImageDialog, '', 'Bild nachzeichnen: aus einem Bild Konturen oder Mittellinien als neue Skizze, SVG oder DXF erzeugen'),
+        tbtn('measure', 'Vorlage kalibrieren', () => calibrateCanvas(), '', 'Vorlage kalibrieren: zwei Punkte im Bild anklicken und ihren wirklichen Abstand eingeben'),
         tbtn('svgfile', 'SVG-Datei einfügen', insertSVG, '', 'SVG-Datei als Skizze einfügen'), tbtn('dxffile', 'DXF-Datei einfügen', insertDXF, '', 'DXF-Datei als Skizze einfügen'),
         tbtn('mesh', 'Netz einfügen', () => $('#cadInput').click(), '', 'STL- oder OBJ-Datei als Netz einfügen'), tbtn('component', 'Komponente einfügen', insertComponent, '', 'Ein anderes gespeichertes Design als Komponente einfügen'),
         tbtn('bolt', 'Schraube einfügen', insertBolt, '', 'Schraube oder Mutter nach ISO einfügen'), tbtn('dupjoint', 'Mit Gelenken duplizieren', duplicateWithJoints, '', 'Gewählten Körper samt Gelenken kopieren'),
@@ -2315,6 +2363,7 @@ function toolbarTabs() {
     SETUP(),
     tgroup('2D-FRÄSEN', A('face', 'Planfräsen', 'face'), A('contour', '2D-Kontur', 'contour'), A('pocket', '2D-Tasche', 'pocket'), A('adaptive', '2D-Adaptiv', 'adaptive'), A('chamfer2d', '2D-Fase', 'chamfer'), A('slot', 'Nut', 'slot'), A('circle', 'Kreistasche', 'circular'), A('trace', 'Gravieren', 'trace'), A('text', 'V-Gravur', 'vcarve')),
     tgroup('3D-FRÄSEN', A('adaptive3d', 'Adaptives 3D-Schruppen', 'adaptive3d'), A('pocket3d', '3D-Versatz-Schruppen (Tasche)', 'pocket3d'),
+      tbtn('drill', 'Tauchschruppen', () => addOp('plunge3d'), '', 'Tauchschruppen: senkrechte Tauchgänge Reihe für Reihe – für lange Werkzeuge und tiefe Kavitäten'),
       tbtn('rough32', '3+2-Schruppen', add32Rough, '', '3+2-Schruppen: neues Setup mit geschwenkter Werkzeugachse und adaptivem Schruppen'),
       A('draft', 'Steil und flach', 'steep3d'), A('flat3d', 'Flach', 'flat3d'), A('parallel3d', 'Parallel', 'parallel3d'), A('pocket', 'HSC-Kontur', 'scallop3d'),
       A('contour', '3D-Kontur', 'contour3d'), A('ramp3d', 'Materialeinfahrt', 'ramp3d'), A('pencil3d', 'Hohlkehle', 'pencil3d'), A('face', 'Horizontal', 'horizontal3d'),
@@ -2322,7 +2371,8 @@ function toolbarTabs() {
       A('blend3d', 'Leitkurven-Blend', 'blend3d'), A('guidemorph3d', 'Leitkurven-Morph', 'guidemorph3d'), A('corner3d', 'Ecke', 'corner3d'), A('flow3d', 'Fluss', 'flow3d'),
       A('morph3d', 'Flächen-Morph', 'morph3d'), A('deburr3d', 'Entgraten', 'deburr3d'), A('geodesic3d', 'Geodätische Linie', 'geodesic3d')),
     tgroup('MEHRACHSEN', A('rough3d', '4-Achs-Schruppen', 'rotaryRough'), A('revolve', '4-Achs-Rotation', 'rotary'), A('trace', '4-Achs-Abwickeln', 'rotaryWrap')),
-    tgroup('BOHREN', A('drill', 'Bohren', 'drill'), A('bore', 'Helix-Bohren', 'bore'), A('thread', 'Gewindefräsen', 'thread')),
+    tgroup('BOHREN', A('drill', 'Bohren', 'drill'), A('bore', 'Helix-Bohren', 'bore'), A('thread', 'Gewindefräsen', 'thread'),
+      tbtn('measure', 'Bohrungen erkennen', recognizeHoles, '', 'Bohrungen erkennen: alle Bohrungen des Modells nach Durchmesser gruppieren und Anbohren, Bohren, Gewinde und Senkungen in einem Zug anlegen')),
     tgroup('ANTASTEN', A('measure', 'WKS antasten', 'probe')),
     AKTIONEN(), VERWALTEN(),
   ];
@@ -2430,7 +2480,7 @@ function toggleOpen(key) {
 const OP_ICON = { face: 'face', contour: 'contour', pocket: 'pocket', adaptive: 'adaptive', chamfer: 'deburr3d', drill: 'drill', bore: 'bore', thread: 'thread', trace: 'trace', rough3d: 'rough3d',
   parallel3d: 'parallel3d', contour3d: 'flow3d', horizontal3d: 'flat3d', steep3d: 'ramp3d', scallop3d: 'morph3d', spiral3d: 'morphspiral3d', radial3d: 'geodesic3d', project3d: 'project', adaptive3d: 'adaptive3d',
   pocket3d: 'pocket3d', flat3d: 'flat3d', ramp3d: 'ramp3d', pencil3d: 'pencil3d', morphspiral3d: 'morphspiral3d', blend3d: 'blend3d', guidemorph3d: 'guidemorph3d', corner3d: 'corner3d', flow3d: 'flow3d',
-  morph3d: 'morph3d', deburr3d: 'deburr3d', geodesic3d: 'geodesic3d', slot: 'slot', circular: 'circle', vcarve: 'chamfer2d', probe: 'measure' };
+  morph3d: 'morph3d', deburr3d: 'deburr3d', geodesic3d: 'geodesic3d', slot: 'slot', circular: 'circle', vcarve: 'chamfer2d', probe: 'measure', plunge3d: 'drill', manual: 'post' };
 const BADGE = {
   ok: '<circle cx="19" cy="19" r="5" fill="#2f9e44"/><path d="M16.6 19.1l1.7 1.7 3.2-3.4" stroke="#fff" stroke-width="1.6" fill="none"/>',
   warn: '<path d="M19 13.6l5.2 9.2H13.8z" fill="#f2b705"/><path d="M19 17.2v2.6M19 21.4v.2" stroke="#111" stroke-width="1.4"/>',
@@ -2440,7 +2490,7 @@ const BADGE = {
 };
 function opTreeIcon(op, r) {
   const base = ICONS[OP_ICON[op.type] || op.type] || ICONS.setup;
-  const st = op.enabled === false ? 'off' : r?.error ? 'err' : r?.warning ? 'warn' : r?.moves?.length ? 'ok' : 'todo';
+  const st = op.enabled === false ? 'off' : r?.error ? 'err' : r?.warning ? 'warn' : r?.moves?.length || r?.manual ? 'ok' : 'todo';
   return base.replace('</svg>', BADGE[st] + '</svg>');
 }
 const pathLength = moves => { let L = 0; for (let i = 1; i < moves.length; i++) if (moves[i].t !== 'r') L += Math.hypot(moves[i].x - moves[i - 1].x, moves[i].y - moves[i - 1].y, moves[i].z - moves[i - 1].z); return L; };
@@ -2674,7 +2724,7 @@ function renderTree() {
           onclick: () => select('feature', f.id), ondblclick: () => editSketch(f.id),
           eye: { on: !f.hidden, toggle: () => setSketchesHidden([f.id], !f.hidden) },
           oncontext: e => sketchMenu(e, f),
-          dot: info.unsatisfied?.length ? 'err' : null,
+          dot: info.unsatisfied?.length ? 'err' : (resolved().features.find(x => x.id === f.id)?.entities || []).some(e => e.proj?.warn) ? 'warn' : null,
           extra: f.constraints?.length && info.dof === 0 ? h('span', { class: 'lock', title: 'Vollständig bestimmt' }, '🔒') : null,
         }));
       }
@@ -3048,6 +3098,15 @@ function propsBody(b, body) {
         h('span', null, 'Masse'), h('b', null, `${f2((pr.volume / 1000) * mat.density)} g`)]),
       h('span', null, 'Oberfläche'), h('b', null, `${f2(pr.area / 100)} cm²`),
       h('span', null, 'Schwerpunkt'), h('b', null, pr.com.map(v => f2(v)).join(' / ') + ' mm'),
+      ...(() => {
+        // moments of inertia about the axes through the centre of mass (from the mesh, with the material's density)
+        if (body.surface) return [];
+        let mi = null;
+        try { mi = meshInertia(body.geometry); } catch { /* open mesh */ }
+        if (!mi) return [];
+        const k = (mat.density / 1000) / 100, fmt = x => (Math.abs(x) >= 1000 ? Math.round(x).toLocaleString('de-DE') : String(+x.toPrecision(4)).replace('.', ','));
+        return [h('span', { title: 'Massenträgheitsmomente um die Achsen durch den Schwerpunkt, parallel zu X, Y und Z' }, 'Trägheitsmomente Ixx / Iyy / Izz'), h('b', null, mi.I.slice(0, 3).map(x => fmt(x * k)).join(' / ') + ' g·cm²')];
+      })(),
       h('span', null, 'Abmessungen'), h('b', null, (() => { const bb = body.geometry.boundingBox; const sz = bb.getSize(new THREE.Vector3()); return `${f2(sz.x)} × ${f2(sz.y)} × ${f2(sz.z)} mm`; })()),
     ) : h('p', { class: 'err' }, 'Eigenschaften konnten nicht berechnet werden.'),
   );
@@ -3083,7 +3142,7 @@ function propsFeature(b, f) {
   const builder = {
     sketch: propsSketch, extrude: propsExtrude, revolve: propsRevolve, hole: propsHole,
     box: propsPrimitive, cylinder: propsPrimitive, sphere: propsPrimitive,
-    fillet: propsEdgeMod, chamfer: propsEdgeMod, shell: propsShell, thicken: propsThicken,
+    fillet: propsEdgeMod, chamfer: propsEdgeMod, shell: propsShell, delface: propsDelFace, replaceface: propsReplaceFace, offsetface: propsOffsetFace, align: propsAlign, thicken: propsThicken,
     surfloft: propsSurfLoft, surftrim: propsTrim, surfextend: propsEdgeSurf, fill: propsEdgeSurf, surfextrude: propsSurfCurves, surfrevolve: propsSurfCurves, patch: propsPatch, offsetsurf: propsOffsetSurf, stitch: propsStitch, draft: propsDraft, split: propsSplit, loft: propsLoft, sweep: propsSweep, freeform: propsFreeform, sheet: propsSheet,
     pattern: propsPattern, mirror: propsMirror, move: propsMove, combine: propsCombine, import: propsImport, canvas: propsImage, decal: propsImage,
     pipe: propsPipe, coil: propsCoil, scale: propsScale, thread: propsThread,
@@ -3134,9 +3193,16 @@ function propsSketchEdit(b) {
     ngon: 'Mittelpunkt klicken, dann Eckpunkt (6-Eck, danach änderbar).',
     slot: 'Ersten Bogenmittelpunkt, zweiten Bogenmittelpunkt, dann Breite klicken.',
     text: 'Klicken, um Text zu platzieren. Inhalt, Größe und Schrift danach rechts ändern.',
-    project: 'Ebene Fläche eines Körpers anklicken: ihr Rand wird als Kontur in die Skizze übernommen.',
+    project: { face: 'Fläche eines Körpers anklicken: ihr Rand kommt als Kontur in die Skizze. Eine Kante anklicken projiziert nur diese Kante (Kreise bleiben Kreise). Projizierte Geometrie ist violett.', body: 'Körper anklicken: sein Umriss (Schattenriss) auf der Skizzenebene kommt in die Skizze.', cut: 'Körper anklicken: die Kurven, in denen die Skizzenebene ihn schneidet, kommen in die Skizze.' }[projectMode],
   };
   b.append(h('p', { class: 'hint' }, hints[sketcher.tool]), h('p', { class: 'hint' }, `Ebene: ${planeLabel(rsk)} · Rechte/mittlere Maustaste: verschieben · Mausrad: zoomen · Esc: abbrechen`));
+  // palette: view, slice, display – and the way out
+  b.append(sec('SKIZZENPALETTE'),
+    h('div', { class: 'btns' },
+      btn('Ansehen', () => { const B = basis(rsk), box = getModel().box.clone(); if (box.isEmpty()) box.setFromCenterAndSize(B.o, new THREE.Vector3(120, 120, 120)); vp.setViewDir(B.n, box); })),
+    row('Schnitt (Körper an der Skizzenebene aufschneiden)', chk(sketchSlice, v => { sketchSlice = v; rebuildScene(); })),
+    row('Profile hervorheben', chk(getSettings().sketchFill !== false, v => { saveSettings({ sketchFill: v }); rebuildScene(); })),
+    h('div', { class: 'btns' }, btn('Normal ↔ Konstruktion (X)', () => { if (!sketcher.toggleConstruction()) status('Zuerst Skizzengeometrie auswählen.'); })));
   const e = sk.entities.find(x => x.id === sketcher.selected);
   const info = sketchInfo(sk.id);
   const cons = sk.constraints || [];
@@ -3148,6 +3214,11 @@ function propsSketchEdit(b) {
   const ed = (fn, pin) => commitSketch(sk.id, s => fn(s.entities.find(x => x.id === e.id)), pin ? [`${e.id}.${pin}`] : []);
   if (e) {
     b.append(sec(describeEntity(rsk.entities.find(x => x.id === e.id)).toUpperCase()));
+    if (e.proj?.warn) b.append(h('p', { class: 'warn' }, '⚠ Nach der letzten Änderung des Körpers war nicht eindeutig, welche Kante oder Fläche gemeint ist. Bitte prüfen – bei Bedarf löschen und neu projizieren.'));
+    if (e.proj) b.append(h('p', { class: 'hint' }, { edge: 'Projizierte Kante: folgt dem Körper, wenn er sich ändert.', face: 'Projizierte Fläche: folgt dem Körper, wenn er sich ändert.', body: 'Projizierter Körperumriss: folgt dem Körper, wenn er sich ändert.', cut: 'Schnittkurve mit dem Körper: folgt dem Körper, wenn er sich ändert.' }[e.proj.kind]),
+      h('div', { class: 'btns' },
+        e.proj.warn ? btn('Geprüft – stimmt', () => commitSketch(sk.id, x => x.entities.forEach(q => { if (q.proj?.g === e.proj.g) delete q.proj.warn; })), 'primary') : null,
+        btn('Verknüpfung lösen', () => commitSketch(sk.id, x => x.entities.forEach(q => { if (q.proj?.g === e.proj.g) delete q.proj; })))));
     const F = (label, key, opt = {}) => row(label, num(e[key], v => ed(x => (x[key] = v), key), { unit: 'mm', ...opt }));
     if (e.type === 'rect') b.append(F('X', 'x'), F('Y', 'y'), F('Breite', 'w', { min: 0.01 }), F('Höhe', 'h', { min: 0.01 }), F('Eckenradius', 'r', { min: 0 }));
     else if (e.type === 'circle') b.append(F('Mitte X', 'cx'), F('Mitte Y', 'cy'), row('Durchmesser', num(typeof e.r === 'string' ? `=2*(${e.r.slice(1)})` : f2(e.r * 2), v => ed(x => (x.r = typeof v === 'string' ? `=(${v.slice(1)})/2` : v / 2), 'r'), { unit: 'mm', min: 0.01 })));
@@ -3247,6 +3318,7 @@ function propsExtrude(b, f, ed) {
     row('Ausdehnung', sel([['one', 'Eine Seite'], ['sym', 'Symmetrisch'], ['two', 'Zwei Seiten']], f.extent || 'one', v => ed(x => (x.extent = v)))),
     row(f.extent === 'sym' ? 'Gesamtabstand' : 'Abstand', num(f.distance, v => ed(x => (x.distance = v)), { unit: 'mm' })),
     f.extent === 'two' ? row('Abstand 2', num(f.distance2 || 0, v => ed(x => (x.distance2 = v)), { unit: 'mm' })) : null,
+    fromFaces ? null : row('Schrägungswinkel', Object.assign(num(f.taper || 0, v => ed(x => (x.taper = v)), { unit: '°' }), { title: 'Die Seitenwände neigen sich um diesen Winkel. Positiv: der Körper wird von der Skizze weg breiter, negativ: schmaler (Entformungsschräge).' })),
     row('Richtung', btn('⇅ Umkehren', () => ed(x => (x.distance = typeof x.distance === 'string' ? `=-(${x.distance.slice(1)})` : -x.distance)))),
     fromFaces ? row('Operation', sel([['auto', 'Automatisch'], ...Object.entries(OPS)], f.op || 'auto', v => ed(x => (x.op = v)))) : opSelect(f, ed),
     h('p', { class: 'hint' }, fromFaces ? 'Ebene Flächen des Körpers werden entlang ihrer Normalen extrudiert. Automatisch: nach außen = Material hinzufügen, nach innen (negativ) = ausschneiden.' : 'Positiver Abstand = in Richtung der Skizzennormalen. Taschen: Ausschneiden mit negativem Abstand.'),
@@ -3591,6 +3663,13 @@ async function newImageFeature(type, plane, name, dataURL) {
 async function insertCanvas() {
   const file = await chooseFile('image/png,image/jpeg,image/webp,image/gif,image/svg+xml');
   if (!file) return;
+  if (state.sketchId) {
+    // in a sketch: on its plane, without leaving the sketch
+    const rsk = resolved().features.find(f => f.id === state.sketchId), data = await readDataURL(file);
+    const [iw, ih] = await imageSize(data), blob = await putBlob(data);
+    commit(p => p.features.push({ id: uid('cv'), type: 'canvas', name: file.name.replace(/\.[^.]+$/, ''), blob, plane: JSON.parse(JSON.stringify(sketchPlane(rsk))), w: 100, aspect: +(iw / ih).toFixed(5), dx: 0, dy: 0, rot: 0, opacity: 0.5, flip: false }));
+    return status('Bild liegt als Vorlage auf der Skizzenebene (Breite 100 mm). „Vorlage kalibrieren“ stellt den Maßstab über zwei Punkte ein.');
+  }
   const v = await formDialog('Ansichtsbereich', [{ key: 'plane', label: 'Ebene', value: 'XY', options: [['XY', 'XY-Ebene'], ['XZ', 'XZ-Ebene'], ['YZ', 'YZ-Ebene']] },
     { key: 'hint', hint: 'Das Bild liegt als Vorlage auf der Ebene. Größe, Lage, Drehung und Deckkraft danach im Eigenschaftenfenster einstellen (z. B. Breite nach einer bekannten Abmessung).' }]);
   if (!v) return;
@@ -3627,7 +3706,155 @@ function propsImage(b, f, ed) {
     N('Versatz X', 'dx'), N('Versatz Y', 'dy'), row('Drehung', num(f.rot || 0, v => ed(x => (x.rot = v)), { unit: '°' })),
     row('Deckkraft', num(Math.round((f.opacity ?? 1) * 100), v => ed(x => (x.opacity = Math.min(1, Math.max(0.05, v / 100)))), { unit: '%', min: 5 })),
     row('Spiegeln', chk(f.flip, v => ed(x => (x.flip = v)))),
+    f.type === 'canvas' ? h('div', { class: 'btns' }, btn('Kalibrieren …', () => calibrateCanvas(f.id))) : null,
+    f.type === 'canvas' ? h('p', { class: 'hint' }, 'Kalibrieren: zwei Punkte im Bild anklicken, deren Abstand bekannt ist, und den wirklichen Abstand eingeben – das Bild bekommt den richtigen Maßstab.') : null,
     h('p', { class: 'hint' }, f.type === 'decal' ? 'Bild auf einer Körperfläche (Logo, Beschriftung, Typenschild) – nur zur Darstellung, es verändert die Geometrie nicht.' : 'Vorlagebild zum Nachzeichnen: Skizze auf derselben Ebene erstellen und die Konturen nachfahren.'));
+}
+
+// ----- Bild nachzeichnen: outlines or centre lines of a picture as sketch curves, SVG or DXF -----
+async function traceImageDialog(given) {
+  const file = given instanceof File ? given : await chooseFile('image/png,image/jpeg,image/webp,image/gif,image/bmp,image/svg+xml');
+  if (!file) return;
+  const url = await readDataURL(file);
+  const im = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = url; });
+  if (!im) return alert('Das Bild konnte nicht gelesen werden.');
+  // large pictures are traced at up to 1400 pixels: enough for clean lines, and quick
+  const nw = im.naturalWidth || 800, nh = im.naturalHeight || 600, sc = Math.min(1, 1400 / Math.max(nw, nh));
+  const w = Math.max(2, Math.round(nw * sc)), hh = Math.max(2, Math.round(nh * sc));
+  const src = Object.assign(document.createElement('canvas'), { width: w, height: hh });
+  const sx = src.getContext('2d', { willReadFrequently: true });
+  sx.drawImage(im, 0, 0, w, hh);
+  const rgba = sx.getImageData(0, 0, w, hh).data;
+  const name = file.name.replace(/\.[^.]+$/, ''), inSketch = !!state.sketchId;
+  const o = { threshold: 128, invert: false, mode: 'all', minSize: 12, tolerance: 0.6, smoothing: 1, width: 100, canvas: true, curves: 'fit', source: 'grey', nColors: 4 };
+  let quant = null, chosen = new Set();
+  const hex = c => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+  const swatches = h('div', { class: 'trace-colors' });
+  const win = modalWin('Bild nachzeichnen', 1000);
+  const view = Object.assign(h('canvas', { class: 'trace-view' }), { width: w, height: hh });
+  const info = h('p', { class: 'hint' });
+  let img = null, lines = [], timer = null, nPts = 0;
+  const paint = () => {
+    const g = view.getContext('2d');
+    g.globalAlpha = 1; g.fillStyle = '#fff'; g.fillRect(0, 0, w, hh);
+    g.globalAlpha = 0.28; g.drawImage(src, 0, 0);
+    g.globalAlpha = 1; g.strokeStyle = '#e03131'; g.lineWidth = Math.max(1, w / 600); g.lineJoin = 'round';
+    g.beginPath();
+    for (const l of lines) { l.pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); if (l.closed) g.closePath(); }
+    g.stroke();
+    info.textContent = `${lines.length} Kurven mit ${nPts} ${o.curves === 'fit' ? 'Stücken' : 'Punkten'} · Größe ${f2(o.width)} × ${f2((o.width * hh) / w)} mm${nPts > 6000 ? ' – sehr viele Punkte: Genauigkeit vergröbern oder kleine Flächen ignorieren, sonst wird die Skizze träge' : ''}`;
+  };
+  const drawSwatches = () => swatches.replaceChildren(...quant.palette.map((c, k) => h('label', { title: hex(c) },
+    chk(chosen.has(k), v => { if (v) chosen.add(k); else chosen.delete(k); later(); }), h('i', { style: `background:${hex(c)}` }), `${Math.round((100 * quant.counts[k]) / (w * hh))} %`)));
+  const run = () => {
+    if (o.source === 'color') {
+      // every chosen colour is traced on its own
+      if (!quant || quant.n !== o.nColors) {
+        quant = { ...quantize(rgba, w, hh, o.nColors), n: o.nColors };
+        const back = quant.counts.indexOf(Math.max(...quant.counts)); // the most frequent colour is the background
+        chosen = new Set(quant.palette.map((_, k) => k).filter(k => k !== back));
+        drawSwatches();
+      }
+      img = { w, h: hh };
+      lines = [...chosen].sort((a, b) => a - b).flatMap(k => traceImage({ w, h: hh, ink: inkOfColors(quant.index, w, hh, [k]) }, { ...o, threshold: 128 }).map(l => ({ ...l, color: hex(quant.palette[k]) })));
+    } else {
+      img = { w, h: hh, ink: inkFromRGBA(rgba, w, hh, o.invert) };
+      lines = traceImage(img, o);
+    }
+    nPts = lines.reduce((a, l) => a + (l.circle ? 1 : l.segs ? l.segs.length : l.pts.length), 0);
+    paint();
+  };
+  const later = () => { clearTimeout(timer); timer = setTimeout(run, 120); };
+  const slider = Object.assign(h('input', { type: 'range', min: 1, max: 254, step: 1 }), { value: o.threshold });
+  slider.addEventListener('input', () => { o.threshold = +slider.value; later(); });
+  const greyBox = h('div', null, h('div', { class: 'hint' }, 'Schwellwert (hell ↔ dunkel)'), slider,
+    row('Invertieren (helle Linien auf dunklem Grund)', chk(o.invert, v => { o.invert = v; later(); })));
+  const colorBox = Object.assign(h('div', null,
+    row('Anzahl Farben', num(o.nColors, v => { o.nColors = Math.max(2, Math.min(8, Math.round(v ?? 4))); later(); }, { min: 2 })),
+    h('div', { class: 'hint' }, 'Farben, die nachgezeichnet werden (jede für sich)'), swatches), { hidden: true });
+  win.body.append(h('div', { class: 'trace-wrap' }, view,
+    h('div', { class: 'trace-side' },
+      row('Nachzeichnen', sel([['all', 'Konturen außen und innen'], ['outer', 'Nur Außenkonturen'], ['inner', 'Nur Innenkonturen (Öffnungen)'], ['center', 'Mittellinie der Striche']], o.mode, v => { o.mode = v; later(); })),
+      row('Kurven', sel([['fit', 'Geraden, Bögen und Kreise'], ['poly', 'Linienzüge']], o.curves, v => { o.curves = v; later(); })),
+      row('Trennen nach', sel([['grey', 'Helligkeit (Schwellwert)'], ['color', 'Farben']], o.source, v => { o.source = v; greyBox.hidden = v !== 'grey'; colorBox.hidden = v !== 'color'; later(); })),
+      greyBox, colorBox,
+      row('Kleine Flächen ignorieren', num(o.minSize, v => { o.minSize = Math.max(0, v ?? 0); later(); }, { unit: 'px', min: 0 })),
+      row('Genauigkeit', num(o.tolerance, v => { o.tolerance = Math.max(0.05, v ?? 0.6); later(); }, { unit: 'px', min: 0.05 })),
+      row('Glätten', sel([['0', 'Aus (eckig)'], ['1', 'Leicht'], ['2', 'Stark']], String(o.smoothing), v => { o.smoothing = +v; later(); })),
+      row('Breite des Bildes', num(o.width, v => { o.width = Math.max(0.1, v ?? 100); paint(); }, { unit: 'mm', min: 0.1 })),
+      row('Bild als Vorlage dahinterlegen', chk(o.canvas, v => { o.canvas = v; })),
+      info,
+      h('p', { class: 'hint' }, 'Konturen folgen dem Rand der dunklen Flächen. Die Mittellinie läuft in der Mitte der Striche – passend für Gravuren und Strichzeichnungen. „Geraden, Bögen und Kreise“ erkennt gerade Kanten, scharfe Ecken, Rundungen und Kreise; „Linienzüge“ folgt dem Bild Punkt für Punkt. Den Maßstab danach bei Bedarf mit „Vorlage kalibrieren“ oder „Skalieren“ anpassen.'))));
+  const curves = () => toSketch(lines, img, o.width);
+  const none = () => { if (lines.length) return false; status('Keine Kurven gefunden – Schwellwert anpassen.'); return true; };
+  const insert = async () => {
+    if (none()) return;
+    const ents = toEntities(curves()).map(e => ({ id: uid('e'), ...e }));
+    const rsk = inSketch ? resolved().features.find(f => f.id === state.sketchId) : null;
+    const plane = rsk ? JSON.parse(JSON.stringify(sketchPlane(rsk))) : { ...BASE_PLANES.XY };
+    if (o.canvas) {
+      const blob = await putBlob(url);
+      commit(p => p.features.push({ id: uid('cv'), type: 'canvas', name, blob, plane, w: f2(o.width), aspect: +(w / hh).toFixed(5), dx: 0, dy: 0, rot: 0, opacity: 0.35, flip: false }));
+    }
+    if (inSketch) commitSketch(state.sketchId, sk => sk.entities.push(...ents));
+    else { const id = uid('sk'); insertFeature({ id, type: 'sketch', name, plane, entities: ents }); select('feature', id); }
+    win.close();
+    fitView();
+    status(`Bild nachgezeichnet: ${ents.length} Kurven ${inSketch ? 'in die Skizze eingefügt' : `als Skizze „${name}“ eingefügt`}`);
+  };
+  win.foot.append(
+    btn('Als SVG speichern', () => { if (!none()) download(name + '.svg', toSVG(curves(), o.width, (o.width * hh) / w), 'image/svg+xml'); }),
+    btn('Als DXF speichern', () => { if (!none()) download(name + '.dxf', writeDXF(toEntities(curves())), 'application/dxf'); }),
+    h('span', { style: 'flex:1' }), btn('Abbrechen', win.close), btn(inSketch ? 'In die Skizze einfügen' : 'Als neue Skizze einfügen', insert, 'primary'));
+  run();
+}
+
+// ----- Vorlage kalibrieren: two points on the picture and their real distance set its scale -----
+async function calibrateCanvas(fid) {
+  const cvs = resolved().features.filter(f => f.type === 'canvas' && !f.hidden && !f.suppressed);
+  if (!cvs.length) return status('Kein Vorlagebild vorhanden – erst ein Bild als Vorlage einfügen.');
+  let f = cvs.find(x => x.id === fid) || (state.sel?.kind === 'feature' ? cvs.find(x => x.id === state.sel.id) : null) || (cvs.length === 1 ? cvs[0] : null);
+  if (!f) {
+    const v = await formDialog('Vorlage kalibrieren', [{ key: 'id', label: 'Bild', value: cvs[cvs.length - 1].id, options: cvs.map(x => [x.id, x.name]) }]);
+    if (!v) return;
+    f = cvs.find(x => x.id === v.id);
+  }
+  const B = basis({ plane: f.plane }), plane = new THREE.Plane().setFromNormalAndCoplanarPoint(B.n, B.o);
+  const pts = [], dots = [];
+  const block = e => { e.stopPropagation(); e.preventDefault(); };
+  const stop = () => {
+    vp.el.removeEventListener('pointerdown', onDown, true);
+    vp.el.removeEventListener('click', block, true);
+    window.removeEventListener('keydown', onKey, true);
+    dots.forEach(d => d.remove());
+    showBanner(null);
+  };
+  const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); stop(); status('Kalibrieren abgebrochen.'); } };
+  const onDown = async e => {
+    if (e.button !== 0) return;
+    block(e);
+    vp.raycast(e, []);
+    const hit = vp.raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+    if (!hit) return status('Die Bildebene wurde nicht getroffen – Ansicht drehen.');
+    pts.push(hit);
+    dots.push(document.body.appendChild(h('div', { class: 'calib-dot', style: `left:${e.clientX}px;top:${e.clientY}px` })));
+    if (pts.length < 2) return showBanner(['Kalibrieren: zweiten Punkt im Bild anklicken (Esc bricht ab).']);
+    vp.el.removeEventListener('pointerdown', onDown, true);
+    const d0 = pts[0].distanceTo(pts[1]), c = v => String(+(+v).toFixed(3)).replace('.', ',');
+    if (d0 < 1e-6) { stop(); return status('Die beiden Punkte liegen aufeinander.'); }
+    const t = await askValue('Kalibrieren: wirklicher Abstand der beiden Punkte (mm)', c(d0));
+    stop();
+    if (t == null) return;
+    const d = evalExpr(String(t).replace(/,/g, '.'), paramScope(state.project));
+    if (!(d > 0)) return status('Kalibrieren: einen Abstand größer als 0 angeben.');
+    const k = d / d0, r = v => +(+v).toFixed(4);
+    editFeature(f.id, x => { x.w = r((+f.w || 100) * k); x.dx = r((+f.dx || 0) * k); x.dy = r((+f.dy || 0) * k); });
+    status(`Bild kalibriert: Maßstab × ${c(k)}, Breite jetzt ${c((+f.w || 100) * k)} mm`);
+  };
+  vp.el.addEventListener('pointerdown', onDown, true);
+  vp.el.addEventListener('click', block, true);
+  window.addEventListener('keydown', onKey, true);
+  showBanner(['Kalibrieren: ersten Punkt im Bild anklicken (Esc bricht ab).']);
 }
 
 // ----- SVG-Datei einfügen: paths become a new sketch -----
@@ -3733,6 +3960,11 @@ async function insertSVG() {
   }
   host.remove();
   if (!ents.length) return status('Keine Kurven in der SVG-Datei gefunden.');
+  if (state.sketchId) {
+    commitSketch(state.sketchId, sk => sk.entities.push(...ents));
+    fitView();
+    return status(`SVG: ${ents.length} Kurven in die Skizze eingefügt`);
+  }
   const id = uid('sk');
   insertFeature({ id, type: 'sketch', name: file.name.replace(/\.[^.]+$/, ''), plane: { ...BASE_PLANES[v.plane] }, entities: ents });
   select('feature', id);
@@ -3944,8 +4176,22 @@ function propsEdgeMod(b, f, ed) {
   const fillet = f.type === 'fillet';
   const picking = state.pick?.mode === 'edges' && state.pick.id === f.id;
   b.append(
-    row(fillet ? 'Radius' : 'Abstand', num(fillet ? f.radius : f.distance, v => ed(x => (fillet ? (x.radius = v) : (x.distance = v))), { unit: 'mm', min: 0.01 })),
-    row('Alle Kanten', chk(f.all, v => ed(x => (x.all = v)))),
+    row(fillet ? (f.variable ? 'Radius am Anfang' : 'Radius') : 'Abstand', num(fillet ? f.radius : f.distance, v => ed(x => (fillet ? (x.radius = v) : (x.distance = v))), { unit: 'mm', min: 0.01 })),
+    fillet ? row('Veränderlicher Radius', chk(f.variable, v => ed(x => { x.variable = v; if (v) { x.all = false; x.radius2 ??= +(2 * (+x.radius || 1)).toFixed(3); } }))) : '',
+    fillet && f.variable ? row('Radius am Ende', num(f.radius2, v => ed(x => (x.radius2 = v)), { unit: 'mm', min: 0.01 })) : '',
+    fillet && f.variable ? row('Anfang und Ende tauschen', chk(f.flip, v => ed(x => (x.flip = v)))) : '',
+    ...(fillet && f.variable ? [
+      ...(f.law || []).map((q, i) => h('div', { class: 'flange-sub' }, h('span', null, `Stützpunkt ${i + 1}`),
+        num(Math.round(q[0] * 1000) / 10, v => ed(x => (x.law[i][0] = Math.min(0.99, Math.max(0.01, (v ?? 50) / 100)))), { unit: '%', min: 1 }),
+        num(q[1], v => ed(x => (x.law[i][1] = v)), { unit: 'mm', min: 0.01 }),
+        h('button', { class: 'gx', title: 'Stützpunkt entfernen', onclick: () => ed(x => x.law.splice(i, 1)) }, '✕'))),
+      h('div', { class: 'btns' }, btn('+ Stützpunkt (Lage in %, Radius)', () => { requestFullKernel(); ed(x => (x.law = [...(x.law || []), [0.5, +(((+x.radius || 1) + (+x.radius2 || 1)) / 2).toFixed(3)]])); })),
+      row('Über die Kantenkette durchlaufend', chk(f.chain, v => { if (v) requestFullKernel(); ed(x => (x.chain = v)); })),
+      f.chain ? h('p', { class: 'hint' }, 'Mehrere aneinanderhängende Kanten zählen als eine Strecke: Der Radius läuft vom Anfang der Kette bis zu ihrem Ende, Stützpunkte gelten in % der ganzen Kettenlänge. Das rechnet der große Geometriekern.') : '',
+      (f.law || []).length ? h('p', { class: 'hint' }, 'Mit Stützpunkten läuft der Radius durch die angegebenen Werte (Lage in % der Kantenlänge). Das rechnet der große Geometriekern; beim ersten Mal lädt er einige Sekunden.') : '',
+    ] : []),
+    fillet && f.variable ? h('p', { class: 'hint' }, 'Der Radius wächst gleichmäßig vom Anfang zum Ende jeder gewählten Kante. Welches Ende der Anfang ist, legt die Kante fest – bei Bedarf tauschen.') : '',
+    f.variable ? '' : row('Alle Kanten', chk(f.all, v => ed(x => (x.all = v)))),
   );
   if (!f.all) {
     b.append(
@@ -3968,6 +4214,54 @@ function propsShell(b, f, ed) {
       btn('Auswahl leeren', () => ed(x => (x.faces = [])))),
     h('p', { class: 'hint' }, 'Die gewählten Flächen werden entfernt, der Körper wird nach innen ausgehöhlt.'),
   );
+}
+
+// "Fläche löschen": the chosen faces go, the neighbours close the gap. Runs in the full kernel with every
+// recomputation of the model (loaded when first needed).
+function propsDelFace(b, f, ed) {
+  const picking = state.pick?.mode === 'faces' && state.pick.id === f.id;
+  requestFullKernel();
+  b.append(
+    row('Flächen', h('span', null, `${(f.faces || []).length} gewählt`)),
+    h('div', { class: 'btns' },
+      btn(picking ? '✓ Auswahl beenden' : 'Flächen wählen', () => togglePick('faces', f.id), picking ? 'on' : 'primary'),
+      btn('Auswahl leeren', () => ed(x => (x.faces = [])))),
+    h('p', { class: 'hint' }, 'Alle Flächen wählen, die verschwinden sollen (bei einer Tasche Wände und Boden, bei einer Bohrung die Wand, bei einer Verrundung die Rundung). Die Nachbarflächen werden über die Lücke verlängert. Der Schritt rechnet bei Änderungen am Körper mit; beim ersten Mal lädt dafür der große Geometriekern (einige Sekunden).'));
+}
+// "Fläche versetzen": faces move along their normal (holes and pins change their diameter)
+function propsOffsetFace(b, f, ed) {
+  const picking = state.pick?.mode === 'faces' && state.pick.id === f.id;
+  b.append(
+    row('Flächen', h('span', null, `${(f.faces || []).length} gewählt`)),
+    h('div', { class: 'btns' },
+      btn(picking ? '✓ Auswahl beenden' : 'Flächen wählen', () => togglePick('faces', f.id), picking ? 'on' : 'primary'),
+      btn('Auswahl leeren', () => ed(x => (x.faces = [])))),
+    row('Abstand', num(f.distance, v => ed(x => (x.distance = v)), { unit: 'mm' })),
+    h('p', { class: 'hint' }, 'Positiv = nach außen (mehr Material), negativ = nach innen. Ebene Flächen verschieben sich; bei einer Bohrung oder einem Zapfen ändert sich der Radius um den Abstand – eine Bohrung wird mit positivem Abstand enger.'));
+}
+// "Ausrichten": a body is laid with one of its faces onto a face of another body
+function propsAlign(b, f, ed) {
+  const picking = state.pick?.mode === 'faces' && state.pick.id === f.id, n = (f.faces || []).length;
+  b.append(
+    row('Flächen', h('span', null, n === 0 ? 'keine gewählt' : n === 1 ? 'Fläche am bewegten Körper gewählt' : 'beide gewählt')),
+    h('div', { class: 'btns' },
+      btn(picking ? '✓ Auswahl beenden' : 'Flächen wählen', () => togglePick('faces', f.id), picking ? 'on' : 'primary'),
+      btn('Auswahl leeren', () => ed(x => (x.faces = [])))),
+    row('Gleich gerichtet (statt gegenüber)', chk(f.flip, v => ed(x => (x.flip = v)))),
+    row('Abstand', num(f.offset || 0, v => ed(x => (x.offset = v)), { unit: 'mm' })),
+    h('p', { class: 'hint' }, 'Erst die Fläche an dem Körper anklicken, der bewegt wird, dann die Zielfläche am anderen Körper. Der Körper wird gedreht und verschoben, bis der erste Klickpunkt auf dem zweiten liegt und die Flächen aufeinander liegen.'));
+}
+// "Fläche ersetzen": a flat face moves onto another plane
+function propsReplaceFace(b, f, ed) {
+  const picking = state.pick?.mode === 'faces' && state.pick.id === f.id;
+  b.append(
+    row('Fläche', h('span', null, `${(f.faces || []).length} gewählt`)),
+    h('div', { class: 'btns' },
+      btn(picking ? '✓ Auswahl beenden' : 'Fläche wählen', () => togglePick('faces', f.id), picking ? 'on' : 'primary'),
+      btn('Auswahl leeren', () => ed(x => (x.faces = [])))),
+    row('Zielebene', sel(planeRefOptions(f.id), f.planeRef || 'XY', v => ed(x => (x.planeRef = v)))),
+    row('Versatz zur Ebene', num(f.offset || 0, v => ed(x => (x.offset = v)), { unit: 'mm' })),
+    h('p', { class: 'hint' }, 'Die gewählte ebene Fläche wird durch die Zielebene ersetzt: Der Körper wächst bis zu ihr oder wird bis zu ihr gekürzt, die Seitenwände laufen gerade weiter. Mit einer geneigten Konstruktionsebene wird die Fläche schräg.'));
 }
 
 // ----- Flächen (surface workspace) -----
@@ -4966,6 +5260,7 @@ function propsOp(b, op) {
   const g = getCam().setups.get(op.setup) || activeGen();
   const r = g.results.get(op.id);
   const ed = fn => editOp(op.id, fn);
+  if (op.type === 'manual') return propsManual(b, op, r, ed);
   const setup = p.cam.setups.find(x => x.id === op.setup) || p.cam.setups[0];
   const tools = p.cam.tools.filter(x => (TOOLS_FOR[op.type] || TOOLS_FOR.default)({ ...x, type: toolBase(x), kind: x.type }));
   const M = setupMatrix(g.setup);
@@ -5288,9 +5583,10 @@ function propsOp(b, op) {
       stockSec(false);
       break;
     case 'corner3d':
-      put('passes', N('Referenzwerkzeug-Ø', 'restDia', { min: 0.1 }), N('Bahnabstand (flach)', 'stepoverMm', { min: 0.01 }), N('Zustellung Z (steil)', 'stepdown', { min: 0.01, allowEmpty: true, ph: 'Bahnabstand' }),
+      put('passes', row('Referenzwerkzeug', sel([['', 'Nur Durchmesser (Form wie dieses Werkzeug)'], ...p.cam.tools.filter(x => ['ball', 'flat'].includes(toolBase(x)) && x.id !== op.tool).map(x => [x.id, toolLabel(x)])], op.restTool || '', v => ed(x => (x.restTool = v || undefined)))),
+        op.restTool ? null : N('Referenzwerkzeug-Ø', 'restDia', { min: 0.1 }), N('Bahnabstand (flach)', 'stepoverMm', { min: 0.01 }), N('Zustellung Z (steil)', 'stepdown', { min: 0.01, allowEmpty: true, ph: 'Bahnabstand' }),
         row('Grenzwinkel', num(op.slope ?? 45, v => ed(x => (x.slope = v)), { unit: '°', min: 1 })), row('Bahnwinkel', num(op.angle || 0, v => ed(x => (x.angle = v)), { unit: '°' })),
-        h('p', { class: 'hint' }, 'Nur dort, wo das größere Referenzwerkzeug nicht hinkam: flache Bereiche parallel, steile Bereiche als Wasserlinie.'));
+        h('p', { class: 'hint' }, 'Nur dort, wo das Referenzwerkzeug nicht hinkam: flache Bereiche parallel, steile Bereiche als Wasserlinie. Mit einem Werkzeug aus der Liste zählt dessen Form mit – zum Beispiel was ein Torusfräser in den Hohlkehlen stehen lässt.'));
       stockSec(false);
       break;
     case 'flow3d':
@@ -5432,8 +5728,27 @@ function propsOp(b, op) {
     case 'project3d':
       put('passes', N('Tiefe unter Fläche', 'depth', { min: 0.01 }));
       break;
-    case 'slot':
+    case 'slot': {
+      const troch = op.slotStyle === 'trochoid';
+      put('passes', row('Strategie', sel([['line', 'Mittellinie (Vollschnitt)'], ['trochoid', 'Wirbelfräsen (trochoidal)']], op.slotStyle || 'line', v => ed(x => (x.slotStyle = v)))));
+      if (troch) put('passes',
+        N('Vorschub je Kreis', 'trochoidStep', { allowEmpty: true, ph: t ? `${f2(t.dia * 0.1)} (10 % Ø)` : '', min: 0.01 }),
+        N('Nutbreite bei Linien', 'slotWidth', { allowEmpty: true, ph: 'Langloch: aus der Skizze', min: 0 }),
+        dirRow(), C('Wand am Grund schlichten', 'slotFinish', true),
+        h('p', { class: 'hint' }, 'Das Werkzeug fräst in Kreisen, deren Mitte entlang der Nut wandert. Es ist nie über die volle Breite im Eingriff – das erlaubt große Zustelltiefen und schont Fräser und Spindel. Der Fräser sollte etwa 60 % der Nutbreite haben.'));
       depthSec();
+      stockSec(false);
+      break;
+    }
+    case 'plunge3d':
+      put('passes', N('Abstand in der Reihe', 'stepoverMm', { min: 0.05 }),
+        N('Reihenabstand', 'rowStep', { allowEmpty: true, ph: t ? `${f2(t.dia * 0.7)} (70 % Ø)` : '', min: 0.05 }),
+        row('Richtung der Reihen', num(op.angle || 0, v => ed(x => (x.angle = v)), { unit: '°' })),
+        N('Abheben vor dem Rückzug', 'pullBack', { min: 0 }),
+        N('Kleinste Tauchtiefe', 'minPlunge', { allowEmpty: true, ph: '0,3', min: 0.05 }),
+        C('Vorige Operationen berücksichtigen', 'usePrior', true),
+        r?.plungesSaved ? h('p', { class: 'hint' }, `${r.plungesSaved} Tauchgänge entfallen, weil dort schon gefräst ist.`) : null,
+        h('p', { class: 'hint' }, `Das Werkzeug taucht wie ein Bohrer senkrecht ein, Reihe für Reihe, bis auf das Modell plus Aufmaß. Die Schnittkraft wirkt entlang der Spindel: geeignet für lange Werkzeuge, tiefe Kavitäten und wenig steife Maschinen. Das Werkzeug muss über die Mitte schneiden.${r?.plunges ? ` Hier: ${r.plunges} Tauchgänge.` : ''}`));
       stockSec(false);
       break;
     case 'circular':
@@ -5450,6 +5765,45 @@ function propsOp(b, op) {
       put('passes', N('Bahnabstand', 'stepoverMm', { min: 0.01 }), row('Richtung', sel([['0', 'Entlang X'], ['90', 'Entlang Y']], String(op.angle || 0), v => ed(x => (x.angle = +v)))));
       stockSec(false);
       break;
+  }
+
+  // ===== Eckenfreistich =====
+  if (op.type === 'pocket' || op.type === 'contour') {
+    const db = op.dogbone && op.dogbone !== 'none' ? op.dogbone : 'none';
+    put('passes', csec('Eckenfreistich (Dogbone)', db !== 'none', v => ed(x => (x.dogbone = v ? 'dogbone' : 'none'))));
+    if (db !== 'none') put('passes',
+      row('Form', sel([['dogbone', 'Dogbone (diagonal in die Ecke)'], ['tbone', 'T-Bone (entlang der Wand)']], db, v => ed(x => (x.dogbone = v)))),
+      h('p', { class: 'hint' }, `Ein runder Fräser lässt in jeder Innenecke seinen Radius stehen – ein eckiges Gegenstück passt dann nicht hinein. Der Freistich fährt an jeder scharfen Innenecke kurz in die Ecke und zurück.${r?.dogbones ? ` Hier: ${r.dogbones} Ecken.` : ''}${op.compType && op.compType !== 'computer' && op.type === 'contour' ? ' Nur mit Korrektur „Im Rechner“.' : ''}`));
+  }
+
+  // ===== Vorschubanpassung und Bahnmuster =====
+  if (milling && !op.type.startsWith('rotary')) {
+    if (!['drill', 'plunge3d'].includes(op.type)) {
+      put('passes', csec('Vorschubanpassung in Ecken', !!op.feedOpt, v => ed(x => (x.feedOpt = v))));
+      if (op.feedOpt) put('passes',
+        row('Ab Richtungsänderung', num(op.feedOptAngle ?? 25, v => ed(x => (x.feedOptAngle = v)), { unit: '°', min: 1 })),
+        row('Reduzierter Vorschub', num(op.feedOptPct ?? 50, v => ed(x => (x.feedOptPct = v)), { unit: '%', min: 5 })),
+        N('Strecke vor und nach der Ecke', 'feedOptDist', { allowEmpty: true, ph: t ? `${f2(t.dia / 2)} (Werkzeugradius)` : '', min: 0.01 }),
+        h('p', { class: 'hint' }, `An scharfen Richtungswechseln umschlingt das Material den Fräser stärker. Dort fährt das Werkzeug langsamer.${r?.feedOpt ? ` Hier: ${r.feedOpt.corners} Ecken.` : ''}`));
+    }
+    const pk = op.patKind && op.patKind !== 'none' ? op.patKind : 'none';
+    const PN = (label, key, def, opt = {}) => row(label, num(op[key] ?? def, v => ed(x => (x[key] = v)), opt));
+    put('passes', csec('Bahnmuster', pk !== 'none', v => ed(x => { x.patKind = v ? 'linear' : 'none'; if (v) { x.patN1 ||= 2; x.patDx1 ??= 50; } })));
+    if (pk !== 'none') {
+      put('passes', row('Art', sel(Object.entries(PATTERN_KINDS).filter(([k]) => k !== 'none'), pk, v => ed(x => (x.patKind = v)))));
+      if (pk === 'linear') put('passes',
+        PN('Anzahl Richtung 1', 'patN1', 2, { min: 1 }), PN('Abstand X', 'patDx1', 0, { unit: 'mm' }), PN('Abstand Y', 'patDy1', 0, { unit: 'mm' }),
+        PN('Anzahl Richtung 2', 'patN2', 1, { min: 1 }), PN('Abstand X (Richtung 2)', 'patDx2', 0, { unit: 'mm' }), PN('Abstand Y (Richtung 2)', 'patDy2', 0, { unit: 'mm' }));
+      if (pk === 'circular') put('passes',
+        PN('Anzahl', 'patN1', 2, { min: 1 }), PN('Gesamtwinkel', 'patAngle', 360, { unit: '°' }),
+        PN('Mitte X', 'patCx', 0, { unit: 'mm' }), PN('Mitte Y', 'patCy', 0, { unit: 'mm' }));
+      if (pk === 'mirror') put('passes',
+        row('Spiegelachse', sel([['x', 'Linie parallel zu Y (bei X)'], ['y', 'Linie parallel zu X (bei Y)']], op.patAxis || 'x', v => ed(x => (x.patAxis = v)))),
+        (op.patAxis || 'x') === 'x' ? PN('Lage der Achse X', 'patCx', 0, { unit: 'mm' }) : PN('Lage der Achse Y', 'patCy', 0, { unit: 'mm' }),
+        C('Original mitfräsen', 'patKeepFirst', true),
+        h('p', { class: 'hint' }, 'Im Spiegelbild läuft das Werkzeug andersherum: aus Gleichlauf wird dort Gegenlauf. Die Radiuskorrektur der Steuerung wechselt die Seite mit.'));
+      put('passes', h('p', { class: 'hint' }, `Die fertige Bahn wird an den weiteren Stellen wiederholt (Maße ab Werkstück-Nullpunkt). Das Modell und das Rohteil müssen dort Material haben – die Simulation zeigt es.${r?.pattern ? ` Hier: ${r.pattern.n}-mal.` : ''}`));
+    }
   }
 
   // ===== Verknüpfung =====
@@ -5512,6 +5866,241 @@ function propsOp(b, op) {
     btn('Duplizieren', () => commit(pp => { const c = { ...JSON.parse(JSON.stringify(op)), id: uid('op'), name: nextName(pp.cam.ops, OP_TYPES[op.type]) }; pp.cam.ops.splice(pp.cam.ops.findIndex(o => o.id === op.id) + 1, 0, c); state.sel = { kind: 'op', id: c.id }; })),
     btn('Löschen', () => { commit(pp => (pp.cam.ops = pp.cam.ops.filter(o => o.id !== op.id))); state.sel = null; renderAll(); }, 'danger'),
   ));
+}
+
+// "Werkzeugwechsel sparen": operations with the same tool move together where that is safe
+async function optimizeOpOrder() {
+  const p = state.project, sid = activeSetupId(), g = getCam().setups.get(sid);
+  if (!g) return status('Erst ein Setup mit Operationen anlegen.');
+  const mine = p.cam.ops.filter(o => (o.setup || p.cam.setups[0].id) === sid);
+  const items = mine.map(o => {
+    const r = g.results.get(o.id), t = r?.tool;
+    let box = null, cells;
+    if (r?.moves?.length && t) {
+      cells = opCells(r.moves, (+t.dia || 0) / 2);
+      const R = (+t.dia || 0) / 2;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const m of r.moves) if (m.t !== 'r' && Number.isFinite(m.x)) { x0 = Math.min(x0, m.x); y0 = Math.min(y0, m.y); x1 = Math.max(x1, m.x); y1 = Math.max(y1, m.y); }
+      if (Number.isFinite(x0)) box = [x0 - R, y0 - R, x1 + R, y1 + R];
+    }
+    // without a path (error, switched off) nobody knows where it works: it stays where it is
+    return { id: o.id, tool: o.type === 'manual' ? null : o.tool, fixed: o.type === 'manual' || o.type === 'probe' || g.kind === 'turn' || !box, box, cells };
+  });
+  const res = orderByTool(items);
+  if (res.after >= res.before) return status(`Die Reihenfolge ist schon günstig: ${res.before} Werkzeugwechsel, mehr lässt sich nicht sparen, ohne Operationen an derselben Stelle zu vertauschen.`);
+  const names = res.order.map((id, i) => `${i + 1}. ${mine.find(o => o.id === id).name}`).join(' · ');
+  const v = await formDialog('Werkzeugwechsel sparen', [{ key: 'hint', hint: `${res.before} → ${res.after} Werkzeugwechsel. Operationen, die an derselben Stelle arbeiten, bleiben in ihrer Reihenfolge; manuelle NC und Antasten bleiben, wo sie sind. Neue Reihenfolge: ${names}` }], 'Übernehmen');
+  if (!v) return;
+  commit(pp => {
+    const byId = new Map(pp.cam.ops.map(o => [o.id, o])), slots = [];
+    pp.cam.ops.forEach((o, i) => { if ((o.setup || pp.cam.setups[0].id) === sid) slots.push(i); });
+    res.order.forEach((id, k) => { pp.cam.ops[slots[k]] = byId.get(id); });
+  });
+  status(`Reihenfolge geändert: ${res.before} → ${res.after} Werkzeugwechsel (mit Strg+Z rückgängig).`);
+}
+
+// Manual NC: a line in the program without a tool or a path
+function propsManual(b, op, r, ed) {
+  const p = state.project, k = op.manualKind in MANUAL_KINDS ? op.manualKind : 'comment';
+  const HINT = {
+    comment: 'Der Text steht als Kommentar an dieser Stelle im Programm.',
+    stop: 'Die Maschine hält an (M0), zum Beispiel zum Umspannen oder Späne entfernen. Die nächste Operation schaltet Spindel und Kühlmittel wieder ein. Der Text steht als Kommentar davor.',
+    optstop: 'Hält nur an, wenn an der Maschine „Wahlweiser Halt“ eingeschaltet ist (M1).',
+    dwell: 'Die Maschine wartet die angegebene Zeit.',
+    code: 'Die Zeilen werden unverändert ins Programm geschrieben und nicht geprüft. Sie müssen zur Steuerung passen; Simulation und Kollisionsprüfung kennen sie nicht.',
+    message: 'Meldung auf dem Bildschirm der Steuerung: Fanuc und LinuxCNC als (MSG, …), Sinumerik als MSG("…"), sonst als Kommentar.',
+  };
+  const area = h('textarea', { class: 'manual-text no-i18n', rows: k === 'code' ? 6 : 3, spellcheck: false, placeholder: k === 'code' ? 'M…' : '' });
+  area.value = op.manualText || '';
+  area.addEventListener('change', () => ed(x => (x.manualText = area.value)));
+  const kids = [
+    sec('Manuelle NC'),
+    row('Art', sel(Object.entries(MANUAL_KINDS), k, v => ed(x => (x.manualKind = v)))),
+    k === 'dwell' ? row('Verweilzeit', num(op.manualSec ?? 1, v => ed(x => (x.manualSec = v)), { unit: 's', min: 0 })) : null,
+    k === 'dwell' || k === 'optstop' ? null : h('div', { class: 'hint' }, k === 'code' ? 'NC-Code' : k === 'stop' ? 'Hinweis für den Bediener (optional)' : 'Text'),
+    k === 'dwell' || k === 'optstop' ? null : area,
+    h('p', { class: 'hint' }, HINT[k]),
+    sec('Allgemein'),
+    row('Name', txt(op.name, v => ed(x => (x.name = v)))),
+    row('Aktiv', chk(op.enabled !== false, v => ed(x => (x.enabled = v)))),
+    row('Setup', sel(p.cam.setups.map(x => [x.id, x.name]), op.setup, v => ed(x => (x.setup = v)))),
+    r?.error ? h('p', { class: 'err' }, '⚠ ' + r.error) : null,
+    h('div', { class: 'btns' },
+      btn('↑', () => moveOp(op.id, -1)), btn('↓', () => moveOp(op.id, 1)),
+      btn('Duplizieren', () => commit(pp => { const c = { ...JSON.parse(JSON.stringify(op)), id: uid('op'), name: nextName(pp.cam.ops, OP_TYPES[op.type]) }; pp.cam.ops.splice(pp.cam.ops.findIndex(o => o.id === op.id) + 1, 0, c); state.sel = { kind: 'op', id: c.id }; })),
+      btn('Löschen', () => { commit(pp => (pp.cam.ops = pp.cam.ops.filter(o => o.id !== op.id))); state.sel = null; renderAll(); }, 'danger')),
+  ];
+  b.append(...kids.filter(Boolean));
+}
+
+// ----- Bohrungen erkennen: every hole of the model along the tool axis, grouped by diameter and kind -----
+function findHoleGroups(st) {
+  const m = getModel(), up = setupUp(st), TAU = 2 * Math.PI;
+  let list = [];
+  try { list = cylinderFaces(m.bodies); } catch { list = []; }
+  // lowest point of the model along the tool axis (a hole that reaches it goes through)
+  let low = Infinity;
+  for (const b of m.bodies) {
+    try { const [lo, hi] = b.shape.boundingBox.bounds; for (const x of [lo[0], hi[0]]) for (const y of [lo[1], hi[1]]) for (const z of [lo[2], hi[2]]) low = Math.min(low, new THREE.Vector3(x, y, z).dot(up)); } catch { /* no box */ }
+  }
+  const holes = [], studs = [];
+  for (const c of list) {
+    const into = c.outside ? studs : holes;
+    const d = new THREE.Vector3(...c.dir);
+    if (Math.abs(d.dot(up)) < 0.999) continue;
+    const L = new THREE.Vector3(...c.loc);
+    const h0 = L.clone().addScaledVector(d, c.t0).dot(up), h1 = L.clone().addScaledVector(d, c.t1).dot(up);
+    const q = L.clone().addScaledVector(up, -L.dot(up));
+    let o = into.find(x => x.q.distanceTo(q) < 1e-3 && Math.abs(x.r - c.r) < 1e-3 && Math.min(h0, h1) < x.top + 1e-3 && Math.max(h0, h1) > x.bottom - 1e-3);
+    if (!o) into.push(o = { q, r: c.r, top: -Infinity, bottom: Infinity, span: 0, pt: c.pt });
+    o.top = Math.max(o.top, h0, h1);
+    o.bottom = Math.min(o.bottom, h0, h1);
+    o.span += c.span ?? TAU;
+  }
+  const full = holes.filter(o => o.span >= TAU - 0.02 && o.top - o.bottom > 0.05);
+  // stacks on one axis: the narrowest part is drilled, wider parts above it are counterbores
+  const groups = new Map();
+  for (const o of full) {
+    const stack = full.filter(x => x.q.distanceTo(o.q) < 1e-3);
+    o.entry = Math.max(...stack.map(x => x.top)); // where the tool meets the part: above a counterbore, not at its floor
+    const cbore = stack.some(x => x.r < o.r - 1e-3 && x.top <= o.bottom + 1e-3);
+    const through = !cbore && o.bottom <= low + 0.01;
+    const th = cbore ? null : (m.threads || []).find(t => !t.outside && Math.abs(t.r - o.r) < 0.01 && new THREE.Vector3(...t.c).addScaledVector(up, -new THREE.Vector3(...t.c).dot(up)).distanceTo(o.q) < 0.01);
+    const dia = +(2 * o.r).toFixed(3);
+    const key = [cbore ? 'c' : 'd', dia, through ? 't' : 'b', th?.name || ''].join('|');
+    const g = groups.get(key) || { key, kind: cbore ? 'cbore' : 'drill', dia, through, thread: th ? { name: th.name, P: th.P, dia: +(String(th.name).match(/M\s*(\d+(?:[.,]\d+)?)/)?.[1] || '').replace(',', '.') || +(dia + 1.0825 * th.P).toFixed(2) } : null, depth: 0, holes: [] };
+    g.depth = Math.max(g.depth, o.top - o.bottom);
+    g.holes.push(o);
+    groups.set(key, g);
+  }
+  // studs with a thread: milled from the outside
+  for (const o of studs.filter(x => x.span >= TAU - 0.02 && x.top - x.bottom > 0.05)) {
+    const th = (m.threads || []).find(t => t.outside && Math.abs(t.r - o.r) < 0.01 && new THREE.Vector3(...t.c).addScaledVector(up, -new THREE.Vector3(...t.c).dot(up)).distanceTo(o.q) < 0.01);
+    if (!th) continue;
+    const dia = +(2 * o.r).toFixed(3), key = ['s', dia, th.name].join('|');
+    const g = groups.get(key) || { key, kind: 'stud', dia, through: false, thread: { name: th.name, P: th.P, dia }, depth: 0, holes: [] };
+    g.depth = Math.max(g.depth, o.top - o.bottom);
+    g.holes.push(o);
+    groups.set(key, g);
+  }
+  const rank = { drill: 0, cbore: 1, stud: 2 };
+  return [...groups.values()].sort((a, b) => (a.kind === b.kind ? a.dia - b.dia : rank[a.kind] - rank[b.kind]));
+}
+function recognizeHoles() {
+  const p = state.project, sid = activeSetupId(), st = p.cam.setups.find(x => x.id === sid);
+  if (!st) return status('Erst ein Setup anlegen.');
+  if (st.kind === 'turn') return status('Die Bohrungserkennung gibt es für Fräs-Setups.');
+  if (getModel().box.isEmpty()) return status('Erst einen Körper in KONSTRUKTION erstellen.');
+  const groups = findHoleGroups(st);
+  if (!groups.length) return status(`Keine Bohrungen oder Gewindezapfen entlang der Werkzeugachse gefunden (Setup „${st.name}“).`);
+  const machine = findMachine(p, st.machine), mk = st.stockMaterial || 'alu';
+  const opt = { spot: true, tap: 'tap', cbore: true, chamfer: false, chamferW: 0.5 }, on = new Set(groups.map(g => g.key));
+  // the edge around the mouth of a hole (where the tool enters), as an edge reference for the chamfer operation
+  const mouthEdge = o => {
+    const stack = groups.flatMap(g => g.holes).filter(x => x.q.distanceTo(o.q) < 1e-3), top = stack.reduce((a, x) => (x.top > a.top ? x : a), o);
+    for (const b of getModel().bodies) {
+      if (!b.shape?.wrapped) continue;
+      for (const ed of b.shape.edges) {
+        if (ed.geomType !== 'CIRCLE') continue;
+        const m = ed.pointAt(0.5), v = new THREE.Vector3(m.x, m.y, m.z), hgt = v.dot(up);
+        if (Math.abs(hgt - top.top) > 1e-3) continue;
+        if (Math.abs(v.addScaledVector(up, -hgt).distanceTo(top.q) - top.r) < 1e-3) return { ref: [m.x, m.y, m.z].map(c => +c.toFixed(5)), top: top.top };
+      }
+    }
+    return null;
+  };
+  const up = setupUp(st);
+  // the steps of one group as { type, tool type, dia, ... } – the same form the material sets use
+  const stepsOf = g => {
+    if (g.kind === 'stud') return opt.tap !== 'none' ? [{ g, role: 'tout', type: 'thread', tool: 'thread', dia: 6, tol: 5 }] : [];
+    if (g.kind === 'cbore') return opt.cbore ? [{ g, role: 'cbore', type: 'circular', tool: 'flat', dia: +(g.dia * 0.6).toFixed(1), tol: 0.34 }] : [];
+    const out = [{ g, role: 'drill', type: 'drill', tool: 'drill', dia: g.dia, tol: 0.0015 }];
+    if (g.thread && opt.tap === 'tap') out.push({ g, role: 'tap', type: 'drill', tool: 'tap', dia: g.thread.dia, tol: 0.0015 });
+    // thread mill: clearly smaller than the core hole, so it can move in and circle
+    if (g.thread && opt.tap === 'mill') out.push({ g, role: 'tmill', type: 'thread', tool: 'thread', dia: Math.max(1, Math.floor(g.dia * 0.7)), tol: 0.3 });
+    return out;
+  };
+  const planNow = () => {
+    const sel = groups.filter(g => on.has(g.key));
+    const steps = [...(opt.spot && sel.some(g => g.kind === 'drill') ? [{ role: 'spot', type: 'drill', tool: 'spot', dia: 10, tol: 0.61 }] : []), ...sel.flatMap(stepsOf),
+      ...(opt.chamfer && sel.some(g => g.kind === 'drill') ? [{ role: 'chamfer', type: 'chamfer', tool: 'chamfer', dia: 10, tol: 5 }] : [])];
+    return { sel, plan: matSetPlan({ steps }, mk, machine) };
+  };
+  const w = modalWin('Bohrungen erkennen', 760);
+  const draw = () => {
+    const { plan } = planNow();
+    const toolOf = (g, role) => plan.steps.find(s => s.stp.g === g && s.stp.role === role);
+    const tl = s => (s ? h('td', { class: s.isNew ? 'new' : '' }, `${s.isNew ? 'neu: ' : ''}T${s.tool.number} ${s.tool.name}`) : h('td', null, '–'));
+    w.body.replaceChildren(
+      h('p', { class: 'hint' }, `Setup „${st.name}“: ${groups.reduce((a, g) => a + (g.kind === 'drill' ? g.holes.length : 0), 0)} Bohrungen entlang der Werkzeugachse gefunden. Für jede angehakte Zeile entsteht eine Operation; fehlende Werkzeuge werden angelegt.`),
+      h('table', { class: 'hole-tbl' },
+        h('tr', null, h('th', null, ''), h('th', null, 'Anzahl'), h('th', null, 'Ø'), h('th', null, 'Tiefe'), h('th', null, 'Art'), h('th', null, 'Werkzeug')),
+        ...groups.map(g => h('tr', null,
+          h('td', null, chk(on.has(g.key), v => { if (v) on.add(g.key); else on.delete(g.key); draw(); })),
+          h('td', null, `${g.holes.length}×`), h('td', null, `Ø${String(f2(g.dia)).replace('.', ',')}`), h('td', null, `${String(f2(g.depth)).replace('.', ',')} mm`),
+          h('td', null, g.kind === 'stud' ? `Zapfen · Außengewinde ${g.thread.name}` : g.kind === 'cbore' ? 'Senkung (Kreistasche)' : `${g.through ? 'Durchgangsbohrung' : 'Sackloch'}${g.thread ? ` · Gewinde ${g.thread.name}` : ''}`),
+          !on.has(g.key) ? h('td', null, '–') : g.kind === 'cbore' ? tl(toolOf(g, 'cbore')) : h('td', { class: [toolOf(g, 'drill'), toolOf(g, 'tap'), toolOf(g, 'tmill'), toolOf(g, 'tout')].some(s => s?.isNew) ? 'new' : '' }, [toolOf(g, 'drill'), toolOf(g, 'tap'), toolOf(g, 'tmill'), toolOf(g, 'tout')].filter(Boolean).map(s => `${s.isNew ? 'neu: ' : ''}T${s.tool.number} ${s.tool.name}`).join(' + '))))),
+      row('Vorher anbohren (NC-Anbohrer)', chk(opt.spot, v => { opt.spot = v; draw(); })),
+      groups.some(g => g.thread) ? row('Gewinde', sel([['tap', 'Gewindebohren'], ['mill', 'Gewindefräsen'], ['none', 'Nicht schneiden']], opt.tap, v => { opt.tap = v; draw(); })) : '',
+      groups.some(g => g.kind === 'cbore') ? row('Senkungen fräsen', chk(opt.cbore, v => { opt.cbore = v; draw(); })) : '',
+      row('Bohrungen anfasen (Fasenfräser)', chk(opt.chamfer, v => { opt.chamfer = v; draw(); })),
+      opt.chamfer ? row('Fasenbreite', num(opt.chamferW, v => { opt.chamferW = Math.max(0.05, v ?? 0.5); }, { unit: 'mm', min: 0.05 })) : '',
+      h('p', { class: 'hint' }, 'Schnittdaten kommen aus dem Rechner für den Werkstoff des Setups. Tiefe Bohrungen (über 3 × Ø) bekommen Tieflochbohren mit Entspänen, Durchgangsbohrungen einen Überlauf für die Bohrerspitze.'));
+  };
+  const create = () => {
+    const { sel, plan } = planNow();
+    if (!plan.steps.length) return status('Keine Zeile angehakt.');
+    const ops = [], names = [...p.cam.ops];
+    const de = v => String(f2(v)).replace('.', ',');
+    const unique = label => { let n = label, k = 2; while (names.some(o => o.name === n)) n = `${label} (${k++})`; return n; };
+    const mkOp = (s, label, faces, extra = {}) => {
+      const op = addOp(s.stp.type, { tool: s.tool, batch: true });
+      if (!op) return null;
+      Object.assign(op, { geomSource: 'model', faces: faces.map(o => o.pt.map(v => +(+v).toFixed(4))), sketch: '', name: unique(label) }, extra);
+      op.cut = { rpm: s.c.rpm, feed: s.c.feed, plunge: s.c.plunge };
+      if (mk !== st.stockMaterial) op.cutMat = mk;
+      names.push(op); ops.push(op);
+      return op;
+    };
+    for (const s of plan.steps) {
+      const g = s.stp.g;
+      if (s.stp.role === 'spot') {
+        // one operation per height the holes start at; depth for a small chamfer on the hole
+        const drilled = sel.filter(x => x.kind === 'drill').flatMap(x => x.holes);
+        const tops = [...new Set(drilled.map(o => +o.entry.toFixed(3)))].sort((a, b) => b - a);
+        for (const z of tops) {
+          const hs = drilled.filter(o => +o.entry.toFixed(3) === z);
+          const depth = Math.max(0.5, Math.min(s.tool.dia / 2 - 0.2, Math.max(...hs.map(o => o.r)) + 0.2));
+          mkOp(s, 'Anbohren', hs, { heights: { top: { from: 'pick', z, offset: 0 }, bottom: { from: 'top', offset: -f2(depth) } } });
+        }
+      } else if (s.stp.role === 'drill') {
+        const tip = 0.3 * g.dia;
+        mkOp(s, `Bohren Ø${de(g.dia)}`, g.holes, { bottomOffset: g.through ? -f2(tip + 1) : 0, ...(g.depth > 3 * g.dia ? { cycle: 'peck', peck: f2(g.dia) } : {}) });
+      } else if (s.stp.role === 'tap') {
+        if (s.isNew) s.tool.pitch = g.thread.P;
+        mkOp(s, `Gewinde ${g.thread.name}`, g.holes, { pitch: g.thread.P, cycle: 'tap', bottomOffset: g.through ? -f2(2 * g.thread.P) : f2(Math.max(1, 2 * g.thread.P)) });
+      } else if (s.stp.role === 'chamfer') {
+        // one operation per height the holes open at; the chamfer runs around the mouth of each hole
+        const mouths = sel.filter(x => x.kind === 'drill').flatMap(x => x.holes).map(mouthEdge).filter(Boolean);
+        for (const z of [...new Set(mouths.map(q => +q.top.toFixed(3)))].sort((a, b) => b - a)) {
+          const op = mkOp(s, 'Bohrungen anfasen', [], { side: 'inside', width: f2(opt.chamferW), extraDepth: 0.2 });
+          if (op) { op.faces = []; op.edges = mouths.filter(q => +q.top.toFixed(3) === z).map(q => q.ref); }
+        }
+      } else if (s.stp.role === 'tout') {
+        mkOp(s, `Gewindefräsen außen ${g.thread.name}`, g.holes, { pitch: g.thread.P, majorDia: g.thread.dia, side: 'outside', hand: 'right' });
+      } else if (s.stp.role === 'tmill') {
+        if (s.isNew) { s.tool.pitch = g.thread.P; s.tool.name = `Gewindefräser Ø${de(s.tool.dia)} P${de(g.thread.P)}`; }
+        mkOp(s, `Gewindefräsen ${g.thread.name}`, g.holes, { pitch: g.thread.P, majorDia: g.thread.dia, side: 'inside', hand: 'right', bottomOffset: g.through ? 0 : f2(Math.max(0.5, g.thread.P)) });
+      } else if (s.stp.role === 'cbore') mkOp(s, `Senkung Ø${de(g.dia)}`, g.holes, {});
+    }
+    if (!ops.length) return;
+    commit(pp => { pp.cam.tools.push(...plan.fresh); pp.cam.ops.push(...ops); });
+    w.close();
+    select('op', ops[0].id);
+    status(`${ops.length} Operationen für ${sel.reduce((a, g) => a + g.holes.length, 0)} Bohrungen angelegt${plan.fresh.length ? `, ${plan.fresh.length} Werkzeug(e) neu (${plan.fresh.map(t => 'T' + t.number).join(', ')})` : ''}.`);
+  };
+  w.foot.append(h('span', { style: 'flex:1' }), btn('Abbrechen', w.close), btn('Operationen anlegen', create, 'primary'));
+  draw();
 }
 
 // ---------- VERWALTEN (Formfräser, Volumenhalter, Bibliotheken, Task-Manager, Vorgaben) ----------
@@ -5891,7 +6480,7 @@ function openMachiningTime(setupId) {
 // Zustellungen nach Strategie. Begrenzt auf Drehzahl und Vorschub der Maschine.
 const MAT_GROUP = { alu: 'nf', alu7075: 'nf', brass: 'nf', copper: 'nf', steel: 'steel', cast: 'steel', steelTool: 'hard', stainless: 'hard', titanium: 'hard', pom: 'plastic', pa: 'plastic', pe: 'plastic', wood: 'soft', mdf: 'soft', foam: 'soft' };
 const GROUP_LABEL = { nf: 'NE-Metall', steel: 'Stahl/Guss', hard: 'schwer zerspanbar', plastic: 'Kunststoff', soft: 'Holz/Schaum' };
-const ADAPTIVE_OPS = ['adaptive', 'adaptive3d'], ROUGH_OPS = ['pocket', 'face', 'rough3d', 'pocket3d', 'slot'], FINISH_OPS = ['contour', 'chamfer', 'parallel3d', 'contour3d', 'scallop3d', 'spiral3d', 'radial3d', 'pencil3d', 'steep3d', 'flat3d', 'horizontal3d', 'morph3d', 'flow3d', 'blend3d'];
+const ADAPTIVE_OPS = ['adaptive', 'adaptive3d'], ROUGH_OPS = ['pocket', 'face', 'rough3d', 'pocket3d', 'slot', 'plunge3d'], FINISH_OPS = ['contour', 'chamfer', 'parallel3d', 'contour3d', 'scallop3d', 'spiral3d', 'radial3d', 'pencil3d', 'steep3d', 'flat3d', 'horizontal3d', 'morph3d', 'flow3d', 'blend3d'];
 function cutCalc(t, op, matKey, machine) {
   const mats = allMaterials(), m = mats[matKey] || mats.alu;
   const grp = MAT_GROUP[matKey] || ((m.vc || 200) >= 250 ? 'nf' : (m.vc || 200) >= 150 ? 'steel' : 'hard');
@@ -7170,6 +7759,15 @@ function editSketch(id) {
   if (state.workspace !== 'design') return;
   state.pick = null;
   showBanner(null);
+  // linked projections: what the model computed last goes into the stored sketch, so editing starts from it
+  {
+    const rs = resolved().features.find(f => f.id === id), raw = state.project.features.find(f => f.id === id);
+    if (raw?.entities?.some(e => e.proj)) {
+      getModel();
+      const now = JSON.stringify((rs?.entities || []).filter(e => e.proj));
+      if (now !== '[]' && now !== JSON.stringify(raw.entities.filter(e => e.proj))) commit(pp => { const sk = pp.features.find(f => f.id === id); sk.entities = [...sk.entities.filter(e => !e.proj), ...JSON.parse(now)]; });
+    }
+  }
   state.sketchId = id;
   state.sel = { kind: 'feature', id };
   sketcher.start();
@@ -7186,6 +7784,7 @@ function finishSketch() {
   const id = state.sketchId;
   sketcher.finishPolyline();
   sketcher.stop();
+  projectMode = 'face';
   state.sketchId = null;
   state.sel = { kind: 'feature', id };
   fitView();
@@ -7308,6 +7907,19 @@ function createFeature(type, extra = {}) {
   } else if (type === 'fillet' || type === 'chamfer' || type === 'shell') {
     if (!hasBodies) return status('Zuerst einen Körper erstellen.');
     f = type === 'fillet' ? { ...base, radius: 2, edges: [], all: false } : type === 'chamfer' ? { ...base, distance: 1, edges: [], all: false } : { ...base, thickness: 2, faces: [] };
+  } else if (type === 'delface') {
+    if (!hasBodies) return status('Zuerst einen Körper erstellen.');
+    requestFullKernel();
+    f = { ...base, faces: [] };
+  } else if (type === 'replaceface') {
+    if (!hasBodies) return status('Zuerst einen Körper erstellen.');
+    f = { ...base, faces: [], planeRef: 'XY', offset: 0 };
+  } else if (type === 'offsetface') {
+    if (!hasBodies) return status('Zuerst einen Körper erstellen.');
+    f = { ...base, faces: [], distance: 1 };
+  } else if (type === 'align') {
+    if (getModel().bodies.length < 2) return status('Ausrichten braucht zwei Körper.');
+    f = { ...base, faces: [], flip: false, offset: 0 };
   } else if (type === 'pattern' || type === 'mirror') {
     const src = lastSolidSource();
     if (!src) return status('Kein Feature zum Vervielfältigen vorhanden.');
@@ -7354,7 +7966,7 @@ function createFeature(type, extra = {}) {
   insertFeature(f);
   state.sel = { kind: 'feature', id };
   if (type === 'fillet' || type === 'chamfer' || type === 'surfextend' || type === 'fill') togglePick('edges', id);
-  else if (type === 'shell' || type === 'draft' || type === 'thread' || type === 'thicken' || type === 'offsetsurf' || type === 'surftrim') togglePick('faces', id);
+  else if (type === 'delface' || type === 'replaceface' || type === 'offsetface' || type === 'align' || type === 'shell' || type === 'draft' || type === 'thread' || type === 'thicken' || type === 'offsetsurf' || type === 'surftrim') togglePick('faces', id);
   else if (type === 'axis' && f.kind === 'cyl') { state.pick = { mode: 'axiscyl', id }; showBanner(['Zylinderfläche oder Bohrung anklicken.', h('button', { onclick: () => { state.pick = null; showBanner(null); renderAll(); } }, 'Abbrechen')]); renderAll(); }
   else if (type === 'axis' && f.kind === '2pt') startPointPick(id, 'pts', 2);
   else if (type === 'plane' && f.kind === '3pt') startPointPick(id, 'pts', 3);
@@ -7389,6 +8001,16 @@ function addOp(type, opt = {}) {
   if (getModel().box.isEmpty() && meshBox().isEmpty()) return status('Erst einen Körper in KONSTRUKTION erstellen oder ein Netz (STL) einfügen.');
   const rp = resolved();
   const setupId = activeSetupId();
+  if (type === 'manual') {
+    // lines in the program without a tool or a path
+    const id = uid('op');
+    const op = { id, type, name: nextName(p.cam.ops, OP_TYPES.manual), enabled: true, setup: setupId, manualKind: opt.kind || 'comment', manualText: '', manualSec: 1 };
+    if (opt.batch) return op;
+    pendingNew = { id, depth: undoDepth() };
+    commit(pp => pp.cam.ops.push(op));
+    select('op', id);
+    return;
+  }
   const M = setupMatrix(p.cam.setups.find(x => x.id === setupId));
   const sketches = p.features.filter(f => f.type === 'sketch' && sketchHorizontalIn(rp.features.find(r => r.id === f.id), M));
   const byType = k => p.cam.tools.find(t => toolBase(t) === k);
@@ -7428,6 +8050,7 @@ function addOp(type, opt = {}) {
     ...(type === 'ramp3d' ? { stepdown: 0.5 } : {}),
     // 3D strategies have many links: go over the remaining material instead of up to the retract height
     ...(OPS_3D.includes(type) ? { retractPolicy: 'stock' } : {}),
+    ...(type === 'plunge3d' ? { stepoverMm: f2(tool.dia * 0.5), rowStep: f2(tool.dia * 0.7), stockToLeave: 0.5, pullBack: 0.3, retractPolicy: 'full' } : {}),
     ...(type === 'tcontour' || type === 'twrap' || type === 'tpocket' ? { depth: 1, side: 'on', stepdown: null, wrapDia: null, ...(type === 'tpocket' ? { stepover: null, ramp: 3 } : {}), sketch: [...rp.features].reverse().find(sk => { if (sk.type !== 'sketch') return false; try { const nz = Math.abs(basis(sk).n.clone().normalize().z); return type !== 'twrap' ? nz > 0.999 : nz < 0.001; } catch { return false; } })?.id || '' } : {}),
     ...(type === 'tslot' ? { depth: 2, count: 1, startAngle: 0, angles: '', zStart: null, zEnd: null, stepdown: null } : {}),
     ...(type === 'tflat' ? { count: 2, startAngle: 0, angles: '', width: null, length: 10, stepdown: null, stepover: null } : {}),
@@ -7574,62 +8197,49 @@ function sectionBanner() {
 
 // ---------- sketch entity operations ----------
 // ---------- projection, sketch fillet, sketch pattern, DXF, interference ----------
-// Boundary loops of a picked planar face, projected into the active sketch.
-function projectFaceAt(evt) {
-  const meshes = vp.model.children.filter(o => o.isMesh);
-  const hit = vp.raycast(evt, meshes)[0];
-  if (!hit) return status('Keine Fläche getroffen.');
-  const body = getModel().bodies[hit.object.userData.body];
-  const fid = body.faceOf[hit.faceIndex];
-  const idx = body.geometry.index.array, pos = body.geometry.attributes.position.array;
-  const key = i => `${pos[i * 3].toFixed(4)},${pos[i * 3 + 1].toFixed(4)},${pos[i * 3 + 2].toFixed(4)}`;
-  const count = new Map(), pts = new Map();
-  for (let t = 0; t < body.faceOf.length; t++) {
-    if (body.faceOf[t] !== fid) continue;
-    for (let k = 0; k < 3; k++) {
-      const a = idx[t * 3 + k], b = idx[t * 3 + ((k + 1) % 3)];
-      const ka = key(a), kb = key(b);
-      pts.set(ka, [pos[a * 3], pos[a * 3 + 1], pos[a * 3 + 2]]);
-      pts.set(kb, [pos[b * 3], pos[b * 3 + 1], pos[b * 3 + 2]]);
-      const ek = ka < kb ? ka + '|' + kb : kb + '|' + ka;
-      count.set(ek, (count.get(ek) || 0) + 1);
-    }
-  }
-  // boundary = edges used by one triangle only; chain them into loops
-  const adj = new Map();
-  for (const [ek, c] of count) {
-    if (c !== 1) continue;
-    const [a, b] = ek.split('|');
-    (adj.get(a) || adj.set(a, []).get(a)).push(b);
-    (adj.get(b) || adj.set(b, []).get(b)).push(a);
-  }
+// Projection into the open sketch. Modes: 'face' (a face's boundary or a single edge under the mouse),
+// 'body' (silhouette of the whole body on the sketch plane), 'cut' (where the sketch plane cuts the body).
+let projectMode = 'face';
+function startProject(mode) {
+  projectMode = mode;
+  sketcher.setTool('project');
+  renderToolbar();
+  renderProps();
+  status({ face: 'Projizieren: Fläche oder Kante eines Körpers anklicken.', body: 'Körperumriss: Körper anklicken.', cut: 'Schnittkurven: Körper anklicken, den die Skizzenebene schneidet.' }[mode]);
+}
+// The picture of an edge, a face, a body's silhouette or its section goes into the sketch together with a link:
+// when the body changes, the model recomputation brings the picture up to date (model.js updateProjections).
+function addProjection(link, okMsg, emptyMsg) {
   const rsk = resolved().features.find(f => f.id === state.sketchId);
-  const B = basis(rsk);
-  const used = new Set(), loops = [];
-  for (const start of adj.keys()) {
-    if (used.has(start)) continue;
-    const loop = [start];
-    used.add(start);
-    let cur = start;
-    for (let guard = 0; guard < 100000; guard++) {
-      const next = (adj.get(cur) || []).find(n => !used.has(n));
-      if (!next) break;
-      used.add(next);
-      loop.push(next);
-      cur = next;
-    }
-    if (loop.length < 3) continue;
-    const local = loop.map(k => { const p = pts.get(k); const v = new THREE.Vector3(...p).sub(B.o); return [+v.dot(B.x).toFixed(4), +v.dot(B.y).toFixed(4)]; });
-    // drop collinear points
-    const simp = local.filter((p, i) => {
-      const a = local[(i - 1 + local.length) % local.length], c = local[(i + 1) % local.length];
-      return Math.abs((p[0] - a[0]) * (c[1] - a[1]) - (p[1] - a[1]) * (c[0] - a[0])) > 1e-6;
-    });
-    if (simp.length >= 3) loops.push(simp);
+  let res = null;
+  try { res = projectGeometry(link, getModel().bodies, basis(rsk)); } catch (err) { return status(`Projektion fehlgeschlagen: ${err.message || err}`); }
+  if (!res) return status('Projizieren von Kanten und Flächen braucht einen Volumenkörper des Standardkerns – Körperumriss und Schnittkurven gehen auch bei Netzen.');
+  if (!res.ents.length) return status(emptyMsg);
+  const g = uid('pj');
+  commitSketch(state.sketchId, sk => res.ents.forEach((e, k) => sk.entities.push({ ...e, id: k ? `${g}_${k}` : uid('e'), projected: true, proj: { ...res.link, g } })));
+  status(okMsg(res.ents));
+}
+function projectFaceAt(evt) {
+  const hit = vp.raycast(evt, vp.model.children.filter(o => o.isMesh))[0];
+  const bodies = getModel().bodies;
+  if (projectMode !== 'face') {
+    if (!hit) return status('Keinen Körper getroffen.');
+    const body = bodies[hit.object.userData.body];
+    return projectMode === 'body'
+      ? addProjection({ kind: 'body', body: body.id }, ents => `Körperumriss projiziert: ${ents.length} Kontur(en)`, 'Der Körper hat auf dieser Ebene keinen Umriss.')
+      : addProjection({ kind: 'cut', body: body.id }, ents => `${ents.length} Schnittkurve(n) eingefügt`, 'Die Skizzenebene schneidet diesen Körper nicht.');
   }
-  if (!loops.length) return status('Fläche hat keinen Rand.');
-  commitSketch(state.sketchId, sk => { for (const l of loops) sk.entities.push({ id: uid('e'), type: 'poly', closed: true, pts: l, projected: true }); });
-  status(`${loops.length} Kontur(en) projiziert`);
+  // an edge under the mouse (in front of the faces) is projected on its own
+  const eh = vp.raycast(evt, edgePickObjects(), 6)[0];
+  if (eh && (!hit || eh.distance <= hit.distance + vp.worldPerPixel() * 6)) {
+    const eb = bodies[eh.object.userData.body], ed = eb.shape.edges?.[eb.segEdge[Math.floor(eh.index / 2)]];
+    if (ed?.pointAt) {
+      const m = ed.pointAt(0.5);
+      return addProjection({ kind: 'edge', ref: [m.x, m.y, m.z], gt: ed.geomType, body: eb.id }, ents => (ents[0].type === 'circle' ? 'Kante als Kreis projiziert' : 'Kante projiziert'), 'Die Kante steht senkrecht zur Skizzenebene – ihr Abbild ist nur ein Punkt.');
+    }
+  }
+  if (!hit) return status('Keine Fläche oder Kante getroffen.');
+  addProjection({ kind: 'face', at: hit.point.toArray(), body: bodies[hit.object.userData.body].id }, ents => `${ents.length} Kontur(en) projiziert`, 'Die Fläche hat auf dieser Ebene keinen Rand (sie steht senkrecht dazu).');
 }
 
 // Sketch fillet / chamfer (like common CAD/CAM): corners of polylines and rectangles, and corners where two separate lines
@@ -9730,6 +10340,65 @@ function sketchMirror() {
   status('Spiegeln: über die Spiegelachse fahren (Vorschau) und klicken. Esc beendet.');
 }
 
+// Move / copy, rotate and scale the chosen sketch elements by numbers ("Verschieben/Kopieren", "Drehen", "Skalieren")
+const sketchXfVal = { dx: 10, dy: 0, copies: 0, ang: 90, factor: 2 };
+// move / rotate with the mouse: the elements are chosen first, then two clicks show the way or the angle
+function sketchMoveTool(tool) {
+  const { ents } = selectedSketchEntities();
+  if (!ents.length) return status((tool === 'xmove' ? 'Verschieben' : 'Drehen') + ': zuerst Skizzenelemente wählen (Auswahl, Umschalt für mehrere).');
+  sketcher.xformIds = ents.map(e => e.id);
+  sketcher.xbase = null;
+  sketcher.setTool(tool);
+  renderToolbar();
+  status(tool === 'xmove' ? 'Verschieben: Ausgangspunkt anklicken, dann den Zielpunkt (Vorschau). Esc beendet.' : 'Drehen: Drehpunkt anklicken, dann den Winkel mit der Maus zeigen (Vorschau). Esc beendet.');
+}
+async function sketchTransform(kind, preset = null, given = null) {
+  const ents = given || selectedSketchEntities().ents;
+  if (!ents.length) return status({ move: 'Verschieben', rotate: 'Drehen', scale: 'Skalieren' }[kind] + ': zuerst Skizzenelemente wählen (Auswahl, Umschalt für mehrere).');
+  const scope = paramScope(state.project), c = v => String(+(+v).toFixed(3)).replace('.', ',');
+  const nums = t => String(t).split(/[;\s]+/).filter(x => x !== '').map(x => evalExpr(x.replace(/,/g, '.'), scope));
+  // middle of the selection: the default pivot
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const e of ents) for (const [x, y] of e.type === 'poly' ? e.pts : e.type === 'text' ? [[e.x, e.y]] : entityPolys(e).flat()) { x0 = Math.min(x0, +x); y0 = Math.min(y0, +y); x1 = Math.max(x1, +x); y1 = Math.max(y1, +y); }
+  const mid = preset?.c || [(x0 + x1) / 2, (y0 + y1) / 2], v = { ...sketchXfVal, ...(preset ? { dx: preset.dx ?? sketchXfVal.dx, dy: preset.dy ?? sketchXfVal.dy, ang: preset.ang ?? sketchXfVal.ang } : {}) };
+  let make, copies = 0, what;
+  if (kind === 'move') {
+    const t = await askValue('Verschieben: Weg X; Weg Y (mm); Kopien (0 = verschieben, 1 oder mehr = kopieren)', `${c(v.dx)}; ${c(v.dy)}; ${v.copies}`);
+    if (t == null) return;
+    const [dx, dy = 0, n = 0] = nums(t);
+    if (![dx, dy, n].every(Number.isFinite) || n < 0 || (!dx && !dy)) return status('Verschieben: einen Weg in X oder Y angeben.');
+    Object.assign(sketchXfVal, { dx, dy, copies: Math.round(n) });
+    copies = Math.round(n);
+    make = (e, i) => translateEntity(e, dx * i, dy * i);
+    what = copies ? `${copies}-mal kopiert` : 'verschoben';
+  } else if (kind === 'rotate') {
+    const t = await askValue('Drehen: Winkel (°, gegen den Uhrzeigersinn); Drehpunkt X; Drehpunkt Y; Kopien (0 = drehen)', `${c(v.ang)}; ${c(mid[0])}; ${c(mid[1])}; 0`);
+    if (t == null) return;
+    const [ang, px = mid[0], py = mid[1], n = 0] = nums(t);
+    if (![ang, px, py, n].every(Number.isFinite) || !ang || n < 0) return status('Drehen: einen Winkel angeben.');
+    sketchXfVal.ang = ang;
+    copies = Math.round(n);
+    make = (e, i) => rotateEntity(e, ang * i, [px, py]);
+    what = copies ? `${copies}-mal gedreht kopiert` : `um ${c(ang)}° gedreht`;
+  } else {
+    const t = await askValue('Skalieren: Faktor; Fixpunkt X; Fixpunkt Y', `${c(v.factor)}; ${c(mid[0])}; ${c(mid[1])}`);
+    if (t == null) return;
+    const [k, px = mid[0], py = mid[1]] = nums(t);
+    if (![k, px, py].every(Number.isFinite) || !(k > 0) || k === 1) return status('Skalieren: einen Faktor größer als 0 angeben (1 ändert nichts).');
+    sketchXfVal.factor = k;
+    make = e => scaleEntity(e, k, [px, py]);
+    what = `mit Faktor ${c(k)} skaliert`;
+  }
+  const round = e => JSON.parse(JSON.stringify(e, (key, val) => (typeof val === 'number' ? +val.toFixed(6) : val)));
+  commitSketch(state.sketchId, sk => {
+    if (copies) { for (let i = 1; i <= copies; i++) for (const e of ents) sk.entities.push({ ...round(make(e, i)), id: uid('e') }); return; }
+    // in place: the element keeps its id, so dimensions and constraints stay attached
+    for (const e of ents) { const k = sk.entities.findIndex(x => x.id === e.id); if (k >= 0) sk.entities[k] = { ...round(make(e, 1)), id: e.id }; }
+  });
+  if (copies) sketcher.selection = [];
+  status(`${ents.length} Element(e) ${what}${copies ? '' : ' – Maße und Abhängigkeiten an diesen Elementen können sie zurückziehen'}`);
+}
+
 // Sketch pattern ("Rechteckige Anordnung" / "Runde Anordnung" in a sketch).
 function sketchPattern(kind) {
   const { ents } = selectedSketchEntities();
@@ -9744,6 +10413,10 @@ async function sketchXform(kind, data) {
   const ents = sketcher.xformIds.map(id => sketcher.entities.find(e => e.id === id)).filter(Boolean);
   if (!ents.length) return;
   const done = () => { sketcher.xformIds = []; sketcher.setTool('select'); renderToolbar(); };
+  if (kind === 'xmove' || kind === 'xrot') {
+    if (kind === 'xmove' ? data.dx || data.dy : data.ang) await sketchTransform(kind === 'xmove' ? 'move' : 'rotate', data, ents);
+    return done();
+  }
   if (kind === 'mirror') {
     const axis = sketcher.entities.find(e => e.id === data.axis);
     if (axis) mirrorSketchEntities(ents, axis);
@@ -10673,8 +11346,14 @@ function ncCollisions(g, pts) {
   };
   const above = (x, y, r, z) => !disc(x, y, r, idx => h[idx] <= z || h[idx] <= lo[idx]); // material higher than z within r?
   // material inside the cutting part (ball end: above the ball's surface, not just above its tip)?
-  const inTool = (x, y, R, z, ball) => !disc(x, y, R * 0.98, (idx, d2) => h[idx] <= (ball ? z + R - Math.sqrt(Math.max(0, R * R - d2)) : z) + 0.05 || h[idx] <= lo[idx]);
-  const cut = (x, y, z, R, ball) => disc(x, y, R, (idx, d2) => { const t = ball ? z + R - Math.sqrt(Math.max(0, R * R - d2)) : z; if (h[idx] > t) h[idx] = t; });
+  // height of the cutting edge at distance² d2 from the axis; ball: true = ball end, a number = corner radius of a torus cutter
+  const edgeZ = (z, R, d2, ball) => {
+    if (ball === true) return z + R - Math.sqrt(Math.max(0, R * R - d2));
+    if (ball > 0) { const d = Math.sqrt(d2), rf = R - ball; return d <= rf ? z : z + ball - Math.sqrt(Math.max(0, ball * ball - (d - rf) * (d - rf))); }
+    return z;
+  };
+  const inTool = (x, y, R, z, ball) => !disc(x, y, R * 0.98, (idx, d2) => h[idx] <= edgeZ(z, R, d2, ball) + 0.05 || h[idx] <= lo[idx]);
+  const cut = (x, y, z, R, ball) => disc(x, y, R, (idx, d2) => { const t = edgeZ(z, R, d2, ball); if (h[idx] > t) h[idx] = t; });
   const o = originOf(g.setup, s);
   const tools = new Map(state.project.cam.tools.map(t => [+t.number, t]));
   const out = [];
@@ -10692,7 +11371,7 @@ function ncCollisions(g, pts) {
     prev = p.cycle ? { ...b, z: p.zr + o.z } : b;
     if (!t || !a) return;
     const R = (+t.dia || 1) / 2, flute = toolFlute(t), stick = toolStick(t), shaft = toolShaft(t), holder = +(t.holderDia ?? defaultHolderDia(t));
-    const ball = toolBase(t) === 'ball';
+    const ball = toolBase(t) === 'ball' ? true : cornerOf(t);
     // a drilling cycle: the hole is drilled (the cutting part may go into the material)
     if (p.cycle) {
       if (b.z + stick < top && above(b.x, b.y, holder / 2, b.z + stick)) out.push({ k, kind: 'holder', at: { x: p.x, y: p.y, z: p.z } });
@@ -11537,7 +12216,6 @@ function openPostDialog(saved = null) {
   applyTheme();
   fitView();
   initUpdates(status);
+  // steps waiting for the full kernel (delete face, fillet with radius points) are computed as soon as it is there
+  onFullKernel(() => { clearTimelineCache(); model.key = null; renderAll(); });
 })();
-
-
-
