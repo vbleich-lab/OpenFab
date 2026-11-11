@@ -6,10 +6,12 @@
 
 WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über Skizzen und eine Feature-Zeitachse konstruiert. Danach lassen sich Baugruppen, Zeichnungen und Renderings erstellen und NC-Programme für Fräs- und Drehmaschinen erzeugen, simulieren und prüfen. Alles läuft lokal: kein Konto, keine Cloud, keine Telemetrie.
 
+**[Im Browser ausprobieren](https://vbleich-lab.github.io/WerkFab/)** – die Online-Demo ist das vollständige Programm; es wird nichts hochgeladen, die Arbeit bleibt im eigenen Browser.
+
 > [!CAUTION]
 > **Jedes NC-Programm muss vor dem ersten Einsatz geprüft werden – an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang, ohne Werkstück oder mit Abstand in Z) oder in einem externen NC-Simulator.** Die Simulation in WerkFab ersetzt diese Prüfung nicht. WerkFab ist freie Software ohne jede Gewährleistung; für Schäden an Maschine, Werkzeug, Werkstück oder Personen wird nicht gehaftet (siehe [Sicherheit](#sicherheit-nc-programme-immer-vorher-simulieren)).
 
-> **Status: Release Candidate 4 (v1.0.0-rc.4).** Der Funktionsumfang ist vollständig für 1.0.
+> **Status: Release Candidate 5 (v1.0.0-rc.5).** Der Funktionsumfang ist vollständig für 1.0.
 
 ![Konstruktion über die Zeitachse, danach Fräsbahnen und Simulation mit Materialabtrag](docs/media/demo.gif)
 
@@ -72,6 +74,7 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 
 ### Bedienung
 - **Sprachen**: Deutsch, Englisch und Chinesisch (Voreinstellungen → Einheiten- und Wertanzeige → Sprache; beim ersten Start nach der Sprache des Browsers)
+- **Updates**: Das Programm sieht beim Start auf GitHub nach einer neuen Version. Die installierte Windows-App und das Linux-AppImage laden und installieren sie auf Wunsch selbst; der Windows-Ordner ohne Installation, macOS und die Browser-Version zeigen einen Hinweis mit der Download-Seite. Diese Abfrage ist die einzige Verbindung ins Netz, die WerkFab von sich aus aufbaut, und sie lässt sich abschalten (Voreinstellungen → Allgemein → Updates).
 - Markierungsmenü (Rechtsklick), ViewCube, Tastenkürzel (z. B. Q Drücken/Ziehen, F Verrundung, M Verschieben, I Messen, X Konstruktionslinie)
 - Mehrere Dokumente in Tabs, Versionsstände beim Speichern; Import von STEP, IGES, STL, OBJ und DXF, Werkzeugbibliotheken und Postprozessoren (.cps)
 
@@ -90,7 +93,7 @@ Alle Downloads stehen auf der Seite [Releases](../../releases).
 | macOS (Intel) | `WerkFab-<Version>-macos-x64.dmg` | Ebenso. |
 | Jedes System, im Browser | `WerkFab-<Version>-browser.zip` | Siehe unten. |
 
-Die Apps sind nicht mit einem gekauften Zertifikat signiert. Windows SmartScreen warnt eventuell beim ersten Start („Weitere Informationen“ → „Trotzdem ausführen“). macOS verweigert den ersten Start per Doppelklick: Rechtsklick auf die App → „Öffnen“, oder unter Systemeinstellungen → Datenschutz & Sicherheit erlauben; meldet macOS, die App sei beschädigt, einmal `xattr -dr com.apple.quarantine /Applications/WerkFab.app` ausführen. Die Linux- und macOS-Pakete werden automatisch gebaut und sind auf diesen Systemen nicht von Hand getestet.
+Die Apps sind nicht mit einem gekauften Zertifikat signiert. Windows SmartScreen warnt eventuell beim ersten Start („Weitere Informationen“ → „Trotzdem ausführen“). macOS verweigert den ersten Start per Doppelklick: Rechtsklick auf die App → „Öffnen“, oder unter Systemeinstellungen → Datenschutz & Sicherheit erlauben; meldet macOS, die App sei beschädigt, einmal `xattr -dr com.apple.quarantine /Applications/WerkFab.app` ausführen. Die Linux- und macOS-Pakete werden automatisch gebaut; bei jedem Release werden sie auf den Rechnern von GitHub einmal gestartet und geprüft, ob die Oberfläche erscheint – von Hand hat aber noch niemand damit gearbeitet.
 
 ### Browser-Version (offline-fähig)
 Lade `WerkFab-<Version>-browser.zip` und entpacke es. Dann im Ordner einen lokalen Webserver starten, zum Beispiel:

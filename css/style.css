@@ -70,6 +70,11 @@ input, select, textarea { font: inherit; color: inherit; }
 #projectName:focus { background: var(--accent-soft); }
 .spacer { flex: 1; }
 #status { color: #b8c2cc; font-size: 12px; }
+/* note about a new version, lower right */
+#updateNote { position: fixed; right: 16px; bottom: 44px; z-index: 900; max-width: 340px; padding: 12px 14px; border: 1px solid var(--accent); border-radius: 8px; background: var(--panel, #232a32); color: var(--text, #e3e9ef); box-shadow: 0 6px 24px rgba(0, 0, 0, .35); font-size: 13px; }
+#updateNote[hidden] { display: none; }
+#updateNote p { margin: 0 0 8px; }
+#updateNote .btns { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* toolbar */
 #toolbar { background: var(--panel); border-bottom: 1px solid var(--line); display: flex; align-items: stretch; min-width: 0; }

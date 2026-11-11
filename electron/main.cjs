@@ -1,7 +1,7 @@
 // WerkFab desktop app: serves the app files from disk through a private
 // "app://" scheme (ES modules, WebAssembly and fetch work like on a web server),
 // so everything runs offline.
-const { app, BrowserWindow, protocol, Menu, shell } = require('electron');
+const { app, BrowserWindow, protocol, Menu, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -26,7 +26,7 @@ function createWindow() {
     width: 1600, height: 960, minWidth: 1000, minHeight: 640,
     title: 'WerkFab', backgroundColor: '#1c2025', show: false, autoHideMenuBar: true,
     icon: ICON,
-    webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false },
+    webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false, preload: path.join(__dirname, 'preload.cjs') },
   });
   win.once('ready-to-show', () => { win.maximize(); win.show(); });
   // SpaceMouse (WebHID): Electron has no device chooser, so 3Dconnexion devices are
@@ -51,6 +51,32 @@ function createWindow() {
   return win;
 }
 
+// ---------- updates from the releases on GitHub ----------
+// The installed Windows app and the Linux AppImage can replace themselves (electron-updater). The portable
+// folder has no updater, and macOS only installs updates of apps signed with a paid certificate: there the
+// page itself looks at the releases and opens the download page.
+let updater = null;
+try { updater = require('electron-updater').autoUpdater; } catch { /* portable build */ }
+const canAutoUpdate = () => !!updater && app.isPackaged && process.platform !== 'darwin'
+  && fs.existsSync(path.join(process.resourcesPath, 'app-update.yml')) && (process.platform !== 'linux' || !!process.env.APPIMAGE);
+
+function setupUpdates(win) {
+  const send = (state, data = {}) => { if (!win.isDestroyed()) win.webContents.send('update:state', { state, ...data }); };
+  ipcMain.handle('update:info', () => ({ version: app.getVersion(), auto: canAutoUpdate(), platform: process.platform }));
+  if (!canAutoUpdate()) return;
+  updater.autoDownload = false;
+  updater.autoInstallOnAppQuit = true;
+  updater.allowPrerelease = /-/.test(app.getVersion());
+  updater.on('update-available', i => send('available', { version: i.version }));
+  updater.on('update-not-available', () => send('none'));
+  updater.on('download-progress', p => send('progress', { percent: Math.round(p.percent) }));
+  updater.on('update-downloaded', i => send('ready', { version: i.version }));
+  updater.on('error', e => send('error', { message: String((e && e.message) || e).split('\n')[0].slice(0, 200) }));
+  ipcMain.handle('update:check', () => updater.checkForUpdates().then(() => true).catch(() => false));
+  ipcMain.handle('update:download', () => updater.downloadUpdate().then(() => true).catch(() => false));
+  ipcMain.handle('update:install', () => { updater.quitAndInstall(false, true); });
+}
+
 app.on('second-instance', () => {
   const [w] = BrowserWindow.getAllWindows();
   if (w) { if (w.isMinimized()) w.restore(); w.focus(); }
@@ -71,7 +97,7 @@ app.whenReady().then(() => {
   });
   // no menu bar on Windows and Linux; macOS needs its app and edit menus (quit, copy, paste, undo by keyboard)
   Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
-  createWindow();
+  setupUpdates(createWindow());
 });
 
 app.on('window-all-closed', () => app.quit());

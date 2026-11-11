@@ -4,6 +4,7 @@ import { state, onChange, commit, undo, redo, undoDepth, revertTo, setUndoLimit,
 import { Viewport } from './viewport.js';
 import { loadKernel, R as OC } from './kernel.js';
 import { LANGS, lang as uiLang, setLanguage, t as tr, tHtml, deText, deAttr } from './i18n.js';
+import { initUpdates, checkForUpdates } from './update.js';
 import { setActiveKernel, activeKernelId, getKernel } from './kern/index.js';
 import './kern/rust.js';
 import { THREAD_SIZES, meshBody } from './model.js';
@@ -9163,6 +9164,10 @@ const PREF_TREE = [
       ['confirmDelete', 'Löschen bestätigen', 'Vor dem Löschen eines Features nachfragen', 'bool'],
       ['undoLimit', 'Rückgängig-Schritte', 'Wie viele Schritte Strg+Z zurückgehen kann', 'num', { min: 10, max: 2000, step: 10 }],
     ]],
+    ['Updates', [
+      ['updateCheck', 'Nach Updates suchen', 'Fragt beim Start bei GitHub nach einer neuen Version. Sonst baut WerkFab von sich aus keine Verbindung ins Netz auf.', 'bool'],
+      ['__update'],
+    ]],
     ['Benutzeroberfläche', [
       ['theme', 'Farbschema', 'Hell, dunkel oder wie in Windows eingestellt', [['system', 'Wie Windows'], ['light', 'Hell'], ['dark', 'Dunkel']]],
       ['hoverHighlight', 'Vorauswahl hervorheben', 'Fläche oder Kante unter dem Mauszeiger farbig anzeigen', 'bool'],
@@ -9316,6 +9321,8 @@ function openSettings(page) {
   const special = key => {
     if (key === '__lang') return h('div', { class: 'prefs-row no-i18n' }, h('label', null, 'Sprache / Language', info('Die Oberfläche wird neu geladen · The page reloads')),
       h('div', { class: 'prefs-ctl' }, sel(Object.entries(LANGS), uiLang, v => setLanguage(v))));
+    if (key === '__update') return h('div', { class: 'prefs-row' }, h('label', null, 'Neue Version', info('Installierte Windows-App und Linux-AppImage laden das Update selbst; sonst öffnet sich die Download-Seite')),
+      h('div', { class: 'prefs-ctl' }, h('button', { class: 'btn', onclick: () => checkForUpdates(true) }, 'Jetzt nach Updates suchen')));
     if (key === '__unit') return h('div', { class: 'prefs-row' }, h('label', null, 'Standardeinheit', info('Alle Längen in Millimeter, Winkel in Grad')), h('div', { class: 'prefs-ctl' }, h('b', null, 'Millimeter (mm)')));
     if (key === '__smStatus') {
       const st = h('b', { style: spaceMouse.connected ? 'color:var(--ok)' : '' }, !spaceMouse.supported ? 'Nicht unterstützt (Chrome, Edge oder Desktop-App nötig)' : spaceMouse.connected ? `Verbunden: ${spaceMouse.name}` : 'Nicht verbunden');
@@ -11523,6 +11530,7 @@ function openPostDialog(saved = null) {
   if (getSettings().startWorkspace === 'cam' && state.workspace !== 'cam') { $('#workspace').value = 'cam'; $('#workspace').dispatchEvent(new Event('change')); }
   applyTheme();
   fitView();
+  initUpdates(status);
 })();
 
 

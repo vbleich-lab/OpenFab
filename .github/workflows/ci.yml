@@ -34,5 +34,7 @@ jobs:
         run: npm run test:drawing
       - name: Sprachen (Wörterbücher, Übersetzung zur Laufzeit)
         run: npm run test:i18n
+      - name: Updates (Versionsvergleich)
+        run: npm run test:update
       - name: Browser-Version bauen
         run: node tools/build-web.mjs

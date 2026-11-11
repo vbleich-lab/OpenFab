@@ -23,6 +23,8 @@ function walk(dir, base = '') {
     return d.isDirectory() ? walk(path.join(dir, d.name), rel) : [rel];
   });
 }
+// the version, for the program's own look for updates
+fs.writeFileSync(path.join(OUT, 'version.json'), JSON.stringify({ version: pkg.version }));
 const files = walk(OUT).filter(f => !LAZY.some(l => f.startsWith(l)) && !['LICENSE', 'THIRD_PARTY_NOTICES.md'].includes(f));
 const version = `${pkg.version}-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}`;
 

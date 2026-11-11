@@ -1,7 +1,7 @@
 {
   "name": "werkfab",
   "productName": "WerkFab",
-  "version": "1.0.0-rc.4",
+  "version": "1.0.0-rc.5",
   "description": "WerkFab CAD/CAM – design and CNC machining, offline",
   "license": "GPL-3.0-or-later",
   "repository": {
@@ -25,10 +25,12 @@
     "test:lathe": "node tools/test-lathe.mjs",
     "test:drawing": "node tools/test-drawing.mjs",
     "test:i18n": "node tools/test-i18n.mjs",
-    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing && npm run test:i18n",
+    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing && npm run test:i18n && npm run test:update",
     "dist:win": "electron-builder --win --publish never",
     "dist:linux": "electron-builder --linux --publish never",
-    "dist:mac": "electron-builder --mac --publish never"
+    "dist:mac": "electron-builder --mac --publish never",
+    "smoke": "node tools/smoke-app.mjs",
+    "test:update": "node tools/test-update.mjs"
   },
   "devDependencies": {
     "@electron/packager": "18.3.6",
@@ -114,6 +116,16 @@
       "icon": "icons/icon-512.png",
       "identity": null,
       "artifactName": "WerkFab-${version}-macos-${arch}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "vbleich-lab",
+        "repo": "WerkFab"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
   }
 }

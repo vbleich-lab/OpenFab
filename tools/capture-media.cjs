@@ -13,6 +13,7 @@ const ONLY = process.argv[3] || 'all'; // 'stills' | 'gif' | 'all'
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' };
 const ZOOM = +(process.argv[4] || 3);
+const LANG = process.argv[5] || 'en';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const server = http.createServer((req, res) => {
@@ -36,7 +37,7 @@ app.whenReady().then(async () => {
   let fno = 0;
   const frame = () => shot(path.join(FRAMES, 'f' + String(fno++).padStart(4, '0') + '.png'));
   const click = sel => js(`const e=document.querySelector(${JSON.stringify(sel)}); if(!e) throw new Error('missing '+${JSON.stringify(sel)}); e.click();`);
-  const clickText = (sel, text) => js(`const e=[...document.querySelectorAll(${JSON.stringify(sel)})].find(x=>x.textContent.trim()===${JSON.stringify(text)}); if(!e) throw new Error('missing text '+${JSON.stringify(text)}); e.click();`);
+  const clickText = (sel, text) => js(`const {deText:D}=await import('/js/i18n.js'); const e=[...document.querySelectorAll(${JSON.stringify(sel)})].find(x=>D(x).trim()===${JSON.stringify(text)}); if(!e) throw new Error('missing text '+${JSON.stringify(text)}); e.click();`);
   const workspace = ws => js(`const s=document.querySelector('#workspace'); s.value=${JSON.stringify(ws)}; s.dispatchEvent(new Event('change'));`);
   const viewRect = () => js(`const r=document.querySelector('#viewport').getBoundingClientRect(); return {x:r.x,y:r.y,w:r.width,h:r.height};`);
   // orbit by dragging with the left button over the free middle of the view
@@ -60,12 +61,15 @@ app.whenReady().then(async () => {
   };
   // real double click on the browser row with this label
   const dblRow = async text => {
-    const c = await js(`const e=[...document.querySelectorAll('#tree *')].find(x=>!x.children.length && x.textContent.trim()===${JSON.stringify(text)}); if(!e) throw new Error('row'); const r=e.getBoundingClientRect(); return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2)};`);
+    const c = await js(`const {deText:D}=await import('/js/i18n.js'); const e=[...document.querySelectorAll('#tree *')].find(x=>!x.children.length && D(x).trim()===${JSON.stringify(text)}); if(!e) throw new Error('row'); const r=e.getBoundingClientRect(); return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2)};`);
     for (const n of [1, 2]) { wc.sendInputEvent({ type: 'mouseDown', ...c, button: 'left', clickCount: n }); wc.sendInputEvent({ type: 'mouseUp', ...c, button: 'left', clickCount: n }); await sleep(80); }
   };
   const timeline = dir => click(`[data-tl=${dir}]`);
 
   wc.on('console-message', (_e, level, msg) => { if (level >= 3) console.log('page error:', msg); });
+  await win.loadURL(url);
+  // the pictures show the interface in this language (texts are still found by their German originals)
+  await js(`localStorage.setItem('openfab.lang', ${JSON.stringify(LANG)});`);
   await win.loadURL(url);
   await sleep(6000);
 

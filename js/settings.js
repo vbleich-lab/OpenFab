@@ -8,6 +8,7 @@ export const DEFAULTS = {
   startExample: false,
   startWorkspace: 'design', // design | cam
   undoLimit: 200,
+  updateCheck: true,        // ask GitHub for a new version at start
   toolbarLabels: true,
   hoverHighlight: true,
   // Darstellung
