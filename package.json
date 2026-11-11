@@ -1,7 +1,7 @@
 {
   "name": "werkfab",
   "productName": "WerkFab",
-  "version": "1.0.0-rc.5",
+  "version": "1.0.0-rc.6",
   "description": "WerkFab CAD/CAM – design and CNC machining, offline",
   "license": "GPL-3.0-or-later",
   "repository": {
@@ -12,7 +12,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . WerkFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=WerkFab --win32metadata.FileDescription=\"WerkFab CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=^/docs --ignore=/rust/werkfab-kernel --ignore=^/[.]claude --ignore=^/[.]git",
+    "build": "electron-packager . WerkFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=WerkFab --win32metadata.FileDescription=\"WerkFab CAD/CAM\" \"--ignore=^/dist($|/)\" \"--ignore=^/node_modules($|/)\" \"--ignore=^/package-lock[.]json$\" \"--ignore=^/start[.]bat$\" \"--ignore=^/build-exe[.]bat$\" \"--ignore=^/build-web[.]bat$\" \"--ignore=^/tools($|/)\" \"--ignore=^/docs($|/)\" \"--ignore=^/rust($|/)\" \"--ignore=^/[.]claude($|/)\" \"--ignore=^/[.]git\" \"--ignore=^/[.]github($|/)\"",
     "build:web": "node tools/build-web.mjs",
     "build:kernel": "node tools/build-kernel.mjs",
     "test:kernel": "node tools/test-rust-kernel.mjs",

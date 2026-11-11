@@ -11,7 +11,7 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 > [!CAUTION]
 > **Jedes NC-Programm muss vor dem ersten Einsatz geprüft werden – an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang, ohne Werkstück oder mit Abstand in Z) oder in einem externen NC-Simulator.** Die Simulation in WerkFab ersetzt diese Prüfung nicht. WerkFab ist freie Software ohne jede Gewährleistung; für Schäden an Maschine, Werkzeug, Werkstück oder Personen wird nicht gehaftet (siehe [Sicherheit](#sicherheit-nc-programme-immer-vorher-simulieren)).
 
-> **Status: Release Candidate 5 (v1.0.0-rc.5).** Der Funktionsumfang ist vollständig für 1.0.
+> **Status: Release Candidate 6 (v1.0.0-rc.6).** Der Funktionsumfang ist vollständig für 1.0.
 
 ![Konstruktion über die Zeitachse, danach Fräsbahnen und Simulation mit Materialabtrag](docs/media/demo.gif)
 
