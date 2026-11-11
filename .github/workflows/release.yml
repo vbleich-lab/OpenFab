@@ -53,6 +53,8 @@ jobs:
         run: npm test
       - name: Windows-App (Ordner) bauen
         run: npm run build
+      - name: Starttest der App ohne Installation
+        run: node tools/smoke-app.mjs dist/WerkFab-win32-x64/WerkFab.exe
       - name: Windows-Installer bauen
         run: npm run dist:win
       - name: Starttest der gepackten App

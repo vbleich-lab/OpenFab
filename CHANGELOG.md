@@ -1,5 +1,11 @@
 # Änderungen
 
+## v1.0.0-rc.6 – 2026-11-11
+
+### Behoben: Windows-Version ohne Installation startete nicht
+- Die Zip-Version für Windows (`…-windows-x64-portable.zip`, vorher `…-windows-x64.zip`) zeigte seit RC3 nur ein leeres Fenster: Beim Packen fehlte eine Programmdatei, weil die Ausschlussliste unter Windows zu viel traf. Der Installer und die Browser-Version waren nicht betroffen.
+- Die Zip-Version wird jetzt bei jedem Release wie die anderen Pakete gestartet und geprüft.
+
 ## v1.0.0-rc.5 – 2026-11-11
 
 ### Updates direkt von GitHub
