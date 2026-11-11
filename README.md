@@ -6,10 +6,12 @@
 
 WerkFab is a parametric 3D CAD program with integrated CAM. Parts are designed with sketches and a feature timeline. From there you can build assemblies, drawings and renderings, and generate, simulate and check NC programs (G-code and Heidenhain Klartext) for CNC milling machines and lathes. Everything runs locally: no account, no cloud, no telemetry.
 
+**[Try it in your browser](https://vbleich-lab.github.io/WerkFab/)** – the online demo is the complete program; nothing is uploaded, your work stays in your browser.
+
 > [!CAUTION]
 > **Every NC program must be verified before it runs on a machine for the first time – in a dry run on the machine (single block, reduced rapid, in the air or with a safe Z offset) or in an external NC simulator.** The simulation inside WerkFab does not replace this check. WerkFab is free software and comes with no warranty of any kind; there is no liability for damage to machines, tools, workpieces or people. See [Safety](#safety-always-simulate-nc-programs-first).
 
-> **Status: Release Candidate 4 (v1.0.0-rc.4).** Feature complete for 1.0.
+> **Status: Release Candidate 5 (v1.0.0-rc.5).** Feature complete for 1.0.
 
 ![Designing a part on the timeline, then toolpaths and a simulation with stock removal](docs/media/demo.gif)
 
@@ -27,7 +29,7 @@ WerkFab is a parametric 3D CAD program with integrated CAM. Parts are designed w
 | **Turning** | **Rendering** |
 | ![Turned part with roughing, finishing, grooving and threading passes](docs/media/05-drehen.png) | ![Rendering in a photo studio](docs/media/06-rendern.png) |
 
-The screenshots show the German interface. The interface is available in **English, German and Chinese**.
+The interface is available in **English, German and Chinese**.
 
 ---
 
@@ -74,6 +76,7 @@ The screenshots show the German interface. The interface is available in **Engli
 
 ### User interface
 - **Languages**: English, German and Chinese (Preferences → Units and value display → Language; the first start follows the browser language)
+- **Updates**: the program looks for a new version on GitHub at start. The installed Windows app and the Linux AppImage download and install it on request; the portable Windows folder, macOS and the browser version show a note with the download page. This look-up is the only connection WerkFab makes to the net by itself, and it can be switched off (Preferences → General → Updates).
 - Marking menu (right click), ViewCube, keyboard shortcuts (e.g. Q press/pull, F fillet, M move, I measure, X construction line)
 - Several documents in tabs, versions on save; import of STEP, IGES, STL, OBJ and DXF, tool libraries and post processors (.cps)
 
@@ -92,7 +95,7 @@ All downloads are on the [Releases](../../releases) page.
 | macOS (Intel) | `WerkFab-<version>-macos-x64.dmg` | Same. |
 | Any system, in the browser | `WerkFab-<version>-browser.zip` | See below. |
 
-The apps are not signed with a paid certificate. Windows SmartScreen may warn on the first start ("More info" → "Run anyway"). macOS refuses the first start by double click: right-click the app → "Open", or allow it under System Settings → Privacy & Security; if macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/WerkFab.app` once. The Linux and macOS builds are built automatically and have not been tested by hand on those systems.
+The apps are not signed with a paid certificate. Windows SmartScreen may warn on the first start ("More info" → "Run anyway"). macOS refuses the first start by double click: right-click the app → "Open", or allow it under System Settings → Privacy & Security; if macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/WerkFab.app` once. The Linux and macOS builds are built automatically; each release starts them once on GitHub's machines and checks that the interface comes up, but nobody has worked with them by hand.
 
 ### Browser version (works offline)
 Download `WerkFab-<version>-browser.zip` and unpack it. Start a local web server in that folder, for example:
@@ -159,6 +162,8 @@ npm test
 | `npm run test:iso` | G-code for Fanuc/ISO, Okuma OSP-M, LinuxCNC, GRBL and Sinumerik: the same program in five option combinations, checked block by block (length offset, spindle, feed, cycles, arcs) |
 | `npm run test:lathe` | Lathe programs for Fanuc, Okuma and LinuxCNC: all operations as paths and as cycles, checked block by block (tool change away from the part, spindle, C axis, cycles with a contour) |
 | `npm run test:drawing` | Drawing: dimensions, angles, notes, detail views and sections in the generated SVG |
+| `npm run test:update` | Updates: comparing version numbers, choosing the newest release |
+| `npm run smoke -- <executable>` | Starts a packaged desktop app and checks that the interface comes up (runs in the release workflow on Windows, Linux and macOS) |
 | `npm run test:i18n` | Languages: every dictionary against the texts of the source (placeholders, line breaks), and the translation at run time |
 
 The tests run without a browser in Node.js, and automatically on GitHub with every push.

@@ -1,5 +1,19 @@
 # Änderungen
 
+## v1.0.0-rc.5 – 2026-11-11
+
+### Updates direkt von GitHub
+- WerkFab sieht beim Start nach einer neuen Version. Die **installierte Windows-App** und das **Linux-AppImage** laden das Update auf Wunsch selbst und installieren es beim Neustart oder beim Beenden.
+- Der Windows-Ordner ohne Installation, macOS (ohne gekauftes Zertifikat lässt Apple keine Selbst-Updates zu) und die Browser-Version zeigen einen Hinweis und öffnen die Download-Seite.
+- Abschaltbar unter Voreinstellungen → Allgemein → Updates; dort gibt es auch „Jetzt nach Updates suchen". Das ist die einzige Verbindung ins Netz, die das Programm von sich aus aufbaut.
+
+### Online-Demo
+- Die Browser-Version läuft jetzt auch direkt im Netz: https://vbleich-lab.github.io/WerkFab/ (wird bei jeder Änderung neu gebaut).
+
+### Starttest der Apps
+- Bei jedem Release werden die gepackten Apps für Windows, Linux und macOS einmal gestartet und geprüft, ob die Oberfläche erscheint.
+- README-Bilder und Demo-GIF neu aufgenommen (englische Oberfläche).
+
 ## v1.0.0-rc.4 – 2026-11-11
 
 ### Installer und Apps für Windows, Linux und macOS

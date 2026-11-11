@@ -55,6 +55,8 @@ jobs:
         run: npm run build
       - name: Windows-Installer bauen
         run: npm run dist:win
+      - name: Starttest der gepackten App
+        run: node tools/smoke-app.mjs dist/installers/win-unpacked/WerkFab.exe
       - name: Browser-Version bauen
         run: node tools/build-web.mjs
       - name: Pakete packen und hochladen
@@ -63,7 +65,8 @@ jobs:
           $v = $env:TAG.TrimStart('v')
           Compress-Archive -Path dist\WerkFab-win32-x64 -DestinationPath "dist\WerkFab-$v-windows-x64-portable.zip"
           Compress-Archive -Path dist\WerkFab-Browser\* -DestinationPath "dist\WerkFab-$v-browser.zip"
-          gh release upload $env:TAG "dist\installers\WerkFab-$v-windows-x64-setup.exe" "dist\WerkFab-$v-windows-x64-portable.zip" "dist\WerkFab-$v-browser.zip" --clobber
+          # latest.yml und die Blockmap braucht der eingebaute Updater
+          gh release upload $env:TAG "dist\installers\WerkFab-$v-windows-x64-setup.exe" "dist\installers\WerkFab-$v-windows-x64-setup.exe.blockmap" "dist\installers\latest.yml" "dist\WerkFab-$v-windows-x64-portable.zip" "dist\WerkFab-$v-browser.zip" --clobber
 
   linux:
     needs: prepare
@@ -79,8 +82,10 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Linux-App bauen (AppImage, tar.gz)
         run: npm run dist:linux
+      - name: Starttest der gepackten App
+        run: xvfb-run -a node tools/smoke-app.mjs dist/installers/linux-unpacked/werkfab
       - name: Hochladen
-        run: gh release upload "$TAG" dist/installers/WerkFab-${TAG#v}-linux-x86_64.AppImage dist/installers/WerkFab-${TAG#v}-linux-x86_64.tar.gz --clobber
+        run: gh release upload "$TAG" dist/installers/WerkFab-${TAG#v}-linux-x86_64.AppImage dist/installers/WerkFab-${TAG#v}-linux-x86_64.tar.gz dist/installers/latest-linux.yml --clobber
 
   macos:
     needs: prepare
@@ -101,5 +106,7 @@ jobs:
       - name: Signatur prüfen
         run: |
           for app in dist/installers/mac*/WerkFab.app; do codesign --verify --deep --verbose=1 "$app"; done
+      - name: Starttest der gepackten App
+        run: node tools/smoke-app.mjs dist/installers/mac-arm64/WerkFab.app/Contents/MacOS/WerkFab
       - name: Hochladen
         run: gh release upload "$TAG" dist/installers/WerkFab-${TAG#v}-macos-arm64.dmg dist/installers/WerkFab-${TAG#v}-macos-x64.dmg --clobber
