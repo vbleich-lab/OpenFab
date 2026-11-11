@@ -1,5 +1,16 @@
 # Änderungen
 
+## v1.0.0-rc.7 – 2026-11-11
+
+### Neues Programmsymbol
+- WerkFab hat ein eigenes Symbol: ein „W" als Werkzeugbahn mit Fräser am Ende. Es ersetzt die blaue Raute in App, Installer, Browser-Version und Fenstersymbol.
+
+### Behoben: Zeichnungsfenster blieb leer
+- Wurde das Zeichnungsfenster über das Fenster-Menü statt über die Schaltfläche „Zeichnung" geöffnet, blieb das Blatt leer, bis man etwas änderte. Es füllt sich jetzt bei jedem Öffnen.
+
+### Werkzeuge
+- `tools/capture-tour.cjs` nimmt die Bildfolgen für das Einführungsvideo auf (von der Skizze bis zum NC-Programm).
+
 ## v1.0.0-rc.6 – 2026-11-11
 
 ### Behoben: Windows-Version ohne Installation startete nicht
