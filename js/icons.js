@@ -1,4 +1,4 @@
-// OpenFab icon set: line drawings in the text colour plus two-tone shading.
+// Toolbahn icon set: line drawings in the text colour plus two-tone shading.
 // Classes (colours in css/style.css, light and dark theme):
 //   f1 / f2 / f3   light / mid / dark face of a body (isometric view: top, left, right)
 //   a  / af        accent line / accent area (direction, new geometry)

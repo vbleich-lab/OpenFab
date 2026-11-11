@@ -1,4 +1,4 @@
-//! OpenFab Rust-Geometriekern.
+//! Toolbahn Rust-Geometriekern.
 //!
 //! B-rep-Modellierung auf Basis von `truck`, als WebAssembly ohne Bindungsgenerator:
 //! JavaScript schreibt einen JSON-Befehl in den Speicher, ruft `of_call` auf und liest das Ergebnis
@@ -602,7 +602,7 @@ fn run(cmd: &Value) -> R<Value> {
     let op = cmd["op"].as_str().unwrap_or("");
     let made = |s: Solid| Ok(json!(put(s)));
     match op {
-        "version" => Ok(json!({ "name": "OpenFab Rust-Kern (truck)", "version": env!("CARGO_PKG_VERSION"), "variants": VARIANTS })),
+        "version" => Ok(json!({ "name": "Toolbahn Rust-Kern (truck)", "version": env!("CARGO_PKG_VERSION"), "variants": VARIANTS })),
         "box" => {
             let (w, d, h) = (num(cmd, "w")?, num(cmd, "d")?, num(cmd, "h")?);
             if w <= 0.0 || d <= 0.0 || h == 0.0 {
@@ -718,7 +718,7 @@ fn run(cmd: &Value) -> R<Value> {
             let hs = cmd["hs"].as_array().ok_or("Körper fehlen")?;
             let solids: Vec<Solid> = hs.iter().map(|h| get(h.as_u64().unwrap_or(u64::MAX) as usize)).collect::<R<_>>()?;
             let comp: Vec<_> = solids.iter().map(|s| s.compress()).collect();
-            let header = truck_stepio::out::StepHeaderDescriptor { organization_system: "OpenFab".to_owned(), ..Default::default() };
+            let header = truck_stepio::out::StepHeaderDescriptor { organization_system: "Toolbahn".to_owned(), ..Default::default() };
             let text = if comp.len() == 1 {
                 truck_stepio::out::CompleteStepDisplay::new(truck_stepio::out::StepModel::from(&comp[0]), header).to_string()
             } else {

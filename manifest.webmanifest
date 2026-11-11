@@ -1,6 +1,6 @@
 {
-  "name": "OpenFab CAD/CAM",
-  "short_name": "OpenFab",
+  "name": "Toolbahn CAD/CAM",
+  "short_name": "Toolbahn",
   "description": "Konstruktion (CAD) und Fertigung (CAM) im Browser – läuft auch offline.",
   "lang": "de",
   "start_url": "./index.html",

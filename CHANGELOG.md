@@ -2,6 +2,9 @@
 
 ## Unveröffentlicht
 
+### Neuer Name: Toolbahn
+- Das Programm heißt jetzt **Toolbahn** (Werkzeugbahn). Der frühere Name war schon anderweitig vergeben. Gespeicherte Projekte, Einstellungen und Bibliotheken bleiben erhalten; die Windows-App heißt `Toolbahn.exe`, die Download-Dateien `Toolbahn-<Version>-…zip`.
+
 ### Sprachen: Englisch und Chinesisch
 - Die Oberfläche gibt es jetzt auf **Deutsch, Englisch und Chinesisch**. Beim ersten Start richtet sie sich nach der Sprache des Browsers (unbekannte Sprachen: Englisch); umstellen unter Voreinstellungen → Einheiten- und Wertanzeige → Sprache.
 - Die Texte werden beim Anzeigen übersetzt (Wörterbücher in `js/lang/`), auch Meldungen mit Zahlen und Namen, Tooltips, die Würfelbeschriftung und die exportierte Zeichnung, das Einrichteblatt und die Werkzeugliste. Was keine Übersetzung hat, bleibt deutsch; Kommentare im NC-Programm sind immer deutsch.
@@ -149,7 +152,7 @@
 
 ## v1.0.0-rc.1 – 2026-11-09
 
-Erster Release Candidate für OpenFab 1.0.
+Erster Release Candidate für Toolbahn 1.0.
 
 ### Neu seit den Vorabversionen
 - **CAM-Strategietest** an einem eigenen Prüfteil (36 Operationen): alle Strategien ohne Verletzung des Fertigteils (außer Gewindebohren/Entgraten, die bewusst bis auf Kontur gehen).

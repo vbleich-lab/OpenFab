@@ -269,7 +269,7 @@ const bbox = pts => pts.reduce((b, q) => q.map((v, i) => [Math.min(b[i][0], v), 
     }
     return inside ? dmin : -dmin;
   };
-  // the program follows the theoretical tip; the cutting edge (nose rounding + trailing edge, as OpenFab models
+  // the program follows the theoretical tip; the cutting edge (nose rounding + trailing edge, as Toolbahn models
   // the insert) must not reach into the contour anywhere along the moves
   const sh = turnCutShape(p.cam.tools.find(t => t.id === 'L1'));
   let worst = -Infinity, at = null;

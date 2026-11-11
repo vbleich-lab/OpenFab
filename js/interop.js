@@ -1,5 +1,5 @@
 // Data exchange: STEP/IGES geometry, tool libraries (Fusion 360 / HSM, CSV) and
-// Fusion .cps post-processors (converted into an editable OpenFab template).
+// Fusion .cps post-processors (converted into an editable Toolbahn template).
 import { R } from './kernel.js';
 import { BUILTIN_POSTS, copyPost } from './post.js';
 
@@ -178,7 +178,7 @@ const num = v => {
 };
 const r3 = v => Math.round(v * 1000) / 1000;
 
-// Fusion 360 / HSM tool type -> OpenFab tool type (null = not usable here)
+// Fusion 360 / HSM tool type -> Toolbahn tool type (null = not usable here)
 function mapType(raw) {
   const s = String(raw || '').toLowerCase();
   if (/probe|taster/.test(s)) return 'probe';
@@ -253,7 +253,7 @@ function fromFusionJson(j) {
   const out = [], skipped = [];
   for (const x of list) {
     if (!x || typeof x !== 'object') continue;
-    // already OpenFab format
+    // already Toolbahn format
     if (typeof x.dia === 'number' && x.type && !x.geometry) { out.push(finishTool({ ...x, number: x.number })); continue; }
     const type = mapType(x.type);
     const label = x.description || x.type || '?';
@@ -381,7 +381,7 @@ export async function parseToolLibrary(file) {
   }
   const text = new TextDecoder().decode(buf);
   const t = text.trimStart();
-  if (t.startsWith('{') || t.startsWith('[')) return { ...fromFusionJson(JSON.parse(text)), format: name.endsWith('.json') ? 'JSON (Fusion 360 / OpenFab)' : 'JSON' };
+  if (t.startsWith('{') || t.startsWith('[')) return { ...fromFusionJson(JSON.parse(text)), format: name.endsWith('.json') ? 'JSON (Fusion 360 / Toolbahn)' : 'JSON' };
   if (t.startsWith('<')) return { ...fromHsmlib(text), format: 'HSMWorks / Inventor CAM (.hsmlib)' };
   return { ...fromCsv(text), format: 'Tabelle (CSV)' };
 }
@@ -440,7 +440,7 @@ export function convertCps(text, fileName = 'post.cps') {
   const report = [`Grundlage: ${base.name} (aus Hersteller/Beschreibung „${[vendor, description].filter(Boolean).join(' – ')}“)`];
   def.ext = ext.replace(/^\./, '');
   report.push(`Dateiendung: .${def.ext}`);
-  if (baseId === 'heidenhain') return { def, report: [...report, 'Klartext-Steuerung: Satzaufbau aus der OpenFab-Vorlage übernommen.'] };
+  if (baseId === 'heidenhain') return { def, report: [...report, 'Klartext-Steuerung: Satzaufbau aus der Toolbahn-Vorlage übernommen.'] };
 
   // comments
   const fc = block(text, /function\s+formatComment\s*\(/);

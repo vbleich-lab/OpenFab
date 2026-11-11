@@ -283,7 +283,7 @@
  "Glättungsfilter": "平滑过滤",
  "Glättungstoleranz": "平滑公差",
  "Als Steuerungszyklus ausgeben": "输出为系统固定循环",
- "Rechteck-/Kreistasche erkannt ({0}) – Heidenhain: CYCL DEF 251/252 an der Taschenmitte. Die Steuerung fräst mit ihrer eigenen Strategie; Simulation und Bahn hier sind die OpenFab-Bahn.": "识别到矩形/圆形型腔({0}) – Heidenhain：在型腔中心使用 CYCL DEF 251/252。数控系统按其自身策略铣削；此处的仿真和刀路为OpenFab刀路。",
+ "Rechteck-/Kreistasche erkannt ({0}) – Heidenhain: CYCL DEF 251/252 an der Taschenmitte. Die Steuerung fräst mit ihrer eigenen Strategie; Simulation und Bahn hier sind die Toolbahn-Bahn.": "识别到矩形/圆形型腔({0}) – Heidenhain：在型腔中心使用 CYCL DEF 251/252。数控系统按其自身策略铣削；此处的仿真和刀路为Toolbahn刀路。",
  "Rechteck- und Kreistaschen ohne Inseln gehen als Zyklus der Steuerung (Heidenhain 251/252).": "无岛屿的矩形和圆形型腔输出为系统固定循环(Heidenhain 251/252)。",
  "Fasenbreite": "倒角宽度",
  "Zusatztiefe Spitze": "刀尖附加深度",
@@ -328,7 +328,7 @@
  "Schnitttiefe (radial)": "切削深度(径向)",
  "Ende Z (Futterseite)": "终点Z(卡盘侧)",
  "Teilunterkante": "零件底面",
- "Kontur mit {0} Punkten – Okuma: G85 (LAP) mit Kontur G81…G80, Fanuc: G71 P…Q…. Die Steuerung schruppt mit ihrer eigenen Aufteilung; die Simulation hier ist die OpenFab-Bahn.": "含{0}个点的轮廓 – Okuma：G85 (LAP)，轮廓为G81…G80，Fanuc：G71 P…Q…。数控系统按其自身的切削分配进行粗加工；此处的仿真为OpenFab刀路。",
+ "Kontur mit {0} Punkten – Okuma: G85 (LAP) mit Kontur G81…G80, Fanuc: G71 P…Q…. Die Steuerung schruppt mit ihrer eigenen Aufteilung; die Simulation hier ist die Toolbahn-Bahn.": "含{0}个点的轮廓 – Okuma：G85 (LAP)，轮廓为G81…G80，Fanuc：G71 P…Q…。数控系统按其自身的切削分配进行粗加工；此处的仿真为Toolbahn刀路。",
  "Außenkonturen, die zur Futterseite stetig ansteigen, gehen als Schruppzyklus der Steuerung (Okuma G85, Fanuc G71).": "向卡盘侧单调增大的外轮廓输出为数控系统的粗加工循环(Okuma G85，Fanuc G71)。",
  "Ende Z": "终点Z"
 }

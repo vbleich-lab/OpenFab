@@ -1,4 +1,4 @@
-// Strict checker for the G-code programs OpenFab writes for milling machines (Fanuc / ISO, Okuma OSP-M, LinuxCNC,
+// Strict checker for the G-code programs Toolbahn writes for milling machines (Fanuc / ISO, Okuma OSP-M, LinuxCNC,
 // GRBL, Sinumerik 840D): the words of every block and the modal state a control keeps (units, tool and length
 // offset, spindle, feed, radius compensation, canned cycle, arc geometry).
 // lintIso(code, { dialect: 'fanuc' | 'okuma' | 'linuxcnc' | 'grbl' | 'sinumerik' }) -> [{ line, text, msg }]
@@ -85,7 +85,7 @@ export function lintIso(code, opts = {}) {
     const g = all('G').map(Number), m = all('M').map(Number);
     for (const c of g) if (!known.has(c) || (D.forbid || []).includes(c)) bad(`G${c} ist für diese Steuerung nicht vorgesehen`);
     if (g.filter(c => MOTION.has(c) || CYCLES.has(c)).length > 1) bad('Mehrere Wegbedingungen in einem Satz');
-    if (g.includes(20)) bad('Zoll-Programm (G20) – OpenFab schreibt Millimeter');
+    if (g.includes(20)) bad('Zoll-Programm (G20) – Toolbahn schreibt Millimeter');
     if (g.includes(21) || g.includes(71)) st.units = true;
     if (g.includes(90)) st.abs = true;
     if (g.includes(91)) st.abs = false;
