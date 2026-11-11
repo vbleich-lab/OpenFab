@@ -1,18 +1,18 @@
 {
-  "name": "toolbahn",
-  "productName": "Toolbahn",
+  "name": "werkfab",
+  "productName": "WerkFab",
   "version": "1.0.0-rc.3",
-  "description": "Toolbahn CAD/CAM – Konstruktion und Fertigung, offline",
+  "description": "WerkFab CAD/CAM – Konstruktion und Fertigung, offline",
   "license": "GPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vbleich-lab/Toolbahn.git"
+    "url": "https://github.com/vbleich-lab/WerkFab.git"
   },
   "main": "electron/main.cjs",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . Toolbahn --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=Toolbahn --win32metadata.FileDescription=\"Toolbahn CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=^/docs --ignore=/rust/openfab-kernel --ignore=^/[.]claude --ignore=^/[.]git",
+    "build": "electron-packager . WerkFab --platform=win32 --arch=x64 --out=dist --overwrite --icon=electron/icon.ico --app-version=1.0.0 --win32metadata.ProductName=WerkFab --win32metadata.FileDescription=\"WerkFab CAD/CAM\" --ignore=^/dist --ignore=^/node_modules --ignore=^/package-lock[.]json --ignore=^/start[.]bat --ignore=^/build-exe[.]bat --ignore=^/build-web[.]bat --ignore=^/tools --ignore=^/docs --ignore=/rust/openfab-kernel --ignore=^/[.]claude --ignore=^/[.]git",
     "build:web": "node tools/build-web.mjs",
     "build:kernel": "node tools/build-kernel.mjs",
     "test:kernel": "node tools/test-rust-kernel.mjs",

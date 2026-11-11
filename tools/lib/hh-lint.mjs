@@ -1,4 +1,4 @@
-// Strict checker for Heidenhain Klartext programs written by Toolbahn: the grammar of every block and the
+// Strict checker for Heidenhain Klartext programs written by WerkFab: the grammar of every block and the
 // modal state a TNC keeps (tool, spindle, feed, circle centre, radius compensation, cycle, labels, tilted plane).
 // Returns a list of { line, text, msg }.
 const NUM = '[+-]?(?:\\d+\\.?\\d*|\\.\\d+)';

@@ -63,7 +63,7 @@ export const DEFAULTS = {
 };
 
 export const MOUSE_PRESETS = {
-  openfab: { label: 'Toolbahn (links drehen, Mitte/rechts verschieben)' },
+  openfab: { label: 'WerkFab (links drehen, Mitte/rechts verschieben)' },
   fusion: { label: 'Fusion 360 (Mitte verschieben, Umschalt+Mitte drehen)' },
   solidworks: { label: 'SolidWorks (Mitte drehen, Strg+Mitte verschieben)' },
   inventor: { label: 'Inventor (Mitte verschieben, Umschalt+Mitte drehen)' },

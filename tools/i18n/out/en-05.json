@@ -281,7 +281,7 @@
  "Glättungsfilter": "Smoothing filter",
  "Glättungstoleranz": "Smoothing tolerance",
  "Als Steuerungszyklus ausgeben": "Output as control cycle",
- "Rechteck-/Kreistasche erkannt ({0}) – Heidenhain: CYCL DEF 251/252 an der Taschenmitte. Die Steuerung fräst mit ihrer eigenen Strategie; Simulation und Bahn hier sind die Toolbahn-Bahn.": "Rectangular/circular pocket detected ({0}) – Heidenhain: CYCL DEF 251/252 at the pocket center. The control mills with its own strategy; simulation and path shown here are the Toolbahn path.",
+ "Rechteck-/Kreistasche erkannt ({0}) – Heidenhain: CYCL DEF 251/252 an der Taschenmitte. Die Steuerung fräst mit ihrer eigenen Strategie; Simulation und Bahn hier sind die WerkFab-Bahn.": "Rectangular/circular pocket detected ({0}) – Heidenhain: CYCL DEF 251/252 at the pocket center. The control mills with its own strategy; simulation and path shown here are the WerkFab path.",
  "Rechteck- und Kreistaschen ohne Inseln gehen als Zyklus der Steuerung (Heidenhain 251/252).": "Rectangular and circular pockets without islands are output as a control cycle (Heidenhain 251/252).",
  "Fasenbreite": "Chamfer width",
  "Zusatztiefe Spitze": "Additional tip depth",
@@ -326,7 +326,7 @@
  "Schnitttiefe (radial)": "Depth of cut (radial)",
  "Ende Z (Futterseite)": "End Z (chuck side)",
  "Teilunterkante": "Part bottom",
- "Kontur mit {0} Punkten – Okuma: G85 (LAP) mit Kontur G81…G80, Fanuc: G71 P…Q…. Die Steuerung schruppt mit ihrer eigenen Aufteilung; die Simulation hier ist die Toolbahn-Bahn.": "Contour with {0} points – Okuma: G85 (LAP) with contour G81…G80, Fanuc: G71 P…Q…. The control roughs with its own cut distribution; the simulation here is the Toolbahn path.",
+ "Kontur mit {0} Punkten – Okuma: G85 (LAP) mit Kontur G81…G80, Fanuc: G71 P…Q…. Die Steuerung schruppt mit ihrer eigenen Aufteilung; die Simulation hier ist die WerkFab-Bahn.": "Contour with {0} points – Okuma: G85 (LAP) with contour G81…G80, Fanuc: G71 P…Q…. The control roughs with its own cut distribution; the simulation here is the WerkFab path.",
  "Außenkonturen, die zur Futterseite stetig ansteigen, gehen als Schruppzyklus der Steuerung (Okuma G85, Fanuc G71).": "Outside contours that rise steadily towards the chuck side are output as the control's roughing cycle (Okuma G85, Fanuc G71).",
  "Ende Z": "End Z"
 }

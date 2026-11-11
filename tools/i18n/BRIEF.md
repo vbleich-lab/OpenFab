@@ -1,6 +1,6 @@
-# Translating the Toolbahn user interface
+# Translating the WerkFab user interface
 
-Toolbahn is a CAD/CAM program (sketches, 3D modelling, assemblies, drawings, CNC milling and turning, post
+WerkFab is a CAD/CAM program (sketches, 3D modelling, assemblies, drawings, CNC milling and turning, post
 processors) whose user interface is written in German. You translate one chunk of its texts into **English (en)** and
 **Simplified Chinese (zh)** (the glossary also has a Russian column; Russian is not shipped at present).
 

@@ -1,13 +1,13 @@
-# Toolbahn
+# WerkFab
 
 **English** · [Deutsch](README.de.md)
 
 **Free, open-source CAD/CAM for design and CNC machining – runs completely offline, in the browser or as a Windows app.**
 
-Toolbahn is a parametric 3D CAD program with integrated CAM. Parts are designed with sketches and a feature timeline. From there you can build assemblies, drawings and renderings, and generate, simulate and check NC programs (G-code and Heidenhain Klartext) for CNC milling machines and lathes. Everything runs locally: no account, no cloud, no telemetry.
+WerkFab is a parametric 3D CAD program with integrated CAM. Parts are designed with sketches and a feature timeline. From there you can build assemblies, drawings and renderings, and generate, simulate and check NC programs (G-code and Heidenhain Klartext) for CNC milling machines and lathes. Everything runs locally: no account, no cloud, no telemetry.
 
 > [!CAUTION]
-> **Every NC program must be verified before it runs on a machine for the first time – in a dry run on the machine (single block, reduced rapid, in the air or with a safe Z offset) or in an external NC simulator.** The simulation inside Toolbahn does not replace this check. Toolbahn is free software and comes with no warranty of any kind; there is no liability for damage to machines, tools, workpieces or people. See [Safety](#safety-always-simulate-nc-programs-first).
+> **Every NC program must be verified before it runs on a machine for the first time – in a dry run on the machine (single block, reduced rapid, in the air or with a safe Z offset) or in an external NC simulator.** The simulation inside WerkFab does not replace this check. WerkFab is free software and comes with no warranty of any kind; there is no liability for damage to machines, tools, workpieces or people. See [Safety](#safety-always-simulate-nc-programs-first).
 
 > **Status: Release Candidate 3 (v1.0.0-rc.3).** Feature complete for 1.0.
 
@@ -82,10 +82,10 @@ The screenshots show the German interface. The interface is available in **Engli
 ## Getting started
 
 ### Windows app
-Download `Toolbahn-<version>-windows-x64.zip` from the [Releases](../../releases), unpack it and start `Toolbahn.exe`.
+Download `WerkFab-<version>-windows-x64.zip` from the [Releases](../../releases), unpack it and start `WerkFab.exe`.
 
 ### Browser version (works offline)
-Download `Toolbahn-<version>-browser.zip` from the [Releases](../../releases) and unpack it. Start a local web server in that folder, for example:
+Download `WerkFab-<version>-browser.zip` from the [Releases](../../releases) and unpack it. Start a local web server in that folder, for example:
 
 ```bash
 python -m http.server 8765
@@ -104,20 +104,20 @@ npm install
 npm start
 ```
 
-starts the Electron app. Alternatively `start.bat` starts a local web server and opens Toolbahn in the browser.
+starts the Electron app. Alternatively `start.bat` starts a local web server and opens WerkFab in the browser.
 
 ---
 
 ## Safety: always simulate NC programs first
 
-Toolbahn writes programs that move real machines. A wrong program can destroy tools, fixtures, the spindle and the machine, and it can injure people.
+WerkFab writes programs that move real machines. A wrong program can destroy tools, fixtures, the spindle and the machine, and it can injure people.
 
 - **Check every program before its first run:** on the machine in a dry run (single block, reduced feed and rapid, first in the air) **or in an external NC simulator** or the graphic simulation of the control.
-- The simulation and the NC check in Toolbahn work on the toolpaths Toolbahn itself has computed. They know nothing about your control, its parameters or your machine, and they do not replace the check at the machine.
+- The simulation and the NC check in WerkFab work on the toolpaths WerkFab itself has computed. They know nothing about your control, its parameters or your machine, and they do not replace the check at the machine.
 - The post processors are tested against the programming rules of the controls, **but they have not run on real machines**. M codes, tool changes, tilting, cycles and the C axis depend on the machine and must be adapted to yours.
 - Work origin, tool lengths, fixtures and travel limits are the operator's responsibility.
-- Toolbahn is provided without any warranty (GPL-3.0, sections 15 and 16). You use it at your own risk.
-- **Liability (German law):** Toolbahn is given away free of charge. As far as the law allows, the author is liable only for intent and gross negligence (as for a gift, §§ 521, 523, 524 BGB); any further liability is excluded.
+- WerkFab is provided without any warranty (GPL-3.0, sections 15 and 16). You use it at your own risk.
+- **Liability (German law):** WerkFab is given away free of charge. As far as the law allows, the author is liable only for intent and gross negligence (as for a gift, §§ 521, 523, 524 BGB); any further liability is excluded.
 
 ---
 
@@ -125,8 +125,8 @@ Toolbahn writes programs that move real machines. A wrong program can destroy to
 
 | Command | Result |
 |---|---|
-| `npm run build` or `build-exe.bat` | Windows app in `dist/Toolbahn-win32-x64` |
-| `npm run build:web` or `build-web.bat` | Browser version in `dist/Toolbahn-Browser` (+ ZIP via the .bat) |
+| `npm run build` or `build-exe.bat` | Windows app in `dist/WerkFab-win32-x64` |
+| `npm run build:web` or `build-web.bat` | Browser version in `dist/WerkFab-Browser` (+ ZIP via the .bat) |
 | `npm run build:kernel` | Rust kernel to WebAssembly (`vendor/openfab-kernel`), needs Rust + `wasm32-unknown-unknown` |
 
 ## Tests
@@ -185,7 +185,7 @@ The **Release** workflow (`.github/workflows/release.yml`) tests, builds the Win
 | `rust/openfab-kernel/` | Experimental geometry kernel of its own in Rust (truck), built to WebAssembly |
 | `tools/` | Build and test scripts |
 
-By default Toolbahn computes with **OpenCascade** (through replicad / WebAssembly). The Rust kernel is an experimental alternative that can be switched on through the kernel interface.
+By default WerkFab computes with **OpenCascade** (through replicad / WebAssembly). The Rust kernel is an experimental alternative that can be switched on through the kernel interface.
 
 ---
 
@@ -202,16 +202,16 @@ By default Toolbahn computes with **OpenCascade** (through replicad / WebAssembl
 
 ## License
 
-Toolbahn is licensed under the **GNU General Public License v3.0 or later**, see [LICENSE](LICENSE).
+WerkFab is licensed under the **GNU General Public License v3.0 or later**, see [LICENSE](LICENSE).
 
 Bundled libraries come under their own licenses, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); the license texts are in [`licenses/`](licenses).
 
-Names of controls, machines and other software (Heidenhain, Fanuc, Sinumerik, Okuma, LinuxCNC, GRBL and others) are trademarks of their owners. They are used only to say what Toolbahn's output and import functions are meant for; Toolbahn is not affiliated with or endorsed by any of them.
+Names of controls, machines and other software (Heidenhain, Fanuc, Sinumerik, Okuma, LinuxCNC, GRBL and others) are trademarks of their owners. They are used only to say what WerkFab's output and import functions are meant for; WerkFab is not affiliated with or endorsed by any of them.
 
 ---
 
 ## Support
 
-Toolbahn is free and made in my spare time. If the program helps you, I am happy about a coffee:
+WerkFab is free and made in my spare time. If the program helps you, I am happy about a coffee:
 
 <a href="https://paypal.me/VitalijBleich"><img src="docs/media/kaffee-button.svg" alt="Buy me a coffee (PayPal)" height="48"></a>

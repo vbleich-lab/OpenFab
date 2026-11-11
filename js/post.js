@@ -71,7 +71,7 @@ const G8X = {
   cycleReam: 'G98 G85{X!}{Y!} Z{zbottom} R{rplane} F{f}',
   cycleBore: 'G98 G86{X!}{Y!} Z{zbottom} R{rplane} F{f}',
 };
-const HEADER_INFO = '# Toolbahn - {project}\n# Erstellt {date}\n# Rohteil X{stockx} Y{stocky} Z{stockz}\n# {setup}: {orientation}, Nullpunkt {origin}{comment}';
+const HEADER_INFO = '# WerkFab - {project}\n# Erstellt {date}\n# Rohteil X{stockx} Y{stocky} Z{stockz}\n# {setup}: {orientation}, Nullpunkt {origin}{comment}';
 
 const CYCL200 = 'CYCL DEF 200 BOHREN ~\n  Q200={q200} ;SICHERHEITS-ABST. ~\n  Q201={depth} ;TIEFE ~\n  Q206={dfeed} ;VORSCHUB TIEFENZ. ~\n  Q202={peck} ;ZUSTELL-TIEFE ~\n  Q210=+0 ;VERWEILZEIT OBEN ~\n  Q203={dtop} ;KOOR. OBERFLAECHE ~\n  Q204={q204} ;2. SICHERHEITS-ABST. ~\n  Q211={dwell} ;VERWEILZEIT UNTEN';
 const CYCL207 = 'CYCL DEF 207 GEWINDEBOHREN GS ~\n  Q200={q200} ;SICHERHEITS-ABST. ~\n  Q201={depth} ;TIEFE GEWINDE ~\n  Q239={pitchsigned} ;GEWINDESTEIGUNG ~\n  Q203={dtop} ;KOOR. OBERFLAECHE ~\n  Q204={q204} ;2. SICHERHEITS-ABST.';
@@ -157,7 +157,7 @@ export const BUILTIN_POSTS = [
     decimals: 3, trimZeros: false, signed: true, modalCodes: false, feedAfterRapid: true, separator: ' ',
     comment: '; {text}', asciiComments: true, arcs: true, useDrillCycle: true, resetModalPerOp: true, coolantPerOp: false,
     lineNumbers: { enabled: true, start: 0, step: 1, prefix: '', comments: true },
-    header: 'BEGIN PGM {pgm} MM\nBLK FORM 0.1 Z X{sminx} Y{sminy} Z{sminz}\nBLK FORM 0.2 X{smaxx} Y{smaxy} Z{smaxz}\n# Toolbahn - {project}\n# {setup}: {orientation}, Nullpunkt {origin}{comment}',
+    header: 'BEGIN PGM {pgm} MM\nBLK FORM 0.1 Z X{sminx} Y{sminy} Z{sminz}\nBLK FORM 0.2 X{smaxx} Y{smaxy} Z{smaxz}\n# WerkFab - {project}\n# {setup}: {orientation}, Nullpunkt {origin}{comment}',
     opStart: '# {opname} - {optype}',
     toolChangeFirst: '# T{t} {toolname} D{tooldia}\nTOOL CALL {t} Z S{rpm}\nL Z{safe} R0 FMAX M3',
     toolChange: 'L Z{safe} R0 FMAX M5\n# T{t} {toolname} D{tooldia}\nTOOL CALL {t} Z S{rpm}\nL Z{safe} R0 FMAX M3',
@@ -199,7 +199,7 @@ BUILTIN_POSTS.push(
   {
     ...LATHE_BASE, family: 'lathe', id: 'fanuc-lathe', name: 'Fanuc Drehen (Drehmaschine)', ext: 'nc', builtin: true, decimalPoint: true,
     // the turret indexes at the reference point (G28 U0 W0), never next to the part
-    header: '%\nO2000\n# Toolbahn - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG18 G21 G40 G98',
+    header: '%\nO2000\n# WerkFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG18 G21 G40 G98',
     toolChangeFirst: 'G28 U0 W0\n# T{t} {toolname}\nT{tt}', toolChange: 'G0 X{safex} Z{safez}\nM5\nG28 U0 W0\n# T{t} {toolname}\nT{tt}',
     threadMove: 'G32{Z} F{pitch}',
     // G71 type I (contour N{ns}…N{nf}, rising steadily), G76 two-block threading (1 finishing pass, 60°)
@@ -218,7 +218,7 @@ BUILTIN_POSTS.push(
   {
     ...LATHE_BASE, family: 'lathe', id: 'linuxcnc-lathe', name: 'LinuxCNC Drehen', ext: 'ngc', builtin: true, spindleOn: 'S{rpm} M3',
     // the turret indexes at the tool change position {tcx}/{tcz} (post properties), away from the part
-    header: '# Toolbahn - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG7 G18 G21 G90 G94',
+    header: '# WerkFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG7 G18 G21 G90 G94',
     toolChangeFirst: '# T{t} {toolname}\nT{t} M6 G43', toolChange: 'G0 X{safex} Z{safez}\nM5\nG0 X{tcx} Z{tcz}\n# T{t} {toolname}\nT{t} M6 G43',
     threadMove: 'G33{Z} K{pitch}',
     // driven tools: second spindle ($1), the main spindle is positioned as C axis
@@ -230,7 +230,7 @@ BUILTIN_POSTS.push(
     // feed per minute G94, threading G33 with the lead F, end M02
     ...LATHE_BASE, family: 'lathe', id: 'okuma-lathe', name: 'Okuma OSP Drehen', ext: 'min', builtin: true, decimalPoint: true,
     comment: '({text})',
-    header: 'O{prognum}\n# Toolbahn - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG50 S{maxrpm}\nG94',
+    header: 'O{prognum}\n# WerkFab - {project}\n# {setup}: Z0 = Planfläche, X = Durchmesser\nG50 S{maxrpm}\nG94',
     toolChangeFirst: '# T{t} {toolname}\nT{tt6}', toolChange: 'G0 X{safex} Z{safez}\nM5\nG0 X{tcx} Z{tcz}\n# T{t} {toolname}\nT{tt6}',
     spindleOn: 'G97 S{rpm} M3', dwell: 'G4 F{dwell}',
     threadMove: 'G33{Z} F{pitch}',
@@ -740,7 +740,7 @@ export function runPost(def, project, gen, opts = {}) {
   const clear = stock.top + +setup.retract;
   const base = {
     project: project.name, setup: setup.name, orientation: orientationLabel(setup), origin: originLabel(setup), machine: machine?.name || '',
-    pgm: (opts.programName ? clean(opts.programName) : setup.programName ? clean(setup.programName) : (clean(project.name).slice(0, 12) || 'TOOLBAHN') + '_' + clean(setup.name).slice(0, 8)).toUpperCase(),
+    pgm: (opts.programName ? clean(opts.programName) : setup.programName ? clean(setup.programName) : (clean(project.name).slice(0, 12) || 'WERKFAB') + '_' + clean(setup.name).slice(0, 8)).toUpperCase(),
     maxrpm: String(Math.round(+machine?.maxRpm || 3000)),
     prognum: String(Math.max(1, Math.round(+(opts.programNumber ?? setup.programNumber)) || 1000)),
     wcs: 'G' + (53 + Math.min(6, Math.max(1, Math.round(+setup.wcsOffset) || 1))),
@@ -809,7 +809,7 @@ export function runPost(def, project, gen, opts = {}) {
   const ops = activeOps(project, results, gen.ops).filter(op => !opts.opIds || opts.opIds.includes(op.id));
   W.expand(header, { ...base, coolanton: '', coolantoff: '' });
   if (P.writeMachine && machine) W.expand(`# Maschine: ${machine.name}`);
-  if (P.writeVersion) W.expand('# Toolbahn CAD/CAM 1.0');
+  if (P.writeVersion) W.expand('# WerkFab CAD/CAM 1.0');
   if (P.writeToolList) {
     const used = [...new Map(ops.map(op => [results.get(op.id).tool.id, results.get(op.id).tool])).values()];
     if (used.length) W.expand('# Werkzeuge:');

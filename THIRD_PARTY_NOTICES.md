@@ -1,6 +1,6 @@
 # Drittanbieter-Komponenten
 
-Toolbahn liefert die folgenden Bibliotheken unverändert im Ordner `vendor/` mit. Sie stehen unter ihren eigenen Lizenzen. Die Urheberrechte liegen bei den jeweiligen Autoren.
+WerkFab liefert die folgenden Bibliotheken unverändert im Ordner `vendor/` mit. Sie stehen unter ihren eigenen Lizenzen. Die Urheberrechte liegen bei den jeweiligen Autoren.
 
 | Komponente | Version | Lizenz | Quelle |
 |---|---|---|---|
