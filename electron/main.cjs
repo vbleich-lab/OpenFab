@@ -10,6 +10,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const ROOT = path.resolve(__dirname, '..');
+// window icon: .ico on Windows, .png elsewhere (macOS takes the icon of the app bundle)
+const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml',
@@ -23,7 +25,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1600, height: 960, minWidth: 1000, minHeight: 640,
     title: 'WerkFab', backgroundColor: '#1c2025', show: false, autoHideMenuBar: true,
-    icon: path.join(__dirname, 'icon.ico'),
+    icon: ICON,
     webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false },
   });
   win.once('ready-to-show', () => { win.maximize(); win.show(); });
@@ -40,7 +42,7 @@ function createWindow() {
   ses.setDevicePermissionHandler(details => details.deviceType === 'hid' && isSpaceMouse(details.device));
   // print / setup sheet windows (about:blank) are allowed, web links open in the browser
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (!url || url === 'about:blank') return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: path.join(__dirname, 'icon.ico') } };
+    if (!url || url === 'about:blank') return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: ICON } };
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -67,7 +69,8 @@ app.whenReady().then(() => {
       return new Response('Not found', { status: 404 });
     }
   });
-  Menu.setApplicationMenu(null);
+  // no menu bar on Windows and Linux; macOS needs its app and edit menus (quit, copy, paste, undo by keyboard)
+  Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
   createWindow();
 });
 

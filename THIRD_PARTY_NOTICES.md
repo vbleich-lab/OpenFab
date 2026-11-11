@@ -14,7 +14,7 @@ WerkFab liefert die folgenden Bibliotheken unverändert im Ordner `vendor/` mit.
 
 Die vollständigen Lizenztexte liegen im Ordner [`licenses/`](licenses): MIT (three.js, replicad, three-mesh-bvh, opentype.js, tiny-inflate, serde_json, wasm-bindgen, Electron), Boost Software License 1.0 (Clipper), Apache License 2.0 (Roboto, truck), LGPL 2.1 mit Open-CASCADE-Ausnahme (Open CASCADE Technology, opencascade.js). Der Quelltext von Open CASCADE und opencascade.js steht unter den oben genannten Adressen.
 
-## Rust-Kern (`rust/openfab-kernel`, `vendor/openfab-kernel`)
+## Rust-Kern (`rust/werkfab-kernel`, `vendor/werkfab-kernel`)
 
 Der experimentelle Geometriekern wird aus Rust nach WebAssembly übersetzt und enthält unter anderem:
 
@@ -23,7 +23,7 @@ Der experimentelle Geometriekern wird aus Rust nach WebAssembly übersetzt und e
 | truck (geometry, topology, modeling, shapeops, meshalgo, stepio) | Apache License 2.0 | https://github.com/ricosjp/truck |
 | serde_json | MIT oder Apache License 2.0 | https://github.com/serde-rs/json |
 
-Die vollständige Liste der Rust-Abhängigkeiten steht in `rust/openfab-kernel/Cargo.lock`.
+Die vollständige Liste der Rust-Abhängigkeiten steht in `rust/werkfab-kernel/Cargo.lock`.
 
 ## Electron (nur Windows-App)
 

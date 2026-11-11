@@ -1,6 +1,12 @@
 # Änderungen
 
-## Unveröffentlicht
+## v1.0.0-rc.4 – 2026-11-11
+
+### Installer und Apps für Windows, Linux und macOS
+- **Windows**: Installer `WerkFab-<Version>-windows-x64-setup.exe` (Installation je Benutzer, Startmenü, Desktop-Verknüpfung, Deinstallation); die Version ohne Installation gibt es weiter als Zip.
+- **Linux**: AppImage und tar.gz (x86_64).
+- **macOS**: dmg für Apple Silicon und für Intel, ad hoc signiert (nicht von Apple beglaubigt – erster Start per Rechtsklick → Öffnen). Mit eigenem Bearbeiten-Menü, damit Kopieren und Einfügen per Tastatur gehen.
+- Linux und macOS werden automatisch auf GitHub gebaut und sind dort nicht von Hand getestet.
 
 ### Neuer Name: WerkFab
 - Das Programm heißt jetzt **WerkFab** (Werkstück + Fabrikation). Der frühere Name war schon anderweitig vergeben. Gespeicherte Projekte, Einstellungen und Bibliotheken bleiben erhalten; die Windows-App heißt `WerkFab.exe`, die Download-Dateien `WerkFab-<Version>-…zip`.

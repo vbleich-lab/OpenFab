@@ -1,5 +1,5 @@
 [package]
-name = "openfab-kernel"
+name = "werkfab-kernel"
 version = "0.1.0"
 edition = "2024"
 description = "WerkFab Rust-Geometriekern (B-rep auf Basis von truck), als WebAssembly"

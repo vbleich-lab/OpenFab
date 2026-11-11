@@ -1,7 +1,8 @@
 name: Release
 
-# Ein Tag wie v1.0.0 oder v1.0.0-rc.2 baut beide Pakete und hängt sie an den Release.
-# Tags mit Bindestrich (rc, beta) werden als Vorabversion veröffentlicht.
+# Ein Tag wie v1.0.0 oder v1.0.0-rc.2 baut alle Pakete und hängt sie an den Release:
+# Windows (Installer und Zip), Linux (AppImage und tar.gz), macOS (dmg für Apple Silicon und Intel)
+# und die Browser-Version. Tags mit Bindestrich (rc, beta) werden als Vorabversion veröffentlicht.
 on:
   push:
     tags: ['v*']
@@ -14,12 +15,31 @@ on:
 permissions:
   contents: write
 
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  GH_TOKEN: ${{ github.token }}
+
 jobs:
-  build:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Version passt zum Tag
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if [ "v$v" != "$TAG" ]; then echo "package.json hat Version $v, Tag ist $TAG"; exit 1; fi
+      - name: Release anlegen, falls er fehlt
+        run: |
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            case "$TAG" in *-*) pre=--prerelease ;; *) pre=--latest ;; esac
+            gh release create "$TAG" $pre --verify-tag --title "WerkFab ${TAG#v}" --notes "Changes: see [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/$TAG/CHANGELOG.md)"
+          fi
+
+  windows:
+    needs: prepare
     runs-on: windows-latest
-    env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,30 +51,55 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Tests
         run: npm test
-      - name: Version passt zum Tag
-        shell: pwsh
-        run: |
-          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          if ("v$v" -ne $env:TAG) { throw "package.json hat Version $v, Tag ist $env:TAG" }
-      - name: Windows-App bauen
+      - name: Windows-App (Ordner) bauen
         run: npm run build
+      - name: Windows-Installer bauen
+        run: npm run dist:win
       - name: Browser-Version bauen
         run: node tools/build-web.mjs
-      - name: Pakete packen
+      - name: Pakete packen und hochladen
         shell: pwsh
         run: |
           $v = $env:TAG.TrimStart('v')
-          Compress-Archive -Path dist\WerkFab-win32-x64 -DestinationPath "dist\WerkFab-$v-windows-x64.zip"
+          Compress-Archive -Path dist\WerkFab-win32-x64 -DestinationPath "dist\WerkFab-$v-windows-x64-portable.zip"
           Compress-Archive -Path dist\WerkFab-Browser\* -DestinationPath "dist\WerkFab-$v-browser.zip"
-      - name: Release erstellen oder aktualisieren
-        shell: pwsh
+          gh release upload $env:TAG "dist\installers\WerkFab-$v-windows-x64-setup.exe" "dist\WerkFab-$v-windows-x64-portable.zip" "dist\WerkFab-$v-browser.zip" --clobber
+
+  linux:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Linux-App bauen (AppImage, tar.gz)
+        run: npm run dist:linux
+      - name: Hochladen
+        run: gh release upload "$TAG" dist/installers/WerkFab-${TAG#v}-linux-x86_64.AppImage dist/installers/WerkFab-${TAG#v}-linux-x86_64.tar.gz --clobber
+
+  macos:
+    needs: prepare
+    runs-on: macos-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: macOS-App bauen (dmg für Apple Silicon und Intel)
+        run: npm run dist:mac
+      - name: Signatur prüfen
         run: |
-          $v = $env:TAG.TrimStart('v')
-          $files = "dist\WerkFab-$v-windows-x64.zip", "dist\WerkFab-$v-browser.zip"
-          gh release view $env:TAG *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:TAG @files --clobber
-          } else {
-            $pre = if ($env:TAG -match '-') { '--prerelease' } else { '--latest' }
-            gh release create $env:TAG @files $pre --verify-tag --title "WerkFab $v" --notes "Änderungen: siehe [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/$env:TAG/CHANGELOG.md)"
-          }
+          for app in dist/installers/mac*/WerkFab.app; do codesign --verify --deep --verbose=1 "$app"; done
+      - name: Hochladen
+        run: gh release upload "$TAG" dist/installers/WerkFab-${TAG#v}-macos-arm64.dmg dist/installers/WerkFab-${TAG#v}-macos-x64.dmg --clobber

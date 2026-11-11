@@ -2,7 +2,7 @@
 import fs from 'fs';
 import { loadBytes, call, mesh, boolean } from '../js/kern/rustwasm.js';
 
-const wasm = new URL('../vendor/openfab-kernel/openfab_kernel.wasm', import.meta.url);
+const wasm = new URL('../vendor/werkfab-kernel/werkfab_kernel.wasm', import.meta.url);
 await loadBytes(fs.readFileSync(wasm));
 const ok = (name, cond, extra = '') => { console.log((cond ? 'OK   ' : 'FEHL ') + name + (extra ? '  ' + extra : '')); if (!cond) process.exitCode = 1; };
 const bb = h => call({ op: 'info', h }).bbox.map(p => p.map(v => +v.toFixed(2)));
