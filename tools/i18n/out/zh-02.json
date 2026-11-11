@@ -1,6 +1,6 @@
 {
  "Grundlage: {0} (aus Hersteller/Beschreibung „{1}“)": "依据：{0}（来自制造商/说明“{1}”）",
- "Klartext-Steuerung: Satzaufbau aus der Toolbahn-Vorlage übernommen.": "对话式数控系统：程序段结构取自 Toolbahn 模板。",
+ "Klartext-Steuerung: Satzaufbau aus der WerkFab-Vorlage übernommen.": "对话式数控系统：程序段结构取自 WerkFab 模板。",
  "Kommentare: ; Text": "注释：; 文本",
  "Kommentare: (Text)": "注释：(文本)",
  "Dezimalpunkt immer schreiben (X10.)": "始终输出小数点 (X10.)",

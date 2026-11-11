@@ -1,6 +1,6 @@
 {
-  "name": "Toolbahn CAD/CAM",
-  "short_name": "Toolbahn",
+  "name": "WerkFab CAD/CAM",
+  "short_name": "WerkFab",
   "description": "Konstruktion (CAD) und Fertigung (CAM) im Browser – läuft auch offline.",
   "lang": "de",
   "start_url": "./index.html",

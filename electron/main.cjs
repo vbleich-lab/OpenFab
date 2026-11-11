@@ -1,4 +1,4 @@
-// Toolbahn desktop app: serves the app files from disk through a private
+// WerkFab desktop app: serves the app files from disk through a private
 // "app://" scheme (ES modules, WebAssembly and fetch work like on a web server),
 // so everything runs offline.
 const { app, BrowserWindow, protocol, Menu, shell } = require('electron');
@@ -22,7 +22,7 @@ if (!app.requestSingleInstanceLock()) app.quit();
 function createWindow() {
   const win = new BrowserWindow({
     width: 1600, height: 960, minWidth: 1000, minHeight: 640,
-    title: 'Toolbahn', backgroundColor: '#1c2025', show: false, autoHideMenuBar: true,
+    title: 'WerkFab', backgroundColor: '#1c2025', show: false, autoHideMenuBar: true,
     icon: path.join(__dirname, 'icon.ico'),
     webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false },
   });

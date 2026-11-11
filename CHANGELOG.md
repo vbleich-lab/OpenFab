@@ -2,8 +2,8 @@
 
 ## Unveröffentlicht
 
-### Neuer Name: Toolbahn
-- Das Programm heißt jetzt **Toolbahn** (Werkzeugbahn). Der frühere Name war schon anderweitig vergeben. Gespeicherte Projekte, Einstellungen und Bibliotheken bleiben erhalten; die Windows-App heißt `Toolbahn.exe`, die Download-Dateien `Toolbahn-<Version>-…zip`.
+### Neuer Name: WerkFab
+- Das Programm heißt jetzt **WerkFab** (Werkstück + Fabrikation). Der frühere Name war schon anderweitig vergeben. Gespeicherte Projekte, Einstellungen und Bibliotheken bleiben erhalten; die Windows-App heißt `WerkFab.exe`, die Download-Dateien `WerkFab-<Version>-…zip`.
 
 ### Sprachen: Englisch und Chinesisch
 - Die Oberfläche gibt es jetzt auf **Deutsch, Englisch und Chinesisch**. Beim ersten Start richtet sie sich nach der Sprache des Browsers (unbekannte Sprachen: Englisch); umstellen unter Voreinstellungen → Einheiten- und Wertanzeige → Sprache.
@@ -152,7 +152,7 @@
 
 ## v1.0.0-rc.1 – 2026-11-09
 
-Erster Release Candidate für Toolbahn 1.0.
+Erster Release Candidate für WerkFab 1.0.
 
 ### Neu seit den Vorabversionen
 - **CAM-Strategietest** an einem eigenen Prüfteil (36 Operationen): alle Strategien ohne Verletzung des Fertigteils (außer Gewindebohren/Entgraten, die bewusst bis auf Kontur gehen).

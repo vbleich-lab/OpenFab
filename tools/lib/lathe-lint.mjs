@@ -1,4 +1,4 @@
-// Strict checker for the lathe programs Toolbahn writes (Fanuc, Okuma OSP-L, LinuxCNC): the words of every block
+// Strict checker for the lathe programs WerkFab writes (Fanuc, Okuma OSP-L, LinuxCNC): the words of every block
 // and the modal state of the control – tool, main spindle, driven tool and C axis, feed, turning and threading
 // cycles with their contour blocks, polar interpolation, where the turret indexes.
 // lintLathe(code, { dialect: 'fanuc' | 'okuma' | 'linuxcnc', safeX }) -> [{ line, text, msg }]
