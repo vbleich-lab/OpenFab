@@ -1,4 +1,4 @@
-// Builds the browser version of OpenFab into dist/OpenFab-Browser:
+// Builds the browser version of Toolbahn into dist/Toolbahn-Browser:
 // the app files, a service worker for offline use (installable web app),
 // and a start script with a small PowerShell web server (no Python or Node needed).
 import fs from 'fs';
@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.join(ROOT, 'dist', 'OpenFab-Browser');
+const OUT = path.join(ROOT, 'dist', 'Toolbahn-Browser');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
 const COPY = ['index.html', 'manifest.webmanifest', 'css', 'js', 'vendor', 'icons', 'licenses', 'LICENSE', 'THIRD_PARTY_NOTICES.md'];
@@ -26,7 +26,7 @@ function walk(dir, base = '') {
 const files = walk(OUT).filter(f => !LAZY.some(l => f.startsWith(l)) && !['LICENSE', 'THIRD_PARTY_NOTICES.md'].includes(f));
 const version = `${pkg.version}-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}`;
 
-fs.writeFileSync(path.join(OUT, 'sw.js'), `// OpenFab service worker: keeps the app available offline.
+fs.writeFileSync(path.join(OUT, 'sw.js'), `// Toolbahn service worker: keeps the app available offline.
 const CACHE = 'openfab-${version}';
 const CORE = ${JSON.stringify(['./', ...files.map(f => './' + f)], null, 0)};
 
@@ -51,7 +51,7 @@ self.addEventListener('fetch', e => {
 });
 `);
 
-fs.writeFileSync(path.join(OUT, 'serve.ps1'), `# Small local web server for OpenFab (Windows PowerShell, no installation needed).
+fs.writeFileSync(path.join(OUT, 'serve.ps1'), `# Small local web server for Toolbahn (Windows PowerShell, no installation needed).
 # Serves this folder on http://localhost and opens the default browser.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -74,8 +74,8 @@ foreach ($port in 8765..8785) {
 if (-not $listener) { Write-Host 'Kein freier Port zwischen 8765 und 8785 gefunden.'; Read-Host 'Enter zum Beenden'; exit 1 }
 $url = $listener.Prefixes | Select-Object -First 1
 Write-Host ''
-Write-Host "  OpenFab laeuft auf $url"
-Write-Host '  Dieses Fenster offen lassen, solange du OpenFab benutzt. Schliessen beendet den Server.'
+Write-Host "  Toolbahn laeuft auf $url"
+Write-Host '  Dieses Fenster offen lassen, solange du Toolbahn benutzt. Schliessen beendet den Server.'
 Write-Host ''
 Start-Process $url
 $rootFull = [System.IO.Path]::GetFullPath($root)
@@ -101,21 +101,21 @@ while ($listener.IsListening) {
 }
 `);
 
-fs.writeFileSync(path.join(OUT, 'OpenFab starten.bat'), `@echo off\r
-rem Startet OpenFab im Browser (lokaler Webserver ueber PowerShell).\r
+fs.writeFileSync(path.join(OUT, 'Toolbahn starten.bat'), `@echo off\r
+rem Startet Toolbahn im Browser (lokaler Webserver ueber PowerShell).\r
 cd /d "%~dp0"\r
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0serve.ps1"\r
 `);
 
-fs.writeFileSync(path.join(OUT, 'LIESMICH.txt'), `OpenFab CAD/CAM - Browser-Version ${pkg.version}\r
+fs.writeFileSync(path.join(OUT, 'LIESMICH.txt'), `Toolbahn CAD/CAM - Browser-Version ${pkg.version}\r
 \r
 Starten auf diesem PC\r
-  Doppelklick auf "OpenFab starten.bat". Der Browser oeffnet sich mit OpenFab.\r
+  Doppelklick auf "Toolbahn starten.bat". Der Browser oeffnet sich mit Toolbahn.\r
   Das schwarze Fenster offen lassen, solange du arbeitest.\r
 \r
 Als App installieren (Chrome / Edge)\r
   Nach dem Start in der Adressleiste auf das Installieren-Symbol klicken\r
-  (oder Menue > "App installieren"). Danach startet OpenFab wie ein Programm\r
+  (oder Menue > "App installieren"). Danach startet Toolbahn wie ein Programm\r
   und funktioniert auch ohne Internet.\r
 \r
 Auf einen Webserver hochladen\r

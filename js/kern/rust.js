@@ -1,4 +1,4 @@
-// OpenFab Rust-Kern (B-rep auf Basis von truck, als WebAssembly) – Anbindung an die Kern-Schnittstelle.
+// Toolbahn Rust-Kern (B-rep auf Basis von truck, als WebAssembly) – Anbindung an die Kern-Schnittstelle.
 // Unterstützt: Quader, Zylinder, Kugel, Torus, Extrusion und Rotation von Skizzenprofilen, Bohrung,
 // Muster, Spiegeln, Verschieben, Skalieren, Kombinieren sowie Vernetzung und STEP-Export.
 // Alles andere meldet der Kern als „noch nicht unterstützt“.

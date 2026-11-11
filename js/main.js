@@ -1344,7 +1344,7 @@ function saveRenderImage() {
   studio.snapshot(blob => {
     if (!blob) return status('Bild konnte nicht erzeugt werden.');
     const url = URL.createObjectURL(blob);
-    const a = h('a', { href: url, download: `${state.project.name || 'OpenFab'} – Rendering.png` });
+    const a = h('a', { href: url, download: `${state.project.name || 'Toolbahn'} – Rendering.png` });
     document.body.append(a);
     a.click();
     a.remove();
@@ -5201,7 +5201,7 @@ function propsOp(b, op) {
     }
     case 'pocket':
       put('passes', dirRow(), stepoverPct(), C('Als Steuerungszyklus ausgeben', 'ctrlCycle'),
-        op.ctrlCycle ? h('p', { class: 'hint' }, r?.pocketCycle ? `Rechteck-/Kreistasche erkannt (${r.pocketCycle.pockets.length}) – Heidenhain: CYCL DEF 251/252 an der Taschenmitte. Die Steuerung fräst mit ihrer eigenen Strategie; Simulation und Bahn hier sind die OpenFab-Bahn.` : r?.pocketCycleWhy ? `⚠ ${r.pocketCycleWhy} – wird als Bahn ausgegeben.` : 'Rechteck- und Kreistaschen ohne Inseln gehen als Zyklus der Steuerung (Heidenhain 251/252).') : null);
+        op.ctrlCycle ? h('p', { class: 'hint' }, r?.pocketCycle ? `Rechteck-/Kreistasche erkannt (${r.pocketCycle.pockets.length}) – Heidenhain: CYCL DEF 251/252 an der Taschenmitte. Die Steuerung fräst mit ihrer eigenen Strategie; Simulation und Bahn hier sind die Toolbahn-Bahn.` : r?.pocketCycleWhy ? `⚠ ${r.pocketCycleWhy} – wird als Bahn ausgegeben.` : 'Rechteck- und Kreistaschen ohne Inseln gehen als Zyklus der Steuerung (Heidenhain 251/252).') : null);
       depthSec();
       stockSec();
       break;
@@ -5312,7 +5312,7 @@ function propsOp(b, op) {
     case 'trough':
       put('passes', N('Schnitttiefe (radial)', 'stepdown', { ph: '1.5' }), N('Aufmaß', 'stockToLeave'), N('Ende Z (Futterseite)', 'zEnd', { allowEmpty: true, ph: 'Teilunterkante' }),
         C('Als Steuerungszyklus ausgeben', 'ctrlCycle'),
-        op.ctrlCycle ? h('p', { class: 'hint' }, r?.turnCycle ? `Kontur mit ${r.turnCycle.pts.length} Punkten – Okuma: G85 (LAP) mit Kontur G81…G80, Fanuc: G71 P…Q…. Die Steuerung schruppt mit ihrer eigenen Aufteilung; die Simulation hier ist die OpenFab-Bahn.` : r?.turnCycleWhy ? `⚠ ${r.turnCycleWhy} – wird als Bahn ausgegeben.` : 'Außenkonturen, die zur Futterseite stetig ansteigen, gehen als Schruppzyklus der Steuerung (Okuma G85, Fanuc G71).') : null);
+        op.ctrlCycle ? h('p', { class: 'hint' }, r?.turnCycle ? `Kontur mit ${r.turnCycle.pts.length} Punkten – Okuma: G85 (LAP) mit Kontur G81…G80, Fanuc: G71 P…Q…. Die Steuerung schruppt mit ihrer eigenen Aufteilung; die Simulation hier ist die Toolbahn-Bahn.` : r?.turnCycleWhy ? `⚠ ${r.turnCycleWhy} – wird als Bahn ausgegeben.` : 'Außenkonturen, die zur Futterseite stetig ansteigen, gehen als Schruppzyklus der Steuerung (Okuma G85, Fanuc G71).') : null);
       break;
     case 'tfinish':
       put('passes', N('Ende Z', 'zEnd', { allowEmpty: true, ph: 'Teilunterkante' }), N('Aufmaß', 'stockToLeave'),
@@ -5770,7 +5770,7 @@ function openTemplateLib() {
   w.foot.append(...[
     btn('Aus Setup erstellen', () => save(state.project.cam.ops.filter(o => o.setup === sid))),
     selOp ? btn('Aus gewählter Operation', () => save([selOp])) : null,
-    btn('Exportieren', () => download('OpenFab-Vorlagen.json', JSON.stringify(templates(), null, 1), 'application/json')),
+    btn('Exportieren', () => download('Toolbahn-Vorlagen.json', JSON.stringify(templates(), null, 1), 'application/json')),
     btn('Importieren', async () => { const f = await chooseFile('.json'); if (!f) return; try { const add = JSON.parse(await f.text()); if (!Array.isArray(add)) throw new Error('keine Vorlagenliste'); saveJ('openfab.templates.v1', [...templates(), ...add.filter(x => Array.isArray(x?.ops)).map(x => ({ ...x, id: uid('tp') }))]); draw(); } catch (err) { alert('Import fehlgeschlagen: ' + err.message); } }),
     h('span', { style: 'flex:1' }), btn('Schließen', w.close)].filter(Boolean));
   draw();
@@ -5970,11 +5970,11 @@ function openTaskManager() {
 
 // ----- Vorgaben exportieren / importieren / zurücksetzen -----
 function defaultsBundle() {
-  return { app: 'OpenFab', kind: 'vorgaben', version: 1, date: new Date().toISOString(), settings: getSettings(), toolbar: tbPins, shortcuts: tbShortcuts, keys: tbKeys,
+  return { app: 'Toolbahn', kind: 'vorgaben', version: 1, date: new Date().toISOString(), settings: getSettings(), toolbar: tbPins, shortcuts: tbShortcuts, keys: tbKeys,
     materials: customMats(), templates: templates(), matSets: userSets(), toolLibraries: localLibs(), posts: libPosts() };
 }
 function exportDefaults() {
-  download('OpenFab-Vorgaben.json', JSON.stringify(defaultsBundle(), null, 1), 'application/json');
+  download('Toolbahn-Vorgaben.json', JSON.stringify(defaultsBundle(), null, 1), 'application/json');
   status('Vorgaben exportiert: Einstellungen, Symbolleiste, Tastenkürzel, Materialien, Vorlagen, eigene Werkzeugbibliotheken und Postprozessoren.');
 }
 async function importDefaults() {
@@ -5982,7 +5982,7 @@ async function importDefaults() {
   if (!f) return;
   try {
     const d = JSON.parse(await f.text());
-    if (d?.kind !== 'vorgaben') throw new Error('Keine OpenFab-Vorgabendatei');
+    if (d?.kind !== 'vorgaben') throw new Error('Keine Toolbahn-Vorgabendatei');
     if (d.settings) saveSettings(d.settings);
     if (d.toolbar) { for (const k of Object.keys(tbPins)) delete tbPins[k]; Object.assign(tbPins, d.toolbar); saveJ('openfab.toolbar.v1', tbPins); }
     if (d.shortcuts) { tbShortcuts = d.shortcuts; saveJ('openfab.shortcuts.v1', tbShortcuts); }
@@ -6319,7 +6319,7 @@ $('#postFileInput').addEventListener('change', async e => {
       return;
     }
     const def = JSON.parse(text);
-    if (!def || typeof def.linear !== 'string') throw new Error('Keine Postprozessor-Datei (erwartet: OpenFab .json oder Fusion 360 .cps)');
+    if (!def || typeof def.linear !== 'string') throw new Error('Keine Postprozessor-Datei (erwartet: Toolbahn .json oder Fusion 360 .cps)');
     postSel = id;
     commit(pp => (pp.posts ||= []).push(copyPost(def, id, def.name || 'Importiert')));
     saveLibPost(state.project.posts.find(x => x.id === id));
@@ -6348,7 +6348,7 @@ const toolTitle = t => `${t.number} - Ø${f2(t.dia)}mm${t.cornerR > 0 && t.type 
 const LOCAL_KEY = 'openfab.toollibs.v1';
 function localLibs() { try { return JSON.parse(localStorage.getItem(LOCAL_KEY)) || []; } catch { return []; } }
 function saveLocalLibs(libs) { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(libs)); } catch { alert('Speicher voll – Bibliothek konnte nicht gespeichert werden.'); } }
-// sample libraries (OpenFab's own guide values, read only)
+// sample libraries (Toolbahn's own guide values, read only)
 const SAMPLE_LIBS = (() => {
   let n = 0;
   const mk = (type, dia, name, x = {}) => {
@@ -6357,7 +6357,7 @@ const SAMPLE_LIBS = (() => {
     const fz = ['drill', 'ream'].includes(type) ? Math.min(0.3, 0.02 * dia) : Math.min(0.08, Math.max(0.01, 0.006 * dia));
     const flutes = x.flutes ?? (['drill'].includes(type) ? 1 : ['flat', 'torus', 'ball'].includes(type) ? (dia < 4 ? 2 : dia < 12 ? 3 : 4) : 2);
     const feed = type === 'tap' ? Math.round(rpm * (x.pitch || 1)) : type === 'probe' ? 300 : Math.round(fz * flutes * rpm);
-    return { id: 's' + (++n), number: n, name, type, dia, flutes, rpm, feed, plunge: type === 'tap' ? feed : Math.round(feed / (['drill', 'ream'].includes(type) ? 1 : 3)), stepdown: +(Math.max(0.2, dia * (type === 'ball' ? 0.1 : 0.5))).toFixed(2), stepover: type === 'ball' ? 0.1 : 0.4, material: type === 'tap' || type === 'probe' ? 'hss' : 'carbide', vendor: 'OpenFab Muster', ...x };
+    return { id: 's' + (++n), number: n, name, type, dia, flutes, rpm, feed, plunge: type === 'tap' ? feed : Math.round(feed / (['drill', 'ream'].includes(type) ? 1 : 3)), stepdown: +(Math.max(0.2, dia * (type === 'ball' ? 0.1 : 0.5))).toFixed(2), stepover: type === 'ball' ? 0.1 : 0.4, material: type === 'tap' || type === 'probe' ? 'hss' : 'carbide', vendor: 'Toolbahn Muster', ...x };
   };
   const end = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20].map(d => mk('flat', d, `Schaftfräser HM Ø${d}`, { fluteLen: Math.max(3, d * 2.5) }));
   const ball = [1, 2, 3, 4, 6, 8, 10, 12].map(d => mk('ball', d, `Kugelfräser HM R${d / 2}`, { fluteLen: Math.max(3, d * 2) }));
@@ -6741,7 +6741,7 @@ function renderToolLib() {
   const locals = localLibs();
   const localMenu = e => ctxMenu(e.clientX, e.clientY, [
     { label: 'Neue Bibliothek', onclick: async () => { const n = await askValue('Name der neuen Bibliothek', 'Meine Werkzeuge'); if (!n?.trim()) return; const libs = localLibs(); const id = uid('L'); libs.push({ id, name: n.trim(), tools: [] }); saveLocalLibs(libs); tl.lib = 'local:' + id; renderToolLib(); } },
-    { label: 'Bibliothek importieren … (Fusion, HSM, CSV, OpenFab)', onclick: () => { toolImportTarget = 'newlocal'; $('#toolFileInput').click(); } },
+    { label: 'Bibliothek importieren … (Fusion, HSM, CSV, Toolbahn)', onclick: () => { toolImportTarget = 'newlocal'; $('#toolFileInput').click(); } },
   ], 'Lokal');
   const left = h('div', { class: 'twl-left' }, libSearch, h('div', { class: 'twl-tree' },
     folder('user', 'Benutzerbibliotheken', 0),
@@ -6793,8 +6793,8 @@ function renderToolLib() {
     h('span', { style: 'flex:1' }),
     h('input', { type: 'search', class: 'twl-search twl-tsearch', placeholder: 'Werkzeuge suchen', value: tl.search, oninput: e => { tl.search = e.target.value; renderToolLib(); const s = $('#toolLib .twl-tsearch'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }),
     h('button', { class: 'twl-clear', disabled: !filterActive(), onclick: () => { tl.filter = { types: new Set(), dmin: null, dmax: null, used: false, vendor: '' }; tl.search = ''; renderToolLib(); } }, 'Filter löschen'),
-    h('button', { class: 'twl-clear', title: 'Werkzeuge importieren (Fusion .json/.tools, HSM .hsmlib, CSV, OpenFab)', onclick: () => { toolImportTarget = tl.lib; $('#toolFileInput').click(); } }, 'Importieren'),
-    h('button', { class: 'twl-clear', title: 'Bibliothek als OpenFab-Datei speichern', onclick: () => download(`${libName().replace(/[^\wäöüÄÖÜß -]+/g, '_')}.json`, JSON.stringify(libTools(), null, 1), 'application/json') }, 'Exportieren'));
+    h('button', { class: 'twl-clear', title: 'Werkzeuge importieren (Fusion .json/.tools, HSM .hsmlib, CSV, Toolbahn)', onclick: () => { toolImportTarget = tl.lib; $('#toolFileInput').click(); } }, 'Importieren'),
+    h('button', { class: 'twl-clear', title: 'Bibliothek als Toolbahn-Datei speichern', onclick: () => download(`${libName().replace(/[^\wäöüÄÖÜß -]+/g, '_')}.json`, JSON.stringify(libTools(), null, 1), 'application/json') }, 'Exportieren'));
 
   const cell = (t, k) => ({ name: toolTitle(t), cornerR: t.cornerR > 0 ? mm(t.cornerR) : toolBase(t) === 'ball' ? mm(t.dia / 2) : '', dia: mm(t.dia), fluteLen: mm(toolFlute(t)), length: mm(toolLen(t)), type: TOOL_TYPES[t.type] || t.type,
     flutes: t.flutes || '', rpm: t.rpm ? `${t.rpm} U/min` : '', feed: t.feed ? `${t.feed} mm/min` : '', shaftDia: mm(toolShaft(t)), stickout: mm(toolStick(t)), vendor: t.vendor || '', used: usedCount(t.id) || '' })[k];
@@ -8932,7 +8932,7 @@ $('#fileInput').addEventListener('change', async e => {
   if (!file) return;
   try {
     const p = JSON.parse(await file.text());
-    if (!Array.isArray(p.features) || !p.cam) throw new Error('Keine OpenFab-Datei');
+    if (!Array.isArray(p.features) || !p.cam) throw new Error('Keine Toolbahn-Datei');
     await takeBlobs(p);
     await openAsNewDoc(migrate(p));
     status(`„${file.name}“ geöffnet`);
@@ -9157,7 +9157,7 @@ const SM_ACTIONS = [['search', 'Befehl suchen'], ['fit', 'Einpassen'], ['home', 
 const PREF_TREE = [
   { id: 'general', label: 'Allgemein', groups: [
     ['Allgemein', [
-      ['startWorkspace', 'Standard-Arbeitsbereich', 'Arbeitsbereich beim Start von OpenFab', [['design', 'Konstruktion'], ['cam', 'Fertigung']]],
+      ['startWorkspace', 'Standard-Arbeitsbereich', 'Arbeitsbereich beim Start von Toolbahn', [['design', 'Konstruktion'], ['cam', 'Fertigung']]],
       ['startExample', 'Mit Beispielprojekt starten', 'Wenn noch kein Projekt gespeichert ist, das Beispiel laden', 'bool'],
       ['autosave', 'Automatisch speichern', 'Projekt bei jeder Änderung auf diesem Rechner sichern', 'bool'],
       ['confirmDelete', 'Löschen bestätigen', 'Vor dem Löschen eines Features nachfragen', 'bool'],
@@ -9262,7 +9262,7 @@ const PREF_TREE = [
     ['Fenster', [['__layout']]],
   ] },
   { id: 'keys', label: 'Tastenkürzel', groups: [] },
-  { id: 'about', label: 'Über OpenFab', groups: [] },
+  { id: 'about', label: 'Über Toolbahn', groups: [] },
 ];
 
 const prefIndex = (() => {
@@ -9336,7 +9336,7 @@ function openSettings(page) {
     if (key === '__prefsIO') {
       return h('div', { class: 'prefs-row' }, h('label', null, 'Einstellungen sichern', info('Als Datei speichern, um sie auf einen anderen Rechner zu übertragen')),
         h('div', { class: 'prefs-ctl' },
-          h('button', { class: 'prefs-btn', onclick: () => download('openfab-einstellungen.json', JSON.stringify(getSettings(), null, 1), 'application/json') }, 'Exportieren …'),
+          h('button', { class: 'prefs-btn', onclick: () => download('toolbahn-einstellungen.json', JSON.stringify(getSettings(), null, 1), 'application/json') }, 'Exportieren …'),
           h('button', { class: 'prefs-btn', onclick: () => {
             const inp = h('input', { type: 'file', accept: '.json,application/json' });
             inp.onchange = async () => {
@@ -9346,7 +9346,7 @@ function openSettings(page) {
                 setDirty(true);
                 draw();
                 status('Einstellungen geladen – mit „Übernehmen“ oder „OK“ aktivieren.');
-              } catch { status('Datei ist keine OpenFab-Einstellungsdatei.'); }
+              } catch { status('Datei ist keine Toolbahn-Einstellungsdatei.'); }
             };
             inp.click();
           } }, 'Importieren …')));
@@ -9376,7 +9376,7 @@ function openSettings(page) {
     if (page.id === 'about') {
       body.append(h('div', { class: 'prefs-about' },
         h('div', { class: 'prefs-logo' }, '◆'),
-        h('div', null, h('b', null, 'OpenFab CAD/CAM'), h('div', { class: 'hint' }, 'Konstruktion und Fertigung – läuft komplett offline.'),
+        h('div', null, h('b', null, 'Toolbahn CAD/CAM'), h('div', { class: 'hint' }, 'Konstruktion und Fertigung – läuft komplett offline.'),
           h('p', { class: 'hint' }, 'Geometriekern: OpenCascade (über replicad) · Darstellung: three.js · Einstellungen werden auf diesem Rechner gespeichert.'))));
       return;
     }
@@ -11503,7 +11503,7 @@ function openPostDialog(saved = null) {
   try {
     await Promise.all([loadKernel(), loadFonts().catch(err => console.warn('Schriften nicht geladen', err))]);
   } catch (err) {
-    $('#loadingText').textContent = 'CAD-Kern konnte nicht geladen werden: ' + (err.message || err) + ' – OpenFab neu starten.';
+    $('#loadingText').textContent = 'CAD-Kern konnte nicht geladen werden: ' + (err.message || err) + ' – Toolbahn neu starten.';
     return;
   }
   // chosen geometry kernel (OpenCascade stays loaded for STEP/IGES import and as fallback)

@@ -1,13 +1,13 @@
-# OpenFab
+# Toolbahn
 
 [English](README.md) · **Deutsch**
 
 **CAD/CAM für Konstruktion und Fertigung – komplett offline, im Browser oder als Windows-App.**
 
-OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über Skizzen und eine Feature-Zeitachse konstruiert. Danach lassen sich Baugruppen, Zeichnungen und Renderings erstellen und NC-Programme für Fräs- und Drehmaschinen erzeugen, simulieren und prüfen. Alles läuft lokal: kein Konto, keine Cloud, keine Telemetrie.
+Toolbahn ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über Skizzen und eine Feature-Zeitachse konstruiert. Danach lassen sich Baugruppen, Zeichnungen und Renderings erstellen und NC-Programme für Fräs- und Drehmaschinen erzeugen, simulieren und prüfen. Alles läuft lokal: kein Konto, keine Cloud, keine Telemetrie.
 
 > [!CAUTION]
-> **Jedes NC-Programm muss vor dem ersten Einsatz geprüft werden – an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang, ohne Werkstück oder mit Abstand in Z) oder in einem externen NC-Simulator.** Die Simulation in OpenFab ersetzt diese Prüfung nicht. OpenFab ist freie Software ohne jede Gewährleistung; für Schäden an Maschine, Werkzeug, Werkstück oder Personen wird nicht gehaftet (siehe [Sicherheit](#sicherheit-nc-programme-immer-vorher-simulieren)).
+> **Jedes NC-Programm muss vor dem ersten Einsatz geprüft werden – an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang, ohne Werkstück oder mit Abstand in Z) oder in einem externen NC-Simulator.** Die Simulation in Toolbahn ersetzt diese Prüfung nicht. Toolbahn ist freie Software ohne jede Gewährleistung; für Schäden an Maschine, Werkzeug, Werkstück oder Personen wird nicht gehaftet (siehe [Sicherheit](#sicherheit-nc-programme-immer-vorher-simulieren)).
 
 > **Status: Release Candidate 3 (v1.0.0-rc.3).** Der Funktionsumfang ist vollständig für 1.0.
 
@@ -80,10 +80,10 @@ OpenFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 ## Starten
 
 ### Windows-App
-Lade `OpenFab-<Version>-windows-x64.zip` aus den [Releases](../../releases), entpacke das Archiv und starte `OpenFab.exe`.
+Lade `Toolbahn-<Version>-windows-x64.zip` aus den [Releases](../../releases), entpacke das Archiv und starte `Toolbahn.exe`.
 
 ### Browser-Version (offline-fähig)
-Lade `OpenFab-<Version>-browser.zip` aus den [Releases](../../releases) und entpacke es. Dann im Ordner einen lokalen Webserver starten, zum Beispiel:
+Lade `Toolbahn-<Version>-browser.zip` aus den [Releases](../../releases) und entpacke es. Dann im Ordner einen lokalen Webserver starten, zum Beispiel:
 
 ```bash
 python -m http.server 8765
@@ -102,7 +102,7 @@ npm install
 npm start
 ```
 
-startet die Electron-App. Alternativ startet `start.bat` einen lokalen Webserver und öffnet OpenFab im Browser.
+startet die Electron-App. Alternativ startet `start.bat` einen lokalen Webserver und öffnet Toolbahn im Browser.
 
 ---
 
@@ -110,8 +110,8 @@ startet die Electron-App. Alternativ startet `start.bat` einen lokalen Webserver
 
 | Befehl | Ergebnis |
 |---|---|
-| `npm run build` bzw. `build-exe.bat` | Windows-App in `dist/OpenFab-win32-x64` |
-| `npm run build:web` bzw. `build-web.bat` | Browser-Version in `dist/OpenFab-Browser` (+ ZIP über die .bat) |
+| `npm run build` bzw. `build-exe.bat` | Windows-App in `dist/Toolbahn-win32-x64` |
+| `npm run build:web` bzw. `build-web.bat` | Browser-Version in `dist/Toolbahn-Browser` (+ ZIP über die .bat) |
 | `npm run build:kernel` | Rust-Kern nach WebAssembly (`vendor/openfab-kernel`), benötigt Rust + `wasm32-unknown-unknown` |
 
 ## Tests
@@ -164,20 +164,20 @@ Der Workflow **Release** (`.github/workflows/release.yml`) testet, baut die Wind
 | `rust/openfab-kernel/` | Experimenteller eigener Geometriekern in Rust (truck), als WebAssembly eingebunden |
 | `tools/` | Build- und Testskripte |
 
-Standardmäßig rechnet OpenFab mit **OpenCascade** (über replicad/WebAssembly). Der Rust-Kern ist eine experimentelle Alternative, die über die Kern-Schnittstelle umgeschaltet werden kann.
+Standardmäßig rechnet Toolbahn mit **OpenCascade** (über replicad/WebAssembly). Der Rust-Kern ist eine experimentelle Alternative, die über die Kern-Schnittstelle umgeschaltet werden kann.
 
 ---
 
 ## Sicherheit: NC-Programme immer vorher simulieren
 
-OpenFab erzeugt Programme, die echte Maschinen bewegen. Ein falsches Programm kann Werkzeug, Spannmittel, Spindel und Maschine zerstören und Menschen verletzen.
+Toolbahn erzeugt Programme, die echte Maschinen bewegen. Ein falsches Programm kann Werkzeug, Spannmittel, Spindel und Maschine zerstören und Menschen verletzen.
 
 - **Vor dem ersten Lauf jedes Programm prüfen:** an der Maschine im Probelauf (Einzelsatz, reduzierter Vorschub und Eilgang, erst in der Luft) **oder in einem externen NC-Simulator** bzw. der Grafiksimulation der Steuerung.
-- Die Simulation und die NC-Prüfung in OpenFab rechnen mit den Bahnen, die OpenFab selbst erzeugt hat. Sie kennen die Steuerung, ihre Parameter und die Maschine nicht und ersetzen die Prüfung an der Maschine nicht.
+- Die Simulation und die NC-Prüfung in Toolbahn rechnen mit den Bahnen, die Toolbahn selbst erzeugt hat. Sie kennen die Steuerung, ihre Parameter und die Maschine nicht und ersetzen die Prüfung an der Maschine nicht.
 - Die Postprozessoren sind gegen die Programmierregeln der Steuerungen getestet, **aber nicht an echten Maschinen gelaufen**. M-Codes, Werkzeugwechsel, Schwenken, Zyklen und C-Achse sind maschinenabhängig und müssen an die eigene Maschine angepasst werden.
 - Nullpunkt, Werkzeuglängen, Spannmittel und Verfahrwege liegen in der Verantwortung des Bedieners.
-- OpenFab wird ohne jede Gewährleistung bereitgestellt (GPL-3.0, Abschnitte 15 und 16). Die Nutzung erfolgt auf eigene Gefahr.
-- **Haftung:** OpenFab wird unentgeltlich überlassen. Soweit gesetzlich zulässig, haftet der Autor nur für Vorsatz und grobe Fahrlässigkeit (wie bei einer Schenkung, §§ 521, 523, 524 BGB); jede weitergehende Haftung ist ausgeschlossen.
+- Toolbahn wird ohne jede Gewährleistung bereitgestellt (GPL-3.0, Abschnitte 15 und 16). Die Nutzung erfolgt auf eigene Gefahr.
+- **Haftung:** Toolbahn wird unentgeltlich überlassen. Soweit gesetzlich zulässig, haftet der Autor nur für Vorsatz und grobe Fahrlässigkeit (wie bei einer Schenkung, §§ 521, 523, 524 BGB); jede weitergehende Haftung ist ausgeschlossen.
 
 ---
 
@@ -194,16 +194,16 @@ OpenFab erzeugt Programme, die echte Maschinen bewegen. Ein falsches Programm ka
 
 ## Lizenz
 
-OpenFab steht unter der **GNU General Public License v3.0 oder später**, siehe [LICENSE](LICENSE).
+Toolbahn steht unter der **GNU General Public License v3.0 oder später**, siehe [LICENSE](LICENSE).
 
 Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen, siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); die Lizenztexte liegen in [`licenses/`](licenses).
 
-Namen von Steuerungen, Maschinen und anderer Software (Heidenhain, Fanuc, Sinumerik, Okuma, LinuxCNC, GRBL und andere) sind Marken ihrer Inhaber. Sie werden nur genannt, um zu sagen, wofür Ausgabe und Import von OpenFab gedacht sind; OpenFab steht mit keinem dieser Unternehmen in Verbindung.
+Namen von Steuerungen, Maschinen und anderer Software (Heidenhain, Fanuc, Sinumerik, Okuma, LinuxCNC, GRBL und andere) sind Marken ihrer Inhaber. Sie werden nur genannt, um zu sagen, wofür Ausgabe und Import von Toolbahn gedacht sind; Toolbahn steht mit keinem dieser Unternehmen in Verbindung.
 
 ---
 
 ## Unterstützen
 
-OpenFab ist kostenlos und entsteht in der Freizeit. Wenn dir das Programm hilft, freue ich mich über einen Kaffee:
+Toolbahn ist kostenlos und entsteht in der Freizeit. Wenn dir das Programm hilft, freue ich mich über einen Kaffee:
 
 <a href="https://paypal.me/VitalijBleich"><img src="docs/media/kaffee-button.svg" alt="Spendier mir einen Kaffee (PayPal)" height="48"></a>

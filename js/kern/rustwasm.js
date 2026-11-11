@@ -1,4 +1,4 @@
-// Low-level access to the OpenFab Rust kernel (WebAssembly, no generated bindings):
+// Low-level access to the Toolbahn Rust kernel (WebAssembly, no generated bindings):
 // JSON command in, JSON (or binary mesh) out. Works in the browser, in Electron and in Node (tests).
 
 let inst = null, mem = null, epoch = 0;

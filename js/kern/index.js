@@ -1,4 +1,4 @@
-// Geometriekern-Schnittstelle: OpenFab kann mit verschiedenen B-rep-Kernen rechnen.
+// Geometriekern-Schnittstelle: Toolbahn kann mit verschiedenen B-rep-Kernen rechnen.
 //
 // Jeder Kern ist ein Objekt mit:
 //   id, name, info                  Kennung, Anzeigename, Kurzbeschreibung

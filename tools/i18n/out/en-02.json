@@ -1,6 +1,6 @@
 {
  "Grundlage: {0} (aus Hersteller/Beschreibung „{1}“)": "Basis: {0} (from vendor/description “{1}”)",
- "Klartext-Steuerung: Satzaufbau aus der OpenFab-Vorlage übernommen.": "Conversational control: block format taken from the OpenFab template.",
+ "Klartext-Steuerung: Satzaufbau aus der Toolbahn-Vorlage übernommen.": "Conversational control: block format taken from the Toolbahn template.",
  "Kommentare: ; Text": "Comments: ; text",
  "Kommentare: (Text)": "Comments: (text)",
  "Dezimalpunkt immer schreiben (X10.)": "Always output decimal point (X10.)",

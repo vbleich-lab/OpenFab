@@ -2,7 +2,7 @@
 name = "openfab-kernel"
 version = "0.1.0"
 edition = "2024"
-description = "OpenFab Rust-Geometriekern (B-rep auf Basis von truck), als WebAssembly"
+description = "Toolbahn Rust-Geometriekern (B-rep auf Basis von truck), als WebAssembly"
 publish = false
 
 [lib]
