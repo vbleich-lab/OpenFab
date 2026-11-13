@@ -11,7 +11,7 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 > [!CAUTION]
 > **Jedes NC-Programm muss vor dem ersten Einsatz geprüft werden – an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang, ohne Werkstück oder mit Abstand in Z) oder in einem externen NC-Simulator.** Die Simulation in WerkFab ersetzt diese Prüfung nicht. WerkFab ist freie Software ohne jede Gewährleistung; für Schäden an Maschine, Werkzeug, Werkstück oder Personen wird nicht gehaftet (siehe [Sicherheit](#sicherheit-nc-programme-immer-vorher-simulieren)).
 
-> **Status: Release Candidate 8 (v1.0.0-rc.8).** Der Funktionsumfang ist vollständig für 1.0.
+> **Status: Release Candidate 9 (v1.0.0-rc.9).** Der Funktionsumfang ist vollständig für 1.0.
 
 ![Konstruktion über die Zeitachse, danach Fräsbahnen und Simulation mit Materialabtrag](docs/media/demo.gif)
 
@@ -28,6 +28,8 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 | ![Fräsbahnen für Planen, Tasche, Bohren und Kontur](docs/media/03-fertigung.png) | ![Simulation der Fräsbearbeitung](docs/media/04-simulation.png) |
 | **Drehen** | **Rendern** |
 | ![Drehteil mit Schrupp-, Schlicht-, Einstech- und Gewindebahnen](docs/media/05-drehen.png) | ![Rendering im Fotostudio](docs/media/06-rendern.png) |
+| **Bohrungen erkennen** | **Bild nachzeichnen** |
+| ![Bohrungen des Modells nach Durchmesser und Art gruppiert, mit den Operationen und Werkzeugen, die angelegt werden](docs/media/07-bohrungen.png) | ![Ein Bild, nachgezeichnet als Geraden, Bögen und Kreise für Skizze, SVG oder DXF](docs/media/08-nachzeichnen.png) |
 
 ---
 
@@ -38,8 +40,15 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 - **Geometrischer Solver** mit Bemaßungen und Abhängigkeiten (tangential, konzentrisch, gleich … auch an Bögen)
 - **Stutzen und Verlängern**: Abhängigkeiten und Bemaßungen bleiben dabei erhalten; Stutzen auch an Langlöchern und gerundeten Konturen und durch Wischen mit gedrückter Maustaste
 - **Abrunden, Fase und Versatz** als Klick-Werkzeuge mit Vorschau am Mauszeiger
+- **Bild nachzeichnen**: Konturen (außen, innen oder beides) oder die Mittellinie der Striche aus PNG, JPG, WebP, GIF, BMP oder SVG – erkennt Geraden, Bögen, Kreise und scharfe Ecken, trennt ein Bild auf Wunsch nach Farben und speichert das Ergebnis als SVG oder DXF
+- **Vorlagebilder** auf der Skizzenebene, kalibriert über zwei Punkte und ihren wirklichen Abstand; SVG- und DXF-Import in die offene Skizze
+- **Projizieren** von Flächen, einzelnen Kanten, Körperumriss und Schnittkurven – projizierte Geometrie folgt dem Körper, wenn er sich ändert
+- **Verschieben/Kopieren, Drehen und Skalieren** mit Vorschau, Spiegeln und Muster; Skizzenpalette (Ansehen, Schnitt, Profile)
 - **Volumenkörper**: Extrusion, Rotation, Sweep, Loft, Rohr, Spirale, Rippe, Drücken/Ziehen, Bohrung (auch als Gewindebohrung), Gewinde, Verrundung, Fase, Formschräge, Wandung, Aufdicken, Prägen (eben oder auf Zylinder gewickelt), Kombinieren, Teilen, Skalieren
-- **Muster**: rechteckig, kreisförmig und entlang eines Pfades; Spiegeln
+- **Muster**: rechteckig (auch entlang von Konstruktionsachsen), kreisförmig und entlang eines Pfades; Spiegeln; Bohrbilder (Raster, Lochkreis) direkt in der Bohrung
+- **Direktes Bearbeiten**: Fläche löschen, ersetzen, versetzen (auch Bohrungs- und Zapfendurchmesser), Körper nach Flächen oder Kanten ausrichten
+- **Verrundung** mit veränderlichem Radius, Stützpunkten und durchlaufend über Kantenketten; **Fase** mit zwei Abständen oder Abstand und Winkel; beides auch über Flächenauswahl
+- **Extrusion mit Schrägungswinkel**; Trägheitsmomente in den Körpereigenschaften
 - **Konstruktionsgeometrie**: Ebenen (versetzt, unter Winkel, durch 3 Punkte, tangential), Achsen und Punkte
 - **Flächen**: Extrusion, Rotation, Loft, Pflaster, Versatz, Vernähen, Trennen, Verlängern, Füllen
 - **Blech**: Laschen, Lasche an Lasche (U-Falz, Z-Stufe, 180°-Umschlag), offene oder geschlossene Ecken mit Eckfreistellung (rund oder eckig), Abwicklung mit Biegetabelle
@@ -62,18 +71,21 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 
 ### Fertigung (CAM)
 - **Einrichtungen** mit Rohteil (Quader, Zylinder, Restmaterial aus der vorigen Aufspannung), Nullpunkt, Spannmitteln und 3+2-Schwenkung
-- **2D-Fräsen**: Planen, Kontur und Tasche (beide auch nur für das Restmaterial eines größeren Fräsers), 2D-Adaptiv, Nut, Gravur, Fase/Entgraten, Bohren, Gewindefräsen, Zirkularfräsen, Antasten
-- **3D-Fräsen**: Adaptiv-Schruppen, Parallel, Kontur (Z-Ebenen), Spirale, Radial, Morph, Geodätisch, Scallop, Planflächen, Restmaterial in Ecken und weitere
+- **2D-Fräsen**: Planen, Kontur und Tasche (beide auch nur für das Restmaterial eines größeren Fräsers, mit Eckenfreistich Dogbone / T-Bone), 2D-Adaptiv, Nut (auch wirbelnd), Gravur, Fase/Entgraten, Bohren, Gewindefräsen (innen und außen, mehrere Zustellungen), Zirkularfräsen, Antasten
+- **Bohrungen erkennen**: findet alle Bohrungen entlang der Werkzeugachse und legt Anbohren, Bohren, Gewindebohren oder -fräsen, Senkungen und Fasen in einem Zug an, samt fehlender Werkzeuge
+- **3D-Fräsen**: Adaptiv-Schruppen, Tauchschruppen, Parallel, Kontur (Z-Ebenen), Spirale, Radial, Morph, Geodätisch, Scallop, Planflächen, Restmaterial gegen ein Referenzwerkzeug und weitere; Torusfräser rechnen mit ihrer echten Form
+- **Manuelle NC** (Kommentar, Halt, Verweilzeit, Meldung, eigener Code), **Bahnmuster** (Raster, kreisförmig, gespiegelt), Vorschubanpassung in Ecken, Umordnen der Operationen zum Sparen von Werkzeugwechseln
 - **4-Achs-Simultan**: Rotation (Helix/Linien), 4-Achs-Schruppen, Abwickeln von Skizzen auf den Zylinder
 - **Drehen**: Plandrehen, Schruppen/Schlichten (mit Schneidenradius-Kompensation), Einstechen, Gewinde, Abstechen, Bohren in der Drehachse, Innendrehen, Innen-Einstiche und Innengewinde; mit angetriebenem Werkzeug und C-Achse: Bohren (axial auf dem Lochkreis, radial als Querbohrung), Passfedernuten, Schlüsselflächen (Zweiflach, Vierkant, Sechskant) freie Skizzenkonturen auf der Planfläche oder abgewickelt auf dem Umfang und Taschen in der Planfläche
-- **Werkzeugbibliothek** mit Schnittdaten-Rechner, Werkstoff-Sätzen, Standzeit und Halterdarstellung
+- **Werkzeugbibliothek** mit Schnittdaten-Rechner, Werkstoff-Sätzen, Standzeit und Halterdarstellung; Einrichteblatt mit Werkzeugliste als CSV
 - **Simulation** mit Materialabtrag (auch auf Zylinder-Rohteilen), Vergleich mit dem Fertigteil (Rest / zu tief), Bearbeitungszeit je Aufspannung
 - **NC-Editor** mit Backplot, Suche und Bearbeiten; die **NC-Prüfung** erkennt Kollisionen von Halter, Schaft und Eilgang, Spannmittel- und Tischkontakt, Achsgrenzen und Syntaxfehler (Heidenhain)
 - **Postprozessoren**: Heidenhain Klartext (inkl. APPR/DEP, Zyklen 2xx, Lochmuster 220/221), Fanuc, Sinumerik, Okuma (Fräsen/Drehen), LinuxCNC, GRBL und weitere. Eigene Postprozessoren lassen sich im integrierten Editor mit Live-Vorschau anpassen.
 - **Steuerungszyklen** statt ausgerechneter Bahnen: Bohr- und Taschenzyklen, Zapfen, Lochkreise und -raster, Dreh-Schruppzyklus und Gewindezyklus
 
 ### Bedienung
-- **Sprachen**: Deutsch, Englisch und Chinesisch (Voreinstellungen → Einheiten- und Wertanzeige → Sprache; beim ersten Start nach der Sprache des Browsers)
+- **Sprachen**: 26 – Deutsch, Englisch (US und UK), Chinesisch, Französisch, Spanisch, Italienisch, Portugiesisch (Brasilien), Niederländisch, Polnisch, Türkisch, Japanisch, Koreanisch, Russisch, Tschechisch, Dänisch, Finnisch, Norwegisch, Ukrainisch, Kroatisch, Bosnisch, Serbisch, Georgisch, Lettisch, Malaiisch und Galicisch (Voreinstellungen → Einheiten- und Wertanzeige → Sprache; „System“ folgt der Sprache des Browsers oder Betriebssystems). Alles außer Deutsch, Englisch und Chinesisch ist maschinell übersetzt und noch von keinem Muttersprachler geprüft – Korrekturen sind willkommen
+- **Aussehen**: zehn Designs (hell, dunkel, hoher Kontrast), frei wählbare Akzentfarbe, Farbe und Größe der Symbole, Dichte, Eckenform, Schrift, Deckkraft der Fenster, Größe der Oberfläche und benannte Profile aller Einstellungen
 - **Updates**: Das Programm sieht beim Start auf GitHub nach einer neuen Version. Die installierte Windows-App und das Linux-AppImage laden und installieren sie auf Wunsch selbst; der Windows-Ordner ohne Installation, macOS und die Browser-Version zeigen einen Hinweis mit der Download-Seite. Diese Abfrage ist die einzige Verbindung ins Netz, die WerkFab von sich aus aufbaut, und sie lässt sich abschalten (Voreinstellungen → Allgemein → Updates).
 - Markierungsmenü (Rechtsklick), ViewCube, Tastenkürzel (z. B. Q Drücken/Ziehen, F Verrundung, M Verschieben, I Messen, X Konstruktionslinie)
 - Mehrere Dokumente in Tabs, Versionsstände beim Speichern; Import von STEP, IGES, STL, OBJ und DXF, Werkzeugbibliotheken und Postprozessoren (.cps)

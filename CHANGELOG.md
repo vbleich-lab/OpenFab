@@ -1,5 +1,65 @@
 # Änderungen
 
+## v1.0.0-rc.9 – 2026-11-13
+
+### Aussehen
+- **Neue Seite „Aussehen“ in den Einstellungen** mit allem, was die Oberfläche anpasst:
+  - **Zehn Designs** zur Auswahl: Standard (hell/dunkel), Graphit, Mitternacht, Wald, Glut, Papier, Schiefer, Minze sowie hoher Kontrast in dunkel und hell.
+  - **Akzentfarbe** als Farbfelder (acht Farben) oder als frei gewählte eigene Farbe.
+  - **Symbole in der Akzentfarbe** (kräftiger als bisher), wahlweise neutral grau oder in einer eigenen Farbe; Größe klein, normal, groß.
+  - **Dichte** (kompakt, normal, luftig), **Ecken** (eckig, leicht gerundet, rund), **Schrift** (acht Systemschriften), **Deckkraft der Fenster** (60–100 %, mit Weichzeichner dahinter).
+  - **Farbsehschwäche**: Statusfarben ohne Rot gegen Grün.
+  - **Eigenes Design**: fünf Farben frei wählen (Hintergrund, Fenster, Schrift, Linien, Titelleiste), alles Übrige wird daraus gemischt; Design samt Farben, Symbolen, Form und Schrift **als Datei speichern und laden**.
+- **Schrift auf der Akzentfarbe** passt sich an: dunkel auf heller, weiß auf dunkler Akzentfarbe (behebt schlecht lesbare „OK“-Knöpfe im dunklen Farbschema). Alle Designs sind auf Kontrast durchgesehen.
+- **Ansicht nach der Skizze**: alles einpassen, zurück zur Ansicht vor der Skizze oder Ansicht behalten.
+- **Kantenglättung** ein/aus und **Bodenschatten** unter dem Modell (Einstellungen → Grafik); **Koordinaten am Mauszeiger** in der Skizze.
+- **Neues Programmsymbol in 3D**: das W als gefrästes Werkstück mit Schaftfräser am Ende der Bahn (Quelle `icons/icon.svg`, erzeugt mit `tools/make-icon.cjs`).
+- **Symbole der Werkzeugleiste mit Licht und Schatten**: Körper sind wie das Programmsymbol von oben links beleuchtet und in der Akzentfarbe gehalten.
+- **Akzentfarbe wählbar** (Blau, Türkis, Grün, Orange, Violett, Rot) – Auswahl, Schaltflächen und Symbole folgen ihr.
+- **Größe der Oberfläche** von 80 % bis 150 %.
+- **Profile**: alle Einstellungen unter einem Namen speichern und wieder anwenden (z. B. Laptop, großer Bildschirm, Vorführung).
+- **Skizze: Fang aussetzen**, solange Alt (oder Strg) gedrückt ist.
+- **Dreizehn weitere Sprachen**: Tschechisch, Dänisch, Finnisch, Norwegisch, Ukrainisch, Kroatisch, Bosnisch, Serbisch, Georgisch, Lettisch, Malaiisch, Galicisch und britisches Englisch, dazu wieder Russisch – zusammen 26. Maschinell übersetzt, noch nicht von Muttersprachlern geprüft. Das englische Wörterbuch ist jetzt durchgehend amerikanisch geschrieben, „English (UK)“ britisch.
+
+### Sprachen und Steuerung
+- **Neun weitere Sprachen**: Französisch, Spanisch, Italienisch, Portugiesisch (Brasilien), Niederländisch, Polnisch, Türkisch, Japanisch und Koreanisch. Maschinell übersetzt und noch von keinem Muttersprachler geprüft; was einer Sprache fehlt, erscheint auf Englisch. Die Sprachwahl hat den Eintrag „System“ (Sprache des Browsers oder Betriebssystems).
+- **Ansicht über die Tastatur**: Strg+1 … 6 für die Ansichten von vorne, hinten, links, rechts, oben, unten, Strg+7 isometrisch, Strg+8 senkrecht auf die gewählte Skizze oder Ebene; Pfeiltasten drehen um 15° (mit Umschalt um 90°), Strg + Pfeiltasten verschieben, Bild↑ / Bild↓ und + / − zoomen.
+- **Weitere Tasten**: Strg+O öffnen, Strg+Umschalt+S speichern unter, F2 benennt die Auswahl um. In der Skizze: O Versatz, P Projizieren (Polygon jetzt G, Langloch U).
+- **Navigation**: Drehen um die Mitte der Ansicht, den Ursprung oder den Punkt unter dem Mauszeiger; Doppelklick mit der mittleren Taste passt ein oder geht zur Ausgangsansicht; Zoomgeschwindigkeit, Verschieben umkehren, Ansichtswechsel ohne oder mit schnellerer Animation.
+- **Touchpad**: eigene Belegung (Umschalt + bewegen verschiebt, Alt + bewegen dreht, ohne Maustaste) und „Scrollen mit zwei Fingern verschiebt“.
+- **Skizze endet erst beim zweiten Esc** (abschaltbar unter Einstellungen → Konstruktion): Ein Esc zu viel schließt die Skizze nicht mehr.
+- Behoben: Beim Umschalten auf den eingeschränkten Orbit aus einer Ansicht genau von oben oder unten verschwand das Modell.
+
+### Hinweise bei Schritten ohne Wirkung
+- **Muster und Spiegelungen**: Hinweis, wenn Kopien eines Schnitts keinen Körper treffen oder Kopien einer Verbindung den Körper nicht berühren.
+- **Verbindung ohne Berührung**: Hinweis, wenn eine Extrusion (oder ein anderes Feature) mit „Verbinden“ den Körper nicht berührt und ein loses Stück hinterlässt.
+- **Außengewinde im vollen Material**: Warnung an der Gewindefräs-Operation, wenn um den Zapfen noch Rohmaterial steht, mit dem Knopf „Kontur zum Freifräsen davor anlegen“. Der Gewindefräser taucht jetzt 1 mm neben dem Nenndurchmesser ein statt einen Fräserdurchmesser entfernt.
+- **Zeichnung**: Außengewinde bekommen den Gewindeabschluss als breite Linie; in Schnittansichten entfallen weggeschnittene Bolzen, und aufgeschnittene Gewindebohrungen, die die Draufsicht nicht benennt, tragen ihre Gewindebezeichnung.
+
+### Konstruktion
+- **Hinweis bei Bohrungen, die seitlich aus dem Körper ragen**, und bei Schnitten (Extrusion, Rotation …), die keinen Körper treffen. Bohrungen, die eine vorhandene Bohrung aufweiten, gelten nicht als „außerhalb“.
+- **Zeichnung: Gewinde im Schnitt** – aufgeschnittene Gewindebohrungen mit dünnen Volllinien am Nenndurchmesser und breitem Gewindeabschluss; Mittelkreuze in der Draufsicht auch für Bohrungen ohne eigenen Kreis.
+- **Warnung bei Bohrungen außerhalb des Körpers**: Liegen Bohrungen (auch einzelne eines Bohrbilds) neben dem Körper, zeigt die Bohrung einen gelben Hinweis in der Zeitachse und in den Eigenschaften.
+- **Flächenauswahl für alle Verrundungen und Fasen**: auch bei veränderlichem Radius (mit Stützpunkten, durchlaufend ringsum) und bei Fasen mit zwei Abständen oder Winkel – dort wird der erste Abstand auf der gewählten Fläche gemessen.
+- **Bohrbild in der Bohrung**: Raster oder Lochkreis direkt im Bohrungs-Werkzeug; Gewinde und Bohrungserkennung kennen die zusätzlichen Bohrungen.
+- **Verrundung und Fase über Flächen**: Eine gewählte Fläche steht für alle Kanten ringsum.
+- **Fase mit zwei Abständen oder mit Abstand und Winkel**, mit „Seiten tauschen“; tangential anschließende Kanten laufen mit.
+- **Ausrichten nach Kanten**: gerade Kanten kommen deckungsgleich aufeinander, Kreiskanten (Bohrung und Zapfen) werden mittig zueinander gelegt.
+- **Rechteck-Muster entlang Konstruktionsachsen**: Musterrichtungen dürfen schräg im Raum liegen.
+
+### Oberfläche und Dokumentation
+- Fenster- und Feldüberschriften in Großbuchstaben erscheinen jetzt auch auf Englisch und Chinesisch übersetzt.
+- README mit den Neuerungen seit RC7 und zwei neuen Bildern (Bohrungen erkennen, Bild nachzeichnen); alle Bilder neu aufgenommen.
+
+### Fertigung
+- **Gewindefräsen in mehreren Zustellungen**: Die Gewindetiefe wird in Schritten gefräst, die jeweils etwa gleich viel abnehmen; auf Wunsch mit Leerdurchgang am Ende.
+- **Restmaterial-Schlichten („Ecke“) fährt Wände nur so hoch ab, wie dort Material steht** – im Test 13 statt 16 Minuten.
+- **Einrichteblatt in der Sprache der Oberfläche** (Deutsch, Englisch, Chinesisch) samt Datum; die CSV-Werkzeugliste nutzt außerhalb des Deutschen Komma und Dezimalpunkt.
+- **Behoben: Außengewinde an Zapfen** wurde nur bis zum Nenndurchmesser gefräst (es entstand kein Gewinde); der Fräser geht jetzt bis zum Kerndurchmesser.
+- **Simulationsvergleich kennt Gewinde**: Gewindefräsen in Bohrungen und an Zapfen gilt nicht mehr als „zu tief“.
+- **Werkzeugliste als CSV** im Einrichteblatt (Semikolon und Dezimalkomma, mit Einsatzzeit und Operationen je Werkzeug).
+- **Einrichteblatt** zeigt manuelle NC-Sätze (Programmhalte hervorgehoben und gezählt), Bahnmuster, Eckenfreistiche, Zustellungen und Notizen in einer Spalte „Hinweis“.
+
 ## v1.0.0-rc.8 – 2026-11-11
 
 ### Fertigung

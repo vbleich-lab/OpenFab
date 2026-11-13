@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "Couleur d’accent",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "Couleur de la sélection, des boutons et des icônes",
+ "Blau": "Bleu",
+ "Türkis": "Turquoise",
+ "Grün": "Vert",
+ "Violett": "Violet",
+ "Rot": "Rouge",
+ "Größe der Oberfläche": "Taille de l’interface",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = normal ; 1,25 pour les écrans haute résolution ou les présentations",
+ "Fang aussetzen mit": "Suspendre l’accrochage avec",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "Tant que la touche est enfoncée, le point ne s’accroche ni aux points ni à la grille",
+ "Keine Taste": "Aucune touche",
+ "Name, z. B. Laptop": "Nom, p. ex. Portable",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "Reprendre les valeurs de ce profil (effectif après « Appliquer »)",
+ "Das Profil mit den jetzigen Werten überschreiben": "Écraser le profil avec les valeurs actuelles",
+ "Profil „{0}“ aktualisiert": "Profil « {0} » mis à jour",
+ "Aktualisieren": "Mettre à jour",
+ "Neues Profil": "Nouveau profil",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "Enregistre toutes les préférences actuelles sous un nom – par exemple pour un portable, un grand écran ou une présentation",
+ "Erst einen Namen für das Profil eingeben.": "Saisissez d’abord un nom pour le profil.",
+ "Speichern": "Enregistrer"
+}

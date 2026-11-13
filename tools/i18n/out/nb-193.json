@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Koordinater ved musepekeren",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Viser X og Y for musepekeren nederst til venstre i skissen",
+ "Eigenes Design": "Eget design",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Flaten bak vinduene – gjelder når designet «Eget» er valgt ovenfor",
+ "Fenster und Leisten": "Vinduer og linjer",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Mørk farge = mørkt design, lys farge = lyst design",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Bør skille seg tydelig fra «Vinduer og linjer»",
+ "Linien und Ränder": "Linjer og kanter",
+ "Titelleiste": "Tittellinje",
+ "Kantenglättung": "Kantutjevning",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Jevner ut kantene i 3D-visningen; trer i kraft etter omstart av programmet",
+ "Bodenschatten": "Gulvskygge",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Myk skygge under modellen (arbeidsområdet Konstruksjon)",
+ "Eigenes": "Eget",
+ "Design als Datei": "Design som fil",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Design, farger, symboler, form og skrift i én fil – for deling eller til en annen datamaskin",
+ "Speichern …": "Lagre …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Design lastet – det trer i kraft med «Bruk».",
+ "Das ist keine WerkFab-Design-Datei.": "Dette er ikke en WerkFab-designfil.",
+ "Laden …": "Last inn …"
+}

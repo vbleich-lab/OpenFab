@@ -3,7 +3,7 @@ import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import { state, onChange, commit, undo, redo, undoDepth, revertTo, setUndoLimit, persist, setProject, loadSaved, newProject, uid, nextName, feature, camOp, migrate, defaultSetup } from './state.js';
 import { Viewport } from './viewport.js';
 import { loadKernel, R as OC } from './kernel.js';
-import { LANGS, lang as uiLang, setLanguage, t as tr, tHtml, deText, deAttr } from './i18n.js';
+import { LANGS, lang as uiLang, langChoice, setLanguage, t as tr, tHtml, deText, deAttr } from './i18n.js';
 import { initUpdates, checkForUpdates } from './update.js';
 import { setActiveKernel, activeKernelId, getKernel } from './kern/index.js';
 import './kern/rust.js';
@@ -28,7 +28,7 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { BASE_PLANES, sketchPlane, planeLabel, planeOffset, planeFromFace, basis, toWorld, planeMatrix as planeMatrixOf, constructionPlane, planeRef, constructionAxis, BASE_AXES } from './plane.js';
 import { resolveProject, paramScope, evalExpr } from './params.js';
 import { ICONS } from './icons.js';
-import { getSettings, saveSettings, resetSettings, DEFAULTS, MOUSE_PRESETS } from './settings.js';
+import { getSettings, saveSettings, resetSettings, DEFAULTS, MOUSE_PRESETS, ACCENTS, DESIGNS, UI_FONTS, LOOK_KEYS, getProfiles, saveProfile, deleteProfile } from './settings.js';
 import { getBlob, putBlob, loadBlobs, withBlobs, takeBlobs, igesToStep, stepToIges, onFullKernel, requestFullKernel, parseToolLibrary, convertCps } from './interop.js';
 import { makeDrawing, SHEETS, VIEWS as DRAW_VIEWS } from './drawing.js';
 import { bodyMatrix, hasAssembly, transformShape, JOINT_TYPES, JOINT_DOF, jointValues } from './assembly.js';
@@ -146,7 +146,9 @@ $('#themeBtn').onclick = () => {
   const next = isDark() ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem('openfab.theme', next); } catch { /* ignore */ }
-  saveSettings({ theme: next });
+  // (a design is light or dark by itself: the switch goes back to the standard design)
+  saveSettings({ theme: next, design: 'standard' });
+  applySettings();
   applyTheme();
   applySettings();
 };
@@ -167,7 +169,16 @@ studio.onProgress = (n, running, done) => {
     h('button', { title: 'Bild speichern', onclick: saveRenderImage }, '⤓'), h('button', { title: 'In-Canvas-Rendern beenden', onclick: () => { studio.stop(); renderToolbar(); } }, '■'));
 };
 const tipEl = $('#cursorTip');
+// X / Y of the pointer while sketching, in a small label at the lower left of the view
+function showSketchCoords(p) {
+  let el = $('#sketchCoords');
+  if (!p || getSettings().sketchCoords === false) { if (el) el.hidden = true; return; }
+  if (!el) { el = h('div', { id: 'sketchCoords', class: 'no-i18n', style: 'position:absolute;left:12px;bottom:46px;z-index:5;padding:2px 7px;border-radius:3px;background:var(--overlay);color:var(--muted);font:11px/1.5 Consolas,monospace;pointer-events:none' }); $('#viewportWrap').append(el); }
+  el.hidden = false;
+  el.textContent = `X ${f2(p[0])}   Y ${f2(p[1])}`;
+}
 const sketcher = new Sketcher(vp, {
+  cursor: p => showSketchCoords(p),
   changed: () => { renderProps(); renderToolbar(); rebuildScene(); },
   resolve: id => resolved().features.find(f => f.id === id),
   commitSketch: (id, fn) => commitSketch(id, fn),
@@ -1215,6 +1226,7 @@ function rebuildScene() {
   vp.clear(vp.sketches);
   vp.clear(vp.paths);
   const m = getModel();
+  vp.setGroundShadow(getSettings().groundShadow && !m.box.isEmpty() && state.workspace !== 'cam' ? m.box : null);
   const cam = state.workspace === 'cam';
   const ghost = cam && sim.open && !$('#simModel').checked;
   const selRefs = selectedEdgeRefs();
@@ -2176,7 +2188,8 @@ function openPinMenu(row, g, b) {
 }
 
 // keyboard shortcuts the user assigns to toolbar commands
-const RESERVED_KEYS = ['Strg+Z', 'Strg+Y', 'Strg+S', 'Strg+N', 'Strg+Umschalt+Z', 'S', 'Escape', 'Enter', 'Delete', 'Tab'];
+const RESERVED_KEYS = ['Strg+Z', 'Strg+Y', 'Strg+S', 'Strg+N', 'Strg+O', 'Strg+Umschalt+S', 'Strg+Umschalt+Z', 'Strg+1', 'Strg+2', 'Strg+3', 'Strg+4', 'Strg+5', 'Strg+6', 'Strg+7', 'Strg+8', 'S', 'Escape', 'Enter', 'Delete', 'Tab', 'F2', 'F6',
+  'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'];
 function keyCombo(e) {
   if (['Control', 'Shift', 'Alt', 'Meta', 'AltGraph', 'CapsLock'].includes(e.key)) return '';
   const k = e.key === ' ' ? 'Leertaste' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
@@ -2876,6 +2889,7 @@ function renderTimeline() {
   wrap.replaceChildren();
   wm.get('winTimeline').setForcedHidden(state.workspace !== 'design');
   const errs = allErrors();
+  const notes = getModel().notes || {};
   const feats = state.project.features;
   const rb = state.rollback;
   const marker = () => h('div', {
@@ -2889,8 +2903,8 @@ function renderTimeline() {
     wrap.append(h('div', {
       class: `tl ${category(f)} ${selected ? 'sel' : ''} ${errs[f.id] ? 'err' : ''} ${f.suppressed ? 'off' : ''} ${rb != null && i >= rb ? 'rolled' : ''}`,
       'data-fid': f.id,
-      title: f.name + (errs[f.id] ? ' – ' + errs[f.id] : '') + '\nDoppelklick: bearbeiten · Ziehen: verschieben · Rechtsklick: Menü',
-      html: featureIcon(f) + (errs[f.id] ? '<i class="tl-badge">!</i>' : ''),
+      title: f.name + (errs[f.id] ? ' – ' + errs[f.id] : notes[f.id] ? ' – ' + notes[f.id] : '') + '\nDoppelklick: bearbeiten · Ziehen: verschieben · Rechtsklick: Menü',
+      html: featureIcon(f) + (errs[f.id] ? '<i class="tl-badge">!</i>' : notes[f.id] ? '<i class="tl-badge warn">!</i>' : ''),
       onpointerdown: e => timelineDrag(e, gap => moveFeature(f.id, gap), dblAware('t:' + f.id, () => select('feature', f.id), () => (f.type === 'sketch' ? editSketch(f.id) : select('feature', f.id)))),
       oncontextmenu: e => { e.preventDefault(); timelineMenu(e, f, i); },
       onmouseenter: () => hoverFeature(f.id, true),
@@ -3152,6 +3166,7 @@ function propsFeature(b, f) {
   if (f.type !== 'sketch') b.append(row('Unterdrückt', chk(f.suppressed, v => ed(x => (x.suppressed = v)))));
   if (f.type === 'plane') b.append(h('div', { class: 'btns' }, btn('Skizze auf dieser Ebene', () => sketchOnPlaneFeature(f.id), 'primary')));
   if (err) b.append(h('p', { class: 'err' }, '⚠ ' + err));
+  else if (getModel().notes?.[f.id]) b.append(h('p', { class: 'warn' }, '⚠ ' + getModel().notes[f.id]));
   const idx = state.project.features.indexOf(f);
   b.append(h('div', { class: 'btns' },
     f.type === 'sketch' ? btn('Skizze bearbeiten', () => editSketch(f.id), 'primary') : null,
@@ -3354,6 +3369,16 @@ function propsHole(b, f, ed) {
     f.kind === 'csink' ? N('Senk-Ø', 'csDia') : null,
     f.kind === 'csink' ? row('Senkwinkel', num(f.csAngle, v => ed(x => (x.csAngle = v)), { unit: '°', min: 1 })) : null,
     f.through ? null : row('Bohrerspitze 118°', chk(f.tip, v => ed(x => (x.tip = v)))),
+    sec('BOHRBILD'),
+    row('Muster', sel([['none', 'Kein Muster (nur die Kreise der Skizze)'], ['linear', 'Raster (Reihen und Spalten)'], ['circular', 'Lochkreis']], f.patKind || 'none', v => ed(x => { x.patKind = v; if (v === 'linear') { x.patN1 ||= 2; x.patDx ??= 20; x.patN2 ||= 1; x.patDy ??= 20; } if (v === 'circular') { x.patN1 ||= 6; x.patAngle ??= 360; x.patCx ??= 0; x.patCy ??= 0; } }))),
+    ...(f.patKind === 'linear' ? [
+      row('Anzahl in X', num(f.patN1 ?? 2, v => ed(x => (x.patN1 = Math.max(1, Math.round(v ?? 1)))), { min: 1 })), N('Abstand in X', 'patDx', { min: null }),
+      row('Anzahl in Y', num(f.patN2 ?? 1, v => ed(x => (x.patN2 = Math.max(1, Math.round(v ?? 1)))), { min: 1 })), N('Abstand in Y', 'patDy', { min: null })] : []),
+    ...(f.patKind === 'circular' ? [
+      row('Anzahl', num(f.patN1 ?? 6, v => ed(x => (x.patN1 = Math.max(1, Math.round(v ?? 1)))), { min: 1 })),
+      row('Gesamtwinkel', num(f.patAngle ?? 360, v => ed(x => (x.patAngle = v)), { unit: '°' })),
+      N('Mitte X', 'patCx', { min: null }), N('Mitte Y', 'patCy', { min: null })] : []),
+    f.patKind && f.patKind !== 'none' ? h('p', { class: 'hint' }, f.patKind === 'linear' ? 'Jeder Kreis der Skizze wird zum Raster: Abstände in X und Y der Skizze (auch negativ).' : 'Jeder Kreis der Skizze wird um die Mitte (in Skizzenkoordinaten) gedreht wiederholt – ein Kreis im Abstand des Teilkreisradius ergibt einen Lochkreis.') : null,
     h('p', { class: 'hint' }, 'Jeder Kreis der Skizze ist ein Bohrungsmittelpunkt. Gebohrt wird entgegen der Skizzennormalen (ins Material).' + (f.tapped ? ' Gewindebohrung: gebohrt wird das Kernloch; das Gewinde erscheint als Gewindedarstellung am Modell und mit seinem Namen in der Zeichnung.' : '')),
   );
 }
@@ -4191,14 +4216,27 @@ function propsEdgeMod(b, f, ed) {
       (f.law || []).length ? h('p', { class: 'hint' }, 'Mit Stützpunkten läuft der Radius durch die angegebenen Werte (Lage in % der Kantenlänge). Das rechnet der große Geometriekern; beim ersten Mal lädt er einige Sekunden.') : '',
     ] : []),
     fillet && f.variable ? h('p', { class: 'hint' }, 'Der Radius wächst gleichmäßig vom Anfang zum Ende jeder gewählten Kante. Welches Ende der Anfang ist, legt die Kante fest – bei Bedarf tauschen.') : '',
-    f.variable ? '' : row('Alle Kanten', chk(f.all, v => ed(x => (x.all = v)))),
+    !fillet ? row('Art', sel([['equal', 'Gleicher Abstand'], ['two', 'Zwei Abstände'], ['angle', 'Abstand und Winkel']], f.chamferKind || 'equal', v => ed(x => { x.chamferKind = v; if (v !== 'equal') { x.all = false; x.distance2 ??= +(2 * (+x.distance || 1)).toFixed(3); x.angle ??= 30; } }))) : '',
+    !fillet && f.chamferKind === 'two' ? row('Abstand 2', num(f.distance2, v => ed(x => (x.distance2 = v)), { unit: 'mm', min: 0.01 })) : '',
+    !fillet && f.chamferKind === 'angle' ? row('Winkel', num(f.angle, v => ed(x => (x.angle = v)), { unit: '°', min: 1 })) : '',
+    !fillet && f.chamferKind && f.chamferKind !== 'equal' ? row('Seiten tauschen', chk(f.flip, v => ed(x => (x.flip = v)))) : '',
+    !fillet && f.chamferKind && f.chamferKind !== 'equal' ? h('p', { class: 'hint' }, 'Der erste Abstand wird auf der Fläche gemessen, die mehr nach oben (Z) zeigt, der zweite Abstand bzw. der Winkel gilt zur anderen Fläche. „Seiten tauschen“ kehrt das um. Tangential anschließende Kanten laufen mit.') : '',
+    f.variable || (!fillet && f.chamferKind && f.chamferKind !== 'equal') ? '' : row('Alle Kanten', chk(f.all, v => ed(x => (x.all = v)))),
   );
   if (!f.all) {
+    const pickF = state.pick?.mode === 'faces' && state.pick.id === f.id;
+    const plain = !f.variable && (fillet || !f.chamferKind || f.chamferKind === 'equal');
     b.append(
       row('Kanten', h('span', null, `${(f.edges || []).length} gewählt`)),
       h('div', { class: 'btns' },
         btn(picking ? '✓ Auswahl beenden' : 'Kanten wählen', () => togglePick('edges', f.id), picking ? 'on' : 'primary'),
         btn('Auswahl leeren', () => ed(x => (x.edges = [])))),
+      row('Flächen (alle Kanten ringsum)', h('span', null, `${(f.faces || []).length} gewählt`)),
+      h('div', { class: 'btns' },
+        btn(pickF ? '✓ Auswahl beenden' : 'Flächen wählen', () => togglePick('faces', f.id), pickF ? 'on' : ''),
+        btn('Auswahl leeren', () => ed(x => (x.faces = [])))),
+      !plain && !fillet && (f.faces || []).length ? h('p', { class: 'hint' }, 'Bei Kanten einer gewählten Fläche wird der erste Abstand auf dieser Fläche gemessen.') : '',
+      !plain && fillet && (f.faces || []).length ? h('p', { class: 'hint' }, 'Der Rand einer Fläche ist eine geschlossene Kette: Mit „durchlaufend“ läuft der Radius einmal ringsum, ohne diese Option auf jeder Kante für sich vom Anfangs- zum Endradius.') : '',
       h('p', { class: 'hint' }, 'Während der Auswahl wird das Modell vor diesem Schritt gezeigt. Kanten anklicken zum Hinzufügen/Entfernen.'),
     );
   }
@@ -4241,15 +4279,19 @@ function propsOffsetFace(b, f, ed) {
 }
 // "Ausrichten": a body is laid with one of its faces onto a face of another body
 function propsAlign(b, f, ed) {
-  const picking = state.pick?.mode === 'faces' && state.pick.id === f.id, n = (f.faces || []).length;
+  const edge = f.mode === 'edge', key = edge ? 'edges' : 'faces';
+  const picking = state.pick?.mode === key && state.pick.id === f.id, n = (f[key] || []).length;
   b.append(
-    row('Flächen', h('span', null, n === 0 ? 'keine gewählt' : n === 1 ? 'Fläche am bewegten Körper gewählt' : 'beide gewählt')),
+    row('Ausrichten nach', sel([['face', 'Flächen (aufeinander legen)'], ['edge', 'Kanten (Geraden deckungsgleich, Kreise mittig)']], edge ? 'edge' : 'face', v => { if (state.pick?.id === f.id) togglePick(state.pick.mode, f.id); ed(x => { x.mode = v; x.faces ||= []; x.edges ||= []; }); })),
+    row(edge ? 'Kanten' : 'Flächen', h('span', null, n === 0 ? 'keine gewählt' : n === 1 ? (edge ? 'Kante am bewegten Körper gewählt' : 'Fläche am bewegten Körper gewählt') : 'beide gewählt')),
     h('div', { class: 'btns' },
-      btn(picking ? '✓ Auswahl beenden' : 'Flächen wählen', () => togglePick('faces', f.id), picking ? 'on' : 'primary'),
-      btn('Auswahl leeren', () => ed(x => (x.faces = [])))),
-    row('Gleich gerichtet (statt gegenüber)', chk(f.flip, v => ed(x => (x.flip = v)))),
-    row('Abstand', num(f.offset || 0, v => ed(x => (x.offset = v)), { unit: 'mm' })),
-    h('p', { class: 'hint' }, 'Erst die Fläche an dem Körper anklicken, der bewegt wird, dann die Zielfläche am anderen Körper. Der Körper wird gedreht und verschoben, bis der erste Klickpunkt auf dem zweiten liegt und die Flächen aufeinander liegen.'));
+      btn(picking ? '✓ Auswahl beenden' : edge ? 'Kanten wählen' : 'Flächen wählen', () => togglePick(key, f.id), picking ? 'on' : 'primary'),
+      btn('Auswahl leeren', () => ed(x => (x[key] = [])))),
+    row(edge ? 'Richtung umkehren' : 'Gleich gerichtet (statt gegenüber)', chk(f.flip, v => ed(x => (x.flip = v)))),
+    row(edge ? 'Verschiebung entlang der Kante' : 'Abstand', num(f.offset || 0, v => ed(x => (x.offset = v)), { unit: 'mm' })),
+    h('p', { class: 'hint' }, edge
+      ? 'Erst die Kante an dem Körper anklicken, der bewegt wird, dann die Zielkante am anderen Körper. Gerade Kanten kommen deckungsgleich aufeinander (Mitte auf Mitte); bei Kreiskanten – Bohrung und Zapfen – werden die Achsen gleich gerichtet und die Mittelpunkte zusammengelegt.'
+      : 'Erst die Fläche an dem Körper anklicken, der bewegt wird, dann die Zielfläche am anderen Körper. Der Körper wird gedreht und verschoben, bis der erste Klickpunkt auf dem zweiten liegt und die Flächen aufeinander liegen.'));
 }
 // "Fläche ersetzen": a flat face moves onto another plane
 function propsReplaceFace(b, f, ed) {
@@ -4589,8 +4631,10 @@ function propsPattern(b, f, ed) {
       ...(own ? [] : [N('Zentrum X', 'cx'), N('Zentrum Y', 'cy'), N('Zentrum Z', 'cz')]),
       N('Anzahl', 'n', { unit: null, min: 1, int: true }), N('Winkel', 'angle', { unit: '°' }));
   } else {
-    b.append(row('Richtung 1', sel(axes, f.dir1 || 'x', v => ed(x => (x.dir1 = v)))), N('Anzahl 1', 'n1', { unit: null, min: 1, int: true }), N('Abstand 1', 's1'),
-      row('Richtung 2', sel(axes, f.dir2 || 'y', v => ed(x => (x.dir2 = v)))), N('Anzahl 2', 'n2', { unit: null, min: 1, int: true }), N('Abstand 2', 's2'));
+    const dirs = [...axes, ...axisRefOptions(f.id).filter(([k]) => !BASE_AXES[k])];
+    b.append(row('Richtung 1', sel(dirs, f.dir1 || 'x', v => ed(x => (x.dir1 = v)))), N('Anzahl 1', 'n1', { unit: null, min: 1, int: true }), N('Abstand 1', 's1'),
+      row('Richtung 2', sel(dirs, f.dir2 || 'y', v => ed(x => (x.dir2 = v)))), N('Anzahl 2', 'n2', { unit: null, min: 1, int: true }), N('Abstand 2', 's2'),
+      dirs.length > axes.length ? '' : h('p', { class: 'hint' }, 'Für schräge Richtungen eine Konstruktionsachse anlegen (durch zwei Punkte, einen Zylinder oder zwei Ebenen) – sie erscheint dann hier als Richtung.'));
   }
   b.append(h('p', { class: 'hint' }, 'Vervielfältigt ein Extrusions-, Rotations-, Bohrungs- oder Grundkörper-Feature mit dessen Operation.'));
 }
@@ -5530,6 +5574,8 @@ function propsOp(b, op) {
         row('Drehrichtung', sel([['right', 'Rechtsgewinde'], ['left', 'Linksgewinde']], op.hand || 'right', v => ed(x => (x.hand = v)))),
         h('p', { class: 'hint' }, 'Gefräst wird von unten nach oben im Gleichlauf. M6 = Nenn-Ø 6, Steigung 1; M8 = 8 / 1,25; M10 = 10 / 1,5.'));
       holeOrderRow();
+      put('passes', row('Zustellungen (radial)', num(op.threadPasses ?? 1, v => ed(x => (x.threadPasses = Math.max(1, Math.round(v ?? 1)))), { min: 1 })), C('Leerdurchgang am Ende', 'threadSpring'),
+        h('p', { class: 'hint' }, 'Mit mehreren Zustellungen wird die Gewindetiefe in Schritten gefräst, die jeweils etwa gleich viel abnehmen – schont kleine Gewindefräser und harte Werkstoffe. Der Leerdurchgang fährt die letzte Bahn noch einmal ohne Zustellung.'));
       break;
     case 'trace':
       put('passes', N('Tiefe', 'depth', { min: 0.01 }));
@@ -5860,6 +5906,7 @@ function propsOp(b, op) {
   b.append(sec('Ergebnis'));
   if (r?.error) b.append(h('p', { class: 'err' }, '⚠ ' + r.error));
   if (r?.warning) b.append(h('p', { class: 'warn' }, '⚠ ' + r.warning));
+  if (r?.fullStock && op.type === 'thread') b.append(h('div', { class: 'btns' }, btn('Kontur zum Freifräsen davor anlegen', () => addClearingContour(op), 'primary')));
   else if (r && !r.disabled && !r.error) b.append(h('div', { class: 'stats' }, h('span', null, 'Bearbeitungszeit'), h('b', null, fmtTime(r.time)), h('span', null, 'Weg'), h('b', null, `${f2(r.length / 1000)} m`), h('span', null, 'Bewegungen'), h('b', null, r.moves.length)));
   b.append(h('div', { class: 'btns' },
     btn('↑', () => moveOp(op.id, -1)), btn('↓', () => moveOp(op.id, 1)),
@@ -6030,7 +6077,7 @@ function recognizeHoles() {
   const draw = () => {
     const { plan } = planNow();
     const toolOf = (g, role) => plan.steps.find(s => s.stp.g === g && s.stp.role === role);
-    const tl = s => (s ? h('td', { class: s.isNew ? 'new' : '' }, `${s.isNew ? 'neu: ' : ''}T${s.tool.number} ${s.tool.name}`) : h('td', null, '–'));
+    const tl = s => (s ? h('td', { class: s.isNew ? 'new' : '' }, s.isNew ? h('span', null, 'neu:') : '', ` T${s.tool.number} ${s.tool.name}`) : h('td', null, '–'));
     w.body.replaceChildren(
       h('p', { class: 'hint' }, `Setup „${st.name}“: ${groups.reduce((a, g) => a + (g.kind === 'drill' ? g.holes.length : 0), 0)} Bohrungen entlang der Werkzeugachse gefunden. Für jede angehakte Zeile entsteht eine Operation; fehlende Werkzeuge werden angelegt.`),
       h('table', { class: 'hole-tbl' },
@@ -6039,7 +6086,7 @@ function recognizeHoles() {
           h('td', null, chk(on.has(g.key), v => { if (v) on.add(g.key); else on.delete(g.key); draw(); })),
           h('td', null, `${g.holes.length}×`), h('td', null, `Ø${String(f2(g.dia)).replace('.', ',')}`), h('td', null, `${String(f2(g.depth)).replace('.', ',')} mm`),
           h('td', null, g.kind === 'stud' ? `Zapfen · Außengewinde ${g.thread.name}` : g.kind === 'cbore' ? 'Senkung (Kreistasche)' : `${g.through ? 'Durchgangsbohrung' : 'Sackloch'}${g.thread ? ` · Gewinde ${g.thread.name}` : ''}`),
-          !on.has(g.key) ? h('td', null, '–') : g.kind === 'cbore' ? tl(toolOf(g, 'cbore')) : h('td', { class: [toolOf(g, 'drill'), toolOf(g, 'tap'), toolOf(g, 'tmill'), toolOf(g, 'tout')].some(s => s?.isNew) ? 'new' : '' }, [toolOf(g, 'drill'), toolOf(g, 'tap'), toolOf(g, 'tmill'), toolOf(g, 'tout')].filter(Boolean).map(s => `${s.isNew ? 'neu: ' : ''}T${s.tool.number} ${s.tool.name}`).join(' + '))))),
+          !on.has(g.key) ? h('td', null, '–') : g.kind === 'cbore' ? tl(toolOf(g, 'cbore')) : h('td', { class: [toolOf(g, 'drill'), toolOf(g, 'tap'), toolOf(g, 'tmill'), toolOf(g, 'tout')].some(s => s?.isNew) ? 'new' : '' }, [toolOf(g, 'drill'), toolOf(g, 'tap'), toolOf(g, 'tmill'), toolOf(g, 'tout')].filter(Boolean).flatMap((s, i) => [i ? ' + ' : '', s.isNew ? h('span', null, 'neu:') : '', ` T${s.tool.number} ${s.tool.name}`]))))),
       row('Vorher anbohren (NC-Anbohrer)', chk(opt.spot, v => { opt.spot = v; draw(); })),
       groups.some(g => g.thread) ? row('Gewinde', sel([['tap', 'Gewindebohren'], ['mill', 'Gewindefräsen'], ['none', 'Nicht schneiden']], opt.tap, v => { opt.tap = v; draw(); })) : '',
       groups.some(g => g.kind === 'cbore') ? row('Senkungen fräsen', chk(opt.cbore, v => { opt.cbore = v; draw(); })) : '',
@@ -7588,6 +7635,36 @@ function select(kind, id = null) {
   renderAll();
 }
 
+// fit everything into the window without turning the view
+function fitKeepingView() {
+  const box = getModel().box.clone().union(meshBox());
+  if (box.isEmpty()) return fitView();
+  vp.setViewDir(vp.camera.position.clone().sub(vp.controls.target), box, true);
+}
+// standard views by number (Strg+1 … 7) and "look at" the chosen sketch or plane (Strg+8)
+function viewByNumber(n) {
+  const box = getModel().box.clone().union(meshBox()), b = box.isEmpty() ? null : box;
+  if (n === 7) return vp.setView('iso', b);
+  if (n === 5) return vp.setView('top', b);
+  const d = { 1: [0, -1, 0], 2: [0, 1, 0], 3: [-1, 0, 0], 4: [1, 0, 0], 6: [0, 0.001, -1] }[n];
+  if (d) vp.setViewDir(new THREE.Vector3(...d), b, true);
+}
+function lookAtSelection() {
+  const rf = resolved().features, f = rf.find(x => x.id === (state.sketchId || (state.sel?.kind === 'feature' && state.sel.id)));
+  let n = null;
+  try { if (f?.type === 'sketch') n = basis(f).n; else if (f?.type === 'plane') { const pl = constructionPlane(f, rf); if (pl) n = new THREE.Vector3(...pl.n); } } catch { /* no plane */ }
+  if (!n) return status('Erst eine Skizze oder Konstruktionsebene wählen – dann schaut Strg+8 senkrecht darauf.');
+  const box = getModel().box.clone().union(meshBox());
+  vp.setViewDir(n, box.isEmpty() ? null : box, true);
+}
+function renameSelection() {
+  const s = state.sel;
+  if (s?.kind === 'feature') return renameFeature(s.id);
+  if (s?.kind === 'body') { const b = getModel().bodies.find(x => x.id === s.id); if (b) return renameBody(b); }
+  if (s?.kind === 'op') { const op = camOp(s.id); if (op) return askValue('Neuer Name', op.name).then(v => { if (v && v.trim()) editOp(op.id, x => (x.name = v.trim())); }); }
+  status('Nichts zum Umbenennen gewählt.');
+}
+
 function fitView() {
   const box = getModel().box.clone().union(meshBox());
   const ag = state.workspace === 'cam' ? activeGen() : null;
@@ -7755,6 +7832,7 @@ function viewportClick(e) {
   }
 }
 
+let viewBeforeSketch = null;
 function editSketch(id) {
   if (state.workspace !== 'design') return;
   state.pick = null;
@@ -7768,6 +7846,7 @@ function editSketch(id) {
       if (now !== '[]' && now !== JSON.stringify(raw.entities.filter(e => e.proj))) commit(pp => { const sk = pp.features.find(f => f.id === id); sk.entities = [...sk.entities.filter(e => !e.proj), ...JSON.parse(now)]; });
     }
   }
+  viewBeforeSketch = { target: vp.controls.target.clone(), pos: vp.camera.position.clone(), up: vp.camera.up.clone() };
   state.sketchId = id;
   state.sel = { kind: 'feature', id };
   sketcher.start();
@@ -7787,7 +7866,11 @@ function finishSketch() {
   projectMode = 'face';
   state.sketchId = null;
   state.sel = { kind: 'feature', id };
-  fitView();
+  showSketchCoords(null);
+  const after = getSettings().sketchEndView;
+  if (after === 'back' && viewBeforeSketch) vp.animateTo(viewBeforeSketch.target, viewBeforeSketch.pos, 300, viewBeforeSketch.up);
+  else if (after !== 'keep') fitView();
+  viewBeforeSketch = null;
   renderAll();
 }
 
@@ -7919,7 +8002,7 @@ function createFeature(type, extra = {}) {
     f = { ...base, faces: [], distance: 1 };
   } else if (type === 'align') {
     if (getModel().bodies.length < 2) return status('Ausrichten braucht zwei Körper.');
-    f = { ...base, faces: [], flip: false, offset: 0 };
+    f = { ...base, mode: 'face', faces: [], edges: [], flip: false, offset: 0 };
   } else if (type === 'pattern' || type === 'mirror') {
     const src = lastSolidSource();
     if (!src) return status('Kein Feature zum Vervielfältigen vorhanden.');
@@ -7994,6 +8077,33 @@ function deleteFeature(id) {
   state.pick = null;
   showBanner(null);
   renderAll();
+}
+
+// A contour around the pins of an external thread, placed before the thread operation: wide enough for the
+// thread mill beside the pin (further passes outwards where one cutter width is not enough)
+function addClearingContour(op) {
+  const p = state.project, tt = p.cam.tools.find(t => t.id === op.tool), td = +tt?.dia || 6;
+  const flats = p.cam.tools.filter(t => t.type === 'flat').sort((a, b) => a.dia - b.dia);
+  const tool = flats.find(t => t.dia >= td) || flats[flats.length - 1];
+  if (!tool) return status('Kein Schaftfräser in der Werkzeugbibliothek – bitte dort anlegen.');
+  const c = addOp('contour', { tool, batch: true });
+  if (!c) return;
+  const extra = Math.max(0, Math.ceil((td + 1.5 - tool.dia) / (tool.dia * 0.5)));
+  // a contour follows the outline of a flat face: the end face of each pin (where its thread starts) instead of
+  // the cylinder the thread operation was given; it runs down to where the thread operation ends
+  const threads = (getModel().threads || []).filter(t => t.outside);
+  const faces = (op.faces || []).map(pt => {
+    const th = threads.find(t => { const v = pt.map((x, i) => x - t.c[i]), a = v[0] * t.d[0] + v[1] * t.d[1] + v[2] * t.d[2]; return Math.abs(Math.hypot(v[0] - a * t.d[0], v[1] - a * t.d[1], v[2] - a * t.d[2]) - t.r) < 0.05; });
+    return th ? th.c.map(v => +(+v).toFixed(4)) : pt.slice();
+  });
+  const res = getCam().setups.get(op.setup)?.results.get(op.id), zBottom = res?.heights?.bottom;
+  Object.assign(c, {
+    name: nextName(p.cam.ops, 'Zapfen freifräsen'), setup: op.setup, geomSource: op.geomSource, faces, edges: [],
+    sketch: op.sketch, entities: op.entities, bottom: op.bottom, bottomOffset: op.bottomOffset, side: 'outside', roughPasses: extra > 0, roughCount: extra, roughStepover: f2(tool.dia * 0.5),
+    ...(op.geomSource === 'model' && Number.isFinite(zBottom) ? { heights: { bottom: { from: 'pick', z: +zBottom.toFixed(4), offset: 0 } } } : {}),
+  });
+  commit(pp => { const k = pp.cam.ops.findIndex(o => o.id === op.id); pp.cam.ops.splice(k < 0 ? pp.cam.ops.length : k, 0, c); });
+  status(`„${c.name}“ mit T${tool.number} vor dem Gewindefräsen angelegt`);
 }
 
 function addOp(type, opt = {}) {
@@ -8667,10 +8777,12 @@ function drawingAxes(bodies) {
     // extent measured from p (the face's own range runs from its location, in its own direction)
     const e = [(f.t0 - tp * sg) * sg, (f.t1 - tp * sg) * sg], lo = Math.min(...e), hi = Math.max(...e);
     const a = axes.get(key);
-    if (a) { a.t0 = Math.min(a.t0, lo); a.t1 = Math.max(a.t1, hi); a.r = Math.max(a.r, f.r); }
-    else axes.set(key, { p, d, t0: lo, t1: hi, r: f.r });
+    // faces of the same radius add up around the axis: a bore is a full turn, a fillet a quarter
+    const turn = f.span == null ? 2 * Math.PI : f.span;
+    if (a) { a.t0 = Math.min(a.t0, lo); a.t1 = Math.max(a.t1, hi); a.turns[f.r.toFixed(3)] = (a.turns[f.r.toFixed(3)] || 0) + turn; a.r = Math.max(a.r, f.r); }
+    else axes.set(key, { p, d, t0: lo, t1: hi, r: f.r, turns: { [f.r.toFixed(3)]: turn } });
   }
-  return [...axes.values()];
+  return [...axes.values()].map(({ turns, ...a }) => ({ ...a, full: Object.values(turns).some(v => v > 2 * Math.PI - 0.02) }));
 }
 
 function openDrawing() {
@@ -9127,7 +9239,7 @@ function openSetupSheet() {
   const p = state.project;
   const cam = getCam();
   const esc = v => String(v).replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch]);
-  let total = 0;
+  let total = 0, stops = 0;
   const used = new Map();
   const setupsHtml = p.cam.setups.map(st => {
     const g = cam.setups.get(st.id);
@@ -9139,22 +9251,43 @@ function openSetupSheet() {
       if (t) used.set(t.id, t);
       if (r && !r.error && !r.disabled) total += r.time;
       const minZ = r?.moves?.length ? Math.min(...r.moves.map(m => m.z)) - originOf(st, s).z : null;
-      return `<tr><td>${esc(op.name)}</td><td>${esc(OP_TYPES[op.type])}</td><td>T${t?.number ?? '?'} ${esc(t?.name ?? '')}</td><td>${op.enabled === false ? 'inaktiv' : r?.error ? '⚠ ' + esc(r.error) : fmtTime(r?.time || 0)}</td><td>${minZ == null ? '' : f2(minZ)}</td></tr>`;
+      // what the operator should know about this line: manual NC text, repeats, stops
+      const mn = r?.manual, notes = [];
+      if (mn) notes.push(mn.kind === 'dwell' ? `${f2(mn.sec)} s` : mn.text || '');
+      if (r?.pattern) notes.push(r.pattern.mirror ? tr(`${r.pattern.n}-mal (Bahnmuster, gespiegelt)`) : tr(`${r.pattern.n}-mal (Bahnmuster)`));
+      if (r?.dogbones) notes.push(tr(`${r.dogbones} Eckenfreistiche`));
+      if (r?.threadPasses > 1) notes.push(tr(`${r.threadPasses} Zustellungen`));
+      if (op.note) notes.push(op.note);
+      if (mn?.kind === 'stop') stops++;
+      const toolCell = op.type === 'manual' ? '–' : `T${t?.number ?? '?'} ${esc(tr(t?.name ?? ''))}`;
+      return `<tr${mn?.kind === 'stop' ? ' class="stop"' : ''}><td>${esc(tr(op.name))}</td><td>${esc(op.type === 'manual' ? MANUAL_KINDS[mn?.kind || op.manualKind] || OP_TYPES.manual : OP_TYPES[op.type])}</td><td>${toolCell}</td><td>${op.enabled === false ? 'inaktiv' : r?.error ? '⚠ ' + esc(tr(r.error)) : op.type === 'manual' && !(r?.time > 0) ? '' : fmtTime(r?.time || 0)}</td><td>${minZ == null ? '' : f2(minZ)}</td><td>${esc(notes.filter(Boolean).join(' · '))}</td></tr>`;
     }).join('');
-    return `<h2>${esc(st.name)} – ${esc(ORIENTATIONS[st.orientation])}</h2>
+    return `<h2>${esc(st.name)} – ${esc(tr(ORIENTATIONS[st.orientation]))}</h2>
       <table class="kv"><tr><th>Rohteil</th><td>${f2(s.maxX - s.minX)} × ${f2(s.maxY - s.minY)} × ${f2(s.top - s.bottom)} mm</td></tr>
       <tr><th>Nullpunkt</th><td>${esc(ORIGINS[st.origin])}</td></tr>
-      <tr><th>Sicherheits-/Rückzugshöhe</th><td>${st.safeZ} / ${st.retract} mm über Rohteil</td></tr></table>
-      <table><tr><th>Operation</th><th>Strategie</th><th>Werkzeug</th><th>Zeit</th><th>tiefstes Z</th></tr>${rows}</table>`;
+      <tr><th>${esc(tr('Sicherheits-/Rückzugshöhe'))}</th><td>${esc(tr(`${st.safeZ} / ${st.retract} mm über Rohteil`))}</td></tr></table>
+      <table><tr><th>Operation</th><th>Strategie</th><th>Werkzeug</th><th>Zeit</th><th>${esc(tr('tiefstes Z'))}</th><th>Hinweis</th></tr>${rows}</table>`;
   }).join('');
-  const tools = [...used.values()].sort((a, b) => a.number - b.number).map(t => `<tr><td>T${t.number}</td><td>${esc(t.name)}</td><td>${esc(TOOL_TYPES[t.type])}</td><td>${t.dia}</td><td>${t.rpm}</td><td>${t.feed}</td><td>${t.plunge}</td></tr>`).join('');
-  const html = `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Einrichteblatt – ${esc(p.name)}</title>
+  // the tools as a table for a spreadsheet (semicolons and decimal commas, as German Excel reads them)
+  // languages with a decimal comma: semicolons and decimal commas; the others: commas and decimal points
+  const german = ['de', 'fr', 'es', 'it', 'pt', 'nl', 'pl', 'tr', 'cs', 'da', 'fi', 'nb', 'uk', 'hr', 'bs', 'sr', 'ka', 'lv', 'gl', 'ru'].includes(uiLang), sep = german ? ';' : ','; // (languages that write decimal commas)
+  const csvCell = v => { const t = String(v ?? '').split('"').join('""'); return t.includes(sep) || t.includes('"') || t.includes('\n') ? `"${t}"` : t; };
+  const de = v => (v == null || v === '' ? '' : german ? String(v).replace('.', ',') : String(v));
+  const toolTime = new Map(), toolOps = new Map();
+  for (const st of p.cam.setups) { const g = cam.setups.get(st.id); if (!g?.stock) continue; for (const op of g.ops) { const r = g.results.get(op.id); if (!op.tool || !r || r.error || r.disabled) continue; toolTime.set(op.tool, (toolTime.get(op.tool) || 0) + (r.time || 0)); toolOps.set(op.tool, [...(toolOps.get(op.tool) || []), op.name]); } }
+  const csv = [['Nr.', 'Name', 'Typ', 'Durchmesser mm', 'Eckenradius mm', 'Schneidenlänge mm', 'Schneiden', 'Drehzahl U/min', 'Vorschub mm/min', 'Eintauchen mm/min', 'Einsatzzeit min', 'Operationen'].map(x => csvCell(tr(x))).join(sep),
+    ...[...used.values()].sort((a, b) => a.number - b.number).map(t => [`T${t.number}`, tr(t.name), tr(TOOL_TYPES[t.type] || t.type), de(t.dia), de(t.cornerR || ''), de(t.fluteLen || ''), t.flutes ?? '', t.rpm ?? '', t.feed ?? '', t.plunge ?? '', de(+((toolTime.get(t.id) || 0) / 60).toFixed(1)), (toolOps.get(t.id) || []).map(x => tr(x)).join(' / ')].map(csvCell).join(sep))].join('\r\n');
+  const csvHref = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\ufeff' + csv);
+  const tools = [...used.values()].sort((a, b) => a.number - b.number).map(t => `<tr><td>T${t.number}</td><td>${esc(tr(t.name))}</td><td>${esc(tr(TOOL_TYPES[t.type]))}</td><td>${t.dia}</td><td>${t.rpm}</td><td>${t.feed}</td><td>${t.plunge}</td></tr>`).join('');
+  const locale = { de: 'de-DE', en: 'en-GB', zh: 'zh-CN', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR', nl: 'nl-NL', pl: 'pl-PL', tr: 'tr-TR', ja: 'ja-JP', ko: 'ko-KR', gb: 'en-GB', cs: 'cs-CZ', da: 'da-DK', fi: 'fi-FI', nb: 'nb-NO', uk: 'uk-UA', hr: 'hr-HR', bs: 'bs-BA', sr: 'sr-RS', ka: 'ka-GE', lv: 'lv-LV', ms: 'ms-MY', gl: 'gl-ES', ru: 'ru-RU' }[uiLang] || 'de-DE';
+  const meta = [tr(`Erstellt ${new Date().toLocaleString(locale)}`), tr(`Steuerung: ${findPost(p, p.post.flavor).name}`), tr(`Gesamtzeit ca. ${fmtTime(total)}`), ...(stops ? [tr(`${stops} Programmhalt(e) – die Maschine wartet dort auf den Bediener`)] : [])].map(esc).join(' · ');
+  const html = `<!doctype html><html lang="${uiLang}"><head><meta charset="utf-8"><title>${esc(tr(`Einrichteblatt – ${p.name}`))}</title>
     <style>body{font:13px/1.4 "Segoe UI",system-ui,sans-serif;color:#111;margin:24px;max-width:900px}h1{margin:0 0 4px}h2{margin:24px 0 8px;border-bottom:2px solid #0696d7;padding-bottom:4px}
     table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f0f3f6}table.kv{width:auto}.meta{color:#555}
-    button{margin:12px 0;padding:6px 14px}@media print{button{display:none}}</style></head><body>
-    <button onclick="print()">Drucken</button>
-    <h1>Einrichteblatt: ${esc(p.name)}</h1><div class="meta">Erstellt ${new Date().toLocaleString('de-DE')} · Steuerung: ${esc(findPost(p, p.post.flavor).name)} · Gesamtzeit ca. ${fmtTime(total)}</div>
-    <h2>Werkzeuge</h2><table><tr><th>Nr.</th><th>Name</th><th>Typ</th><th>Ø mm</th><th>U/min</th><th>Vorschub</th><th>Eintauchen</th></tr>${tools}</table>
+    tr.stop td{background:#fff3cd;font-weight:600}a.csv{margin-left:8px;color:#0b6aa2}@media print{a.csv{display:none}}button{margin:12px 0;padding:6px 14px}@media print{button{display:none}}</style></head><body>
+    <button onclick="print()">${esc(tr('Drucken'))}</button> <a class="csv" download="${esc(tr('Werkzeugliste'))} ${esc(p.name)}.csv" href="${csvHref}">${esc(tr('Werkzeugliste als CSV'))}</a>
+    <h1>${esc(tr(`Einrichteblatt: ${p.name}`))}</h1><div class="meta">${meta}</div>
+    <h2>${esc(tr('Werkzeuge'))}</h2><table><tr><th>Nr.</th><th>Name</th><th>Typ</th><th>Ø mm</th><th>U/min</th><th>Vorschub</th><th>Eintauchen</th></tr>${tools}</table>
     ${setupsHtml}</body></html>`;
   const w = window.open('', '_blank');
   if (!w) return status('Popup blockiert – bitte Popups für diese Seite erlauben.');
@@ -9329,7 +9462,7 @@ function placeTool() {
   if (!sim.segs) return;
   const s = sim.segs[Math.min(sim.idx, sim.segs.length - 1)];
   if (!s) { if (sim.toolMesh) sim.toolMesh.visible = false; return; }
-  const key = JSON.stringify([s.tool.type, s.tool.dia, s.tool.angle, s.tool.tip]);
+  const key = JSON.stringify([s.tool.type, s.tool.dia, s.tool.angle, s.tool.tip, s.tool.pitch, s.tool.cornerR, s.tool.fluteLen]);
   if (key !== sim.toolKey) {
     if (sim.toolMesh) { vp.sim.remove(sim.toolMesh); sim.toolMesh.traverse(o => o.geometry?.dispose()); }
     sim.toolMesh = toolMesh(s.tool);
@@ -9470,6 +9603,29 @@ function simComparePart() {
   const hm = buildHeightmap(bodies, { ...s, maxX: s.minX + stockSim.dx * (stockSim.nx - 1), maxY: s.minY + stockSim.dy * (stockSim.ny - 1) }, stockSim.dx);
   bodies.forEach(b => b.geometry.dispose());
   if (hm.nx !== stockSim.nx || hm.ny !== stockSim.ny) return null; // grids must match cell by cell
+  // threads are only drawn on the model (core hole / full pin): the finished part is cut out to the thread's
+  // depth there, so thread milling must not count as "too deep"
+  for (const th of getModel().threads || []) {
+    const c = new THREE.Vector3(...th.c).applyMatrix4(g.T), d = new THREE.Vector3(...th.d).transformDirection(g.T);
+    if (Math.abs(d.z) < 0.999) continue; // only threads along the tool axis
+    const r0 = th.outside ? th.r - 0.6134 * th.P : 0, r1 = th.outside ? th.r : th.r + 0.5413 * th.P;
+    let zLow = Math.min(c.z, c.z + d.z * th.L);
+    const tol = 0.5 * stockSim.dx;
+    if (!th.outside) {
+      // the cutter runs out below the thread: up to two pitches deeper, but never deeper than the hole itself
+      const ci = Math.round((c.x - s.minX) / stockSim.dx), cj = Math.round((c.y - s.minY) / stockSim.dy);
+      const floor = ci >= 0 && cj >= 0 && ci < hm.nx && cj < hm.ny ? hm.h[cj * hm.nx + ci] : -Infinity;
+      zLow = Math.max(Number.isFinite(floor) ? floor : -Infinity, zLow - 2 * th.P);
+    }
+    const i0 = Math.max(0, Math.floor((c.x - r1 - tol - s.minX) / stockSim.dx)), i1 = Math.min(hm.nx - 1, Math.ceil((c.x + r1 + tol - s.minX) / stockSim.dx));
+    const j0 = Math.max(0, Math.floor((c.y - r1 - tol - s.minY) / stockSim.dy)), j1 = Math.min(hm.ny - 1, Math.ceil((c.y + r1 + tol - s.minY) / stockSim.dy));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const q = Math.hypot(s.minX + i * stockSim.dx - c.x, s.minY + j * stockSim.dy - c.y);
+      if (q < r0 - tol || q > r1 + tol) continue;
+      const k = j * hm.nx + i;
+      if (hm.h[k] > zLow) hm.h[k] = zLow;
+    }
+  }
   return hm.h;
 }
 function applySimCompare() {
@@ -9617,6 +9773,7 @@ vp.canvas.addEventListener('pointerup', e => {
   if (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) viewportClick(e);
 });
 
+let lastEsc = 0;
 window.addEventListener('keydown', e => {
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
@@ -9628,12 +9785,32 @@ window.addEventListener('keydown', e => {
   if (hit) { e.preventDefault(); hit.el.click(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && k === 's') { e.preventDefault(); saveAsCmd(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); saveVersionCmd(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 'o') { e.preventDefault(); $('#fileInput').click(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && /^[1-8]$/.test(e.key)) { e.preventDefault(); if (e.key === '8') lookAtSelection(); else viewByNumber(+e.key); return; }
+  // the view by keyboard: arrows turn (Umschalt: a quarter turn), Strg + arrows move, PageUp / PageDown and + / − zoom
+  if (!e.altKey && e.key.startsWith('Arrow') && !(state.sketchId && !(e.ctrlKey || e.metaKey) && sketcher.selection?.length)) {
+    const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0, dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) vp.panBy(-dx * 40, -dy * 40);
+    else if (!state.sketchId) { const a = e.shiftKey ? 90 : 15; vp.turnBy(dx * a, dy * a); }
+    else vp.panBy(-dx * 40, -dy * 40);
+    return;
+  }
+  if (!(e.ctrlKey || e.metaKey || e.altKey) && (e.key === 'PageUp' || e.key === '+')) { e.preventDefault(); vp.zoomBy(1 / 1.25); return; }
+  if (!(e.ctrlKey || e.metaKey || e.altKey) && (e.key === 'PageDown' || e.key === '-')) { e.preventDefault(); vp.zoomBy(1.25); return; }
+  if (e.key === 'F2') { e.preventDefault(); renameSelection(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 'n') { e.preventDefault(); newDoc(); return; }
   if (state.sketchId) { const r = sketcher.key(e); if (r) { if (r !== 'focus') e.preventDefault(); return; } }
   if (e.key === 'Escape') {
     if (state.pick) { state.pick = null; measure.pts = []; showBanner(null); renderAll(); }
-    else if (state.sketchId) finishSketch();
+    else if (state.sketchId) {
+      // "Esc zweimal": a single Esc too many must not close a sketch
+      const now = performance.now();
+      if (getSettings().doubleEsc !== false && !(now - lastEsc < 1200)) { lastEsc = now; status('Esc noch einmal drücken, um die Skizze zu beenden.'); }
+      else { lastEsc = 0; finishSketch(); }
+    }
     else if (state.sel) { state.sel = null; renderAll(); }
     return;
   }
@@ -9735,7 +9912,52 @@ function switchKernel(id) {
 function applySettings() {
   const s = getSettings();
   const root = document.documentElement;
-  if (s.theme === 'system') delete root.dataset.theme; else root.dataset.theme = s.theme;
+  // a design brings its own colour scheme (light or dark) along
+  const hexOk = v => /^#[0-9a-f]{6}$/i.test(v || '');
+  const hexLum = v => { const c = [1, 3, 5].map(i => parseInt(v.slice(i, i + 2), 16) / 255).map(x => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const own = s.design === 'custom' && [s.customBg, s.customPanel, s.customText, s.customLine, s.customTop].every(hexOk);
+  const design = own ? 'custom' : DESIGNS[s.design] ? s.design : 'standard';
+  // the own design: five colours, everything else is mixed from them
+  const OWN = {
+    '--bg': s.customBg, '--panel': s.customPanel, '--text': s.customText, '--line': s.customLine, '--top': s.customTop,
+    '--input': `color-mix(in srgb, ${s.customPanel} 92%, ${s.customText})`, '--hover': `color-mix(in srgb, ${s.customPanel} 88%, ${s.customText})`,
+    '--muted': `color-mix(in srgb, ${s.customText} 58%, ${s.customPanel})`, '--top-text': own && hexLum(s.customTop) > 0.36 ? '#10161d' : '#eef2f6',
+    '--vp-a': `color-mix(in srgb, ${s.customBg} 82%, ${s.customText})`, '--vp-b': s.customBg,
+    '--overlay': `color-mix(in srgb, ${s.customPanel} 94%, transparent)`, '--glass': `color-mix(in srgb, ${s.customPanel} 96%, transparent)`,
+    '--head-a': `color-mix(in srgb, ${s.customPanel} 90%, ${s.customText})`, '--head-b': `color-mix(in srgb, ${s.customPanel} 96%, ${s.customText})`, '--head-text': s.customText,
+    '--win-line': `color-mix(in srgb, ${s.customLine} 80%, ${s.customText})`, '--dlg-head': s.customTop, '--dlg-head-text': own && hexLum(s.customTop) > 0.36 ? '#10161d' : '#eef2f6',
+    '--foot': `color-mix(in srgb, ${s.customPanel} 94%, ${s.customText})`,
+  };
+  for (const [k, v] of Object.entries(OWN)) { if (own) root.style.setProperty(k, v); else root.style.removeProperty(k); }
+  if (own) { root.dataset.design = 'custom'; root.dataset.theme = hexLum(s.customPanel) < 0.4 ? 'dark' : 'light'; }
+  else if (design !== 'standard') { root.dataset.design = design; root.dataset.theme = DESIGNS[design]; }
+  else { delete root.dataset.design; if (s.theme === 'system') delete root.dataset.theme; else root.dataset.theme = s.theme; }
+  // accent colour of the interface and of the icons (lighter in the dark theme)
+  const darkNow = root.dataset.theme ? root.dataset.theme === 'dark' : !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  root.style.setProperty('--accent', s.accent === 'custom' && /^#[0-9a-f]{6}$/i.test(s.accentCustom || '') ? s.accentCustom : (ACCENTS[s.accent] || ACCENTS.blue)[darkNow ? 1 : 0]);
+  // text on the accent colour: white on a dark accent, dark on a light one
+  {
+    const hex = getComputedStyle(root).getPropertyValue('--accent').trim(), m = /^#([0-9a-f]{6})$/i.exec(hex);
+    const ch = m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16) / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)) : [0, 0, 0];
+    const lum = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+    root.style.setProperty('--on-accent', lum > 0.36 ? '#08131d' : '#ffffff');
+  }
+  // icons: in the accent colour, neutral grey or a colour of their own
+  if (s.iconColor === 'neutral') root.style.setProperty('--icBase', darkNow ? '#6f8296' : '#8a9db1');
+  else if (s.iconColor === 'custom' && /^#[0-9a-f]{6}$/i.test(s.iconCustom || '')) root.style.setProperty('--icBase', s.iconCustom);
+  else root.style.removeProperty('--icBase');
+  const flag = (k, v, off) => { if (v && v !== off) root.dataset[k] = v; else delete root.dataset[k]; };
+  flag('corners', s.corners, 'soft');
+  flag('density', s.density, 'normal');
+  flag('icons', s.iconSize, 'normal');
+  flag('cv', s.colorVision, 'off');
+  if (UI_FONTS[s.uiFont] && s.uiFont !== 'system') { root.dataset.font = s.uiFont; root.style.setProperty('--ui-font', UI_FONTS[s.uiFont]); } else { delete root.dataset.font; root.style.removeProperty('--ui-font'); }
+  // floating windows let the model shine through
+  const op = Math.max(60, Math.min(100, Math.round(+s.panelOpacity || 100)));
+  if (op < 100) { root.dataset.glass = '1'; root.style.setProperty('--glass', `color-mix(in srgb, var(--panel) ${op}%, transparent)`); } else { delete root.dataset.glass; root.style.removeProperty('--glass'); }
+  // size of the whole interface: the desktop app zooms the window, a browser the page
+  const scale = Math.max(0.8, Math.min(1.5, +s.uiScale || 1));
+  if (window.werkfabApp?.zoom) window.werkfabApp.zoom(scale); else root.style.zoom = scale === 1 ? '' : String(scale);
   const wrap = $('#viewportWrap');
   wrap.style.background = { gradient: '', light: 'linear-gradient(#ffffff, #dde3ea)', dark: 'linear-gradient(#3b424a, #1b1f24)', solid: s.bgColor }[s.background] ?? '';
   gridOn = s.showGrid !== false;
@@ -9746,6 +9968,7 @@ function applySettings() {
   $('#navBar').hidden = s.showNavBar === false;
   vp.setMouse(s.mouse);
   vp.setNavigation({ ...s, fov: s.camera === 'ortho' ? 1.5 : s.fov });
+  vp.onMiddleDouble = () => { const m = getSettings().midDouble; if (m === 'home') fitView(); else if (m !== 'off') fitKeepingView(); };
   vp.setOrbitMode(s.orbitMode);
   switchKernel(s.kernel || 'occ');
   PREC = Math.max(1, Math.min(5, Math.round(+s.decimals) || 2));
@@ -9785,20 +10008,20 @@ const PREF_TREE = [
       ['__update'],
     ]],
     ['Benutzeroberfläche', [
-      ['theme', 'Farbschema', 'Hell, dunkel oder wie in Windows eingestellt', [['system', 'Wie Windows'], ['light', 'Hell'], ['dark', 'Dunkel']]],
       ['hoverHighlight', 'Vorauswahl hervorheben', 'Fläche oder Kante unter dem Mauszeiger farbig anzeigen', 'bool'],
-      ['toolbarLabels', 'Beschriftungen in der Werkzeugleiste', 'Text unter den Symbolen anzeigen (aus = kompakte Leiste)', 'bool'],
-      ['showViewCube', 'ViewCube anzeigen', 'Würfel oben rechts zum Ausrichten der Ansicht', 'bool'],
-      ['showNavBar', 'Navigationsleiste anzeigen', 'Leiste unten mit Drehen, Verschieben, Ansichten', 'bool'],
     ]],
   ], children: [
     { id: 'design', label: 'Konstruktion', groups: [
       ['Skizze', [
         ['autoLookAt', 'Skizze automatisch ausrichten', 'Beim Bearbeiten einer Skizze senkrecht auf die Skizzenebene schauen', 'bool'],
+        ['sketchCoords', 'Koordinaten am Mauszeiger', 'Zeigt in der Skizze X und Y des Mauszeigers unten links', 'bool'],
+        ['sketchEndView', 'Ansicht nach der Skizze', 'Wohin die Ansicht springt, wenn eine Skizze beendet wird', [['fit', 'Alles einpassen (isometrisch)'], ['back', 'Zurück zur Ansicht vor der Skizze'], ['keep', 'Ansicht behalten']]],
+        ['doubleEsc', 'Skizze erst beim zweiten Esc beenden', 'Das erste Esc bricht nur das Werkzeug oder die Auswahl ab – ein Esc zu viel schließt die Skizze nicht', 'bool'],
         ['sketchDims', 'Bemaßungen anzeigen', 'Bemaßungen in der aktiven Skizze einblenden', 'bool'],
         ['sketchGlyphs', 'Abhängigkeiten anzeigen', 'Symbole für Abhängigkeiten (parallel, senkrecht …) einblenden', 'bool'],
         ['sketchFill', 'Profile hervorheben', 'Geschlossene Profile der aktiven Skizze farbig füllen', 'bool'],
         ['snap', 'Raster/Fang', 'Schrittweite beim Zeichnen; 0 = frei', 'num', { unit: 'mm', min: 0 }],
+        ['snapOffKey', 'Fang aussetzen mit', 'Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein', [['alt', 'Alt'], ['ctrl', 'Strg'], ['none', 'Keine Taste']]],
       ]],
       ['Features', [
         ['defaultExtrude', 'Standard-Extrusionslänge', 'Vorgabe für neue Extrusionen', 'num', { unit: 'mm' }],
@@ -9824,6 +10047,40 @@ const PREF_TREE = [
       ]],
     ] },
   ] },
+  { id: 'look', label: 'Aussehen', groups: [
+    ['Design', [
+      ['__designs'],
+      ['theme', 'Farbschema (Standard-Design)', 'Hell, dunkel oder wie im System eingestellt – gilt für das Standard-Design', [['system', 'Wie im System'], ['light', 'Hell'], ['dark', 'Dunkel']]],
+    ]],
+    ['Eigenes Design', [
+      ['customBg', 'Hintergrund', 'Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist', 'color'],
+      ['customPanel', 'Fenster und Leisten', 'Dunkle Farbe = dunkles Design, helle Farbe = helles Design', 'color'],
+      ['customText', 'Schrift', 'Sollte sich deutlich von „Fenster und Leisten“ abheben', 'color'],
+      ['customLine', 'Linien und Ränder', '', 'color'],
+      ['customTop', 'Titelleiste', '', 'color'],
+      ['__designIO'],
+    ]],
+    ['Farben', [
+      ['__accent'],
+      ['accentCustom', 'Eigene Akzentfarbe', 'Gilt, wenn bei der Akzentfarbe „Eigene“ gewählt ist', 'color'],
+      ['iconColor', 'Farbe der Symbole', 'Körper in den Symbolen der Werkzeugleiste', [['accent', 'Akzentfarbe'], ['neutral', 'Neutral (grau)'], ['custom', 'Eigene Farbe']]],
+      ['iconCustom', 'Eigene Symbolfarbe', 'Gilt, wenn bei der Farbe der Symbole „Eigene Farbe“ gewählt ist', 'color'],
+      ['colorVision', 'Farbsehschwäche', 'Statusfarben, die nicht auf Rot gegen Grün angewiesen sind', [['off', 'Aus'], ['redgreen', 'Rot-Grün-Schwäche (Orange / Blau)'], ['blueyellow', 'Blau-Gelb-Schwäche (Rot / Türkis)']]],
+    ]],
+    ['Form und Größe', [
+      ['uiScale', 'Größe der Oberfläche', '1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen', [['0.8', '80 %'], ['0.9', '90 %'], ['1', '100 %'], ['1.1', '110 %'], ['1.25', '125 %'], ['1.5', '150 %']]],
+      ['density', 'Dichte', 'Kompakt = mehr Platz für das Modell, Luftig = größere Schaltflächen', [['compact', 'Kompakt'], ['normal', 'Normal'], ['roomy', 'Luftig']]],
+      ['corners', 'Ecken', 'Form von Schaltflächen, Feldern und Fenstern', [['square', 'Eckig'], ['soft', 'Leicht gerundet'], ['round', 'Rund']]],
+      ['iconSize', 'Größe der Symbole', 'Symbole der Werkzeugleiste', [['small', 'Klein'], ['normal', 'Normal'], ['large', 'Groß']]],
+      ['toolbarLabels', 'Beschriftungen in der Werkzeugleiste', 'Text unter den Symbolen anzeigen (aus = kompakte Leiste)', 'bool'],
+      ['panelOpacity', 'Deckkraft der Fenster', '100 = undurchsichtig; darunter scheint das Modell durch die schwebenden Fenster', 'num', { unit: '%', min: 60, max: 100, step: 5 }],
+      ['uiFont', 'Schrift', 'Schriften, die das System mitbringt', [['system', 'Systemschrift (Segoe UI)'], ['arial', 'Arial'], ['verdana', 'Verdana'], ['tahoma', 'Tahoma'], ['calibri', 'Calibri'], ['trebuchet', 'Trebuchet'], ['georgia', 'Georgia (Serifen)'], ['mono', 'Consolas (feste Breite)']]],
+    ]],
+    ['Arbeitsfläche', [
+      ['showViewCube', 'ViewCube anzeigen', 'Würfel oben rechts zum Ausrichten der Ansicht', 'bool'],
+      ['showNavBar', 'Navigationsleiste anzeigen', 'Leiste unten mit Drehen, Verschieben, Ansichten', 'bool'],
+    ]],
+  ] },
   { id: 'nav', label: 'Navigation', groups: [
     ['Maus', [
       ['mouse', 'Verschieben/Zoomen/Drehen wie in', 'Maustastenbelegung anderer CAD-Programme', Object.entries(MOUSE_PRESETS).map(([k, v]) => [k, v.label])],
@@ -9831,6 +10088,17 @@ const PREF_TREE = [
       ['zoomToCursor', 'Zum Mauszeiger zoomen', 'Sonst wird zur Bildmitte gezoomt', 'bool'],
       ['orbitMode', 'Orbit', 'Frei: das Werkstück dreht sich in alle Richtungen (auch über Kopf). Eingeschränkt: die Z-Achse bleibt senkrecht.', [['free', 'Frei (in alle Richtungen)'], ['constrained', 'Eingeschränkt (Z bleibt senkrecht)']]],
       ['orbitSpeed', 'Drehgeschwindigkeit', '1 = normal', 'num', { min: 0.1, max: 5, step: 0.1 }],
+      ['orbitAround', 'Drehen um', 'Der Punkt, um den sich die Ansicht dreht (bei freiem Orbit). „Unter dem Mauszeiger“: die Stelle des Modells, an der die Drehung beginnt.', [['target', 'Mitte der Ansicht'], ['origin', 'Ursprung'], ['cursor', 'Punkt unter dem Mauszeiger']]],
+      ['midDouble', 'Doppelklick mit der mittleren Taste', 'Alles einpassen (Blickrichtung bleibt), Ausgangsansicht oder nichts', [['fit', 'Einpassen'], ['home', 'Ausgangsansicht'], ['off', 'Aus']]],
+    ]],
+    ['Mausrad und Touchpad', [
+      ['zoomSpeed', 'Zoomgeschwindigkeit', '1 = normal', 'num', { min: 0.1, max: 5, step: 0.1 }],
+      ['scrollPans', 'Scrollen mit zwei Fingern verschiebt', 'Für Touchpads: Scrollen verschiebt die Ansicht, Auseinanderziehen (oder Strg + Mausrad) zoomt', 'bool'],
+      ['invertPan', 'Verschieben umkehren', 'Die Ansicht folgt der Bewegung in die andere Richtung', 'bool'],
+    ]],
+    ['Ansichtswechsel', [
+      ['animViews', 'Ansichtswechsel animieren', 'Aus = die Ansicht springt sofort', 'bool'],
+      ['animSpeed', 'Geschwindigkeit der Animation', '1 = normal, 2 = doppelt so schnell', 'num', { min: 0.2, max: 5, step: 0.1 }],
     ]],
   ], children: [
     { id: 'spacemouse', label: 'SpaceMouse', groups: [
@@ -9857,6 +10125,8 @@ const PREF_TREE = [
       ['camera', 'Kamera', 'Orthogonal = ohne Perspektive, Maße wirken überall gleich groß', [['perspective', 'Perspektive'], ['ortho', 'Orthogonal']]],
       ['fov', 'Blickwinkel (Perspektive)', '20° = schwache, 60° = starke Perspektive', 'num', { unit: '°', min: 10, max: 90 }],
       ['defaultDisplay', 'Visueller Stil beim Start', 'Darstellung der Körper', [['edges', 'Schattiert mit Kanten'], ['shaded', 'Schattiert'], ['wire', 'Drahtkörper']]],
+      ['antialias', 'Kantenglättung', 'Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms', 'bool'],
+      ['groundShadow', 'Bodenschatten', 'Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)', 'bool'],
       ['quality', 'Darstellungsqualität', 'Hoch = scharf auf hochauflösenden Bildschirmen, Leistung = schneller', [['high', 'Hoch'], ['normal', 'Normal'], ['performance', 'Leistung']]],
     ]],
     ['Umgebung', [
@@ -9880,6 +10150,7 @@ const PREF_TREE = [
   { id: 'data', label: 'Daten und Speicher', groups: [
     ['Speicher', [['__storage']]],
     ['Einstellungen', [['__prefsIO']]],
+    ['Profile', [['__profiles']]],
     ['Fenster', [['__layout']]],
   ] },
   { id: 'keys', label: 'Tastenkürzel', groups: [] },
@@ -9936,7 +10207,7 @@ function openSettings(page) {
   // special rows with actions instead of a stored value
   const special = key => {
     if (key === '__lang') return h('div', { class: 'prefs-row no-i18n' }, h('label', null, 'Sprache / Language', info('Die Oberfläche wird neu geladen · The page reloads')),
-      h('div', { class: 'prefs-ctl' }, sel(Object.entries(LANGS), uiLang, v => setLanguage(v))));
+      h('div', { class: 'prefs-ctl' }, sel([['system', 'System (' + LANGS[langChoice() === 'system' ? uiLang : 'en'] + ')'], ...Object.entries(LANGS).sort((a, b) => a[1].localeCompare(b[1]))], langChoice(), v => setLanguage(v))));
     if (key === '__update') return h('div', { class: 'prefs-row' }, h('label', null, 'Neue Version', info('Installierte Windows-App und Linux-AppImage laden das Update selbst; sonst öffnet sich die Download-Seite')),
       h('div', { class: 'prefs-ctl' }, h('button', { class: 'btn', onclick: () => checkForUpdates(true) }, 'Jetzt nach Updates suchen')));
     if (key === '__unit') return h('div', { class: 'prefs-row' }, h('label', null, 'Standardeinheit', info('Alle Längen in Millimeter, Winkel in Grad')), h('div', { class: 'prefs-ctl' }, h('b', null, 'Millimeter (mm)')));
@@ -9955,6 +10226,56 @@ function openSettings(page) {
         out.textContent = `Projekt ${mb(sizeOf('openfab.project.v1'))}` + (e.usage != null ? ` · Importe/Offline-Daten ${mb(e.usage)}${e.quota ? ` (frei: ${(e.quota / 1e9).toFixed(1)} GB)` : ''}` : '');
       });
       return h('div', { class: 'prefs-row' }, h('label', null, 'Belegter Speicher', info('Automatisch gespeichertes Projekt, importierte STEP/IGES-Dateien und Offline-Daten')), h('div', { class: 'prefs-ctl' }, out));
+    }
+    if (key === '__designs') {
+      // cards with the colours of each design; the standard design follows the light / dark scheme
+      const cur = draft.design === 'custom' ? 'custom' : DESIGNS[draft.design] ? draft.design : 'standard';
+      const names = { custom: 'Eigenes', standard: 'Standard', graphite: 'Graphit', midnight: 'Mitternacht', forest: 'Wald', ember: 'Glut', contrastDark: 'Hoher Kontrast (dunkel)', paper: 'Papier', slate: 'Schiefer', mint: 'Minze', contrastLight: 'Hoher Kontrast (hell)' };
+      const cols = { custom: [draft.customTop, draft.customPanel, draft.customLine], standard: ['#2b3440', '#1d232a', '#323b46'], graphite: ['#131314', '#242426', '#3d3d42'], midnight: ['#080d18', '#141c2e', '#2a3857'], forest: ['#0b120f', '#19251f', '#30473b'], ember: ['#140f0c', '#271d19', '#49382f'],
+        contrastDark: ['#000000', '#0a0a0a', '#8c8c8c'], paper: ['#3a342a', '#fdfbf6', '#ddd4c3'], slate: ['#27333f', '#f7f9fb', '#cbd4de'], mint: ['#1e3a32', '#f8fcfa', '#c6ddd2'], contrastLight: ['#000000', '#ffffff', '#4d4d4d'] };
+      return h('div', { class: 'design-cards' }, ...Object.keys(names).map(n => h('button', { class: 'design-card' + (n === cur ? ' on' : ''), title: names[n], onclick: () => { draft.design = n; setDirty(true); draw(); } },
+        h('i', { style: `background:${cols[n][1]};--c-top:${cols[n][0]};--c-panel:${n === 'standard' ? '#2a323b' : cols[n][1]};--c-line:${cols[n][2]}` }), h('span', null, names[n]))));
+    }
+    if (key === '__designIO') {
+      return h('div', { class: 'prefs-row' }, h('label', null, 'Design als Datei', info('Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner')),
+        h('div', { class: 'prefs-ctl' },
+          h('button', { class: 'prefs-btn', onclick: () => download('werkfab-design.json', JSON.stringify({ werkfabDesign: 1, ...Object.fromEntries(LOOK_KEYS.map(k => [k, draft[k]])) }, null, 1), 'application/json') }, 'Speichern …'),
+          h('button', { class: 'prefs-btn', onclick: () => {
+            const inp = h('input', { type: 'file', accept: '.json,application/json' });
+            inp.onchange = async () => {
+              try {
+                const data = JSON.parse(await inp.files[0].text());
+                if (!data || data.werkfabDesign !== 1) throw new Error('keine Design-Datei');
+                for (const k of LOOK_KEYS) if (k in data && typeof data[k] === typeof DEFAULTS[k]) draft[k] = data[k];
+                setDirty(true);
+                draw();
+                status('Design geladen – mit „Übernehmen“ wird es wirksam.');
+              } catch { status('Das ist keine WerkFab-Design-Datei.'); }
+            };
+            inp.click();
+          } }, 'Laden …')));
+    }
+    if (key === '__accent') {
+      const names = { blue: 'Blau', teal: 'Türkis', green: 'Grün', orange: 'Orange', violet: 'Violett', red: 'Rot', pink: 'Pink', yellow: 'Gelb' };
+      return h('div', { class: 'prefs-row' }, h('label', null, 'Akzentfarbe', info('Farbe von Auswahl, Schaltflächen und Symbolen')),
+        h('div', { class: 'prefs-ctl swatches' },
+          ...Object.keys(names).map(n => h('button', { class: 'swatch' + (draft.accent === n ? ' on' : ''), title: names[n], style: `background:${ACCENTS[n][1]}`, onclick: () => { draft.accent = n; setDirty(true); draw(); } })),
+          h('button', { class: 'swatch' + (draft.accent === 'custom' ? ' on' : ''), title: 'Eigene', style: `background:conic-gradient(#f44, #fc3, #4c6, #3cf, #84f, #f44)`, onclick: () => { draft.accent = 'custom'; setDirty(true); draw(); } })));
+    }
+    if (key === '__profiles') {
+      // named sets of all preferences: apply, overwrite with the current values, delete
+      const list = getProfiles(), names = Object.keys(list).sort((a, b) => a.localeCompare(b));
+      const name = h('input', { type: 'text', placeholder: 'Name, z. B. Laptop', style: 'width:170px' });
+      const take = p => { for (const k of Object.keys(DEFAULTS)) if (k in p && typeof p[k] === typeof DEFAULTS[k]) draft[k] = p[k]; setDirty(true); draw(); };
+      return h('div', null,
+        ...names.map(n => h('div', { class: 'prefs-row' }, h('label', { class: 'no-i18n' }, n),
+          h('div', { class: 'prefs-ctl' },
+            h('button', { class: 'prefs-btn', title: 'Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)', onclick: () => take(list[n]) }, 'Anwenden'),
+            h('button', { class: 'prefs-btn', title: 'Das Profil mit den jetzigen Werten überschreiben', onclick: () => { saveProfile(n, draft); status(`Profil „${n}“ aktualisiert`); } }, 'Aktualisieren'),
+            h('button', { class: 'prefs-btn', onclick: () => { deleteProfile(n); draw(); } }, 'Löschen')))),
+        h('div', { class: 'prefs-row' }, h('label', null, 'Neues Profil', info('Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung')),
+          h('div', { class: 'prefs-ctl' }, name,
+            h('button', { class: 'prefs-btn', onclick: () => { const n = name.value.trim(); if (!n) return status('Erst einen Namen für das Profil eingeben.'); saveProfile(n, draft); draw(); } }, 'Speichern'))));
     }
     if (key === '__prefsIO') {
       return h('div', { class: 'prefs-row' }, h('label', null, 'Einstellungen sichern', info('Als Datei speichern, um sie auf einen anderen Rechner zu übertragen')),
@@ -10066,10 +10387,15 @@ function shortcutsHelp() {
     inventor: [['Mittlere Taste ziehen', 'Verschieben'], ['Umschalt + mittlere Taste', 'Drehen'], ['Mausrad', 'Zoomen']],
     solidworks: [['Mittlere Taste ziehen', 'Drehen'], ['Strg + mittlere Taste', 'Verschieben'], ['Mausrad', 'Zoomen']],
     tinkercad: [['Rechte Taste ziehen', 'Drehen'], ['Mittlere Taste ziehen', 'Verschieben'], ['Mausrad', 'Zoomen']],
+    touchpad: [['Umschalt + bewegen', 'Verschieben'], ['Alt + bewegen', 'Drehen'], ['Scrollen / Auseinanderziehen', 'Zoomen']],
   }[getSettings().mouse] || [];
   const keys = [['S', 'Befehl suchen'], ['Rechtsklick', 'Markierungsmenü'], ['K', 'Skizze erstellen'], ['E', 'Extrusion'], ['H', 'Bohrung'], ['F', 'Einpassen'],
     ['Entf', 'Feature löschen'], ['Esc', 'Abbrechen / Skizze beenden'], ['Strg+Z / Strg+Y', 'Rückgängig / Wiederholen'], ['Strg+S', 'Projekt speichern'],
-    ['L R C P O T', 'Skizze: Linie, Rechteck, Kreis, Polygon, Langloch, Text'], ['D', 'Skizze: Bemaßung']];
+    ['Strg+Umschalt+S', 'Speichern unter'], ['Strg+O', 'Öffnen'], ['Strg+N', 'Neues Projekt'], ['F2', 'Auswahl umbenennen'], ['V', 'Auswahl ein-/ausblenden'],
+    ['Strg+1 … Strg+6', 'Ansicht von vorne, hinten, links, rechts, oben, unten'], ['Strg+7', 'Isometrische Ansicht'], ['Strg+8', 'Senkrecht auf die gewählte Skizze oder Ebene schauen'],
+    ['← → ↑ ↓', 'Ansicht um 15° drehen (mit Umschalt um 90°)'], ['Strg + ← → ↑ ↓', 'Ansicht verschieben'], ['Bild↑ / Bild↓ oder + / −', 'Zoomen'], ['F6', 'Einpassen'],
+    ['Doppelklick mit der mittleren Taste', 'Einpassen oder Ausgangsansicht (Einstellungen → Navigation)'],
+    ['L R C A E B', 'Skizze: Linie, Rechteck, Kreis, Bogen, Ellipse, Spline'], ['G U', 'Skizze: Polygon, Langloch'], ['O T P X', 'Skizze: Versatz, Stutzen, Projizieren, Konstruktionslinie'], ['D', 'Skizze: Bemaßung']];
   const own = Object.entries(tbKeys).map(([id, k]) => [k, `${id.split('|').slice(1).join('|')} (eigener Kurzbefehl)`]);
   return h('div', null, h('div', { class: 'keys' }, ...[...mouse, ...keys, ...own].flatMap(([k, v]) => [h('div', null, h('kbd', null, k)), h('div', null, v)])),
     h('p', { class: 'muted', style: 'margin-top:12px' }, 'Eigene Kurzbefehle: in der Symbolleiste das Gruppenmenü (▾) öffnen, beim Befehl auf ⋮ klicken → „Tastaturkurzbefehl ändern …“.'));
@@ -12219,3 +12545,9 @@ function openPostDialog(saved = null) {
   // steps waiting for the full kernel (delete face, fillet with radius points) are computed as soon as it is there
   onFullKernel(() => { clearTimelineCache(); model.key = null; renderAll(); });
 })();
+
+
+
+
+
+

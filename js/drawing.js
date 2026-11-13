@@ -331,7 +331,9 @@ export function makeDrawing(bodies, opts) {
       const uv = q => [dot(q, vw.u), dot(q, vw.v)];
       cur = k;
       if (along < 1e-3) line(toSheet(k, uv(P(ax.t0 - over))), toSheet(k, uv(P(ax.t1 + over))), 'ctr');
-      else if (along > 0.999 && k !== 'top') {
+      else if (along > 0.999 && (k !== 'top' || (ax.full && !holes.some(q => Math.hypot(q.cx - ax.p[0], q.cy - ax.p[1]) < 1e-3)))) {
+        // (top view: only full cylinders that have no circle of their own there – a bore that ends in a
+        // sloped face or runs into another bore)
         const c = toSheet(k, uv(P((ax.t0 + ax.t1) / 2))), r = ax.r * s + 2;
         line([c[0] - r, c[1]], [c[0] + r, c[1]], 'ctr'); line([c[0], c[1] - r], [c[0], c[1] + r], 'ctr');
       }
@@ -355,14 +357,40 @@ export function makeDrawing(bodies, opts) {
       } else if (along < 1e-3 && !t.outside) {
         // tapped hole seen from the side: it lies inside the part, so thin dashed lines at the nominal diameter
         // over the thread length and one across its end
+        let side = 'thr', end = 'thr';
+        const sc = asSection(k);
+        if (sc) {
+          // a section view: a hole the plane cuts open shows its thread with thin solid lines at the nominal
+          // diameter and a thick line across the thread's end (ISO 6410); other holes are hidden, so nothing
+          const planeAt = k === 'front' ? (sc.steps?.length ? sc.steps.find(st => t.c[0] >= st.x0 && t.c[0] <= st.x1)?.y : sc.y) : sc.x;
+          const off = planeAt == null ? Infinity : Math.abs((k === 'front' ? t.c[1] : t.c[0]) - planeAt);
+          if (!(off < t.r)) continue;
+          side = 'dim thrs'; end = 'vis';
+        }
         const e = [t.c[0] + t.d[0] * t.L, t.c[1] + t.d[1] * t.L, t.c[2] + t.d[2] * t.L];
         const A = toSheet(k, uv(t.c)), B = toSheet(k, uv(e)), dx = B[0] - A[0], dy = B[1] - A[1], L0 = Math.hypot(dx, dy) || 1, nx = (-dy / L0) * Rn * s, ny = (dx / L0) * Rn * s;
-        line([A[0] + nx, A[1] + ny], [B[0] + nx, B[1] + ny], 'thr'); line([A[0] - nx, A[1] - ny], [B[0] - nx, B[1] - ny], 'thr');
-        line([B[0] + nx, B[1] + ny], [B[0] - nx, B[1] - ny], 'thr');
+        line([A[0] + nx, A[1] + ny], [B[0] + nx, B[1] + ny], side); line([A[0] - nx, A[1] - ny], [B[0] - nx, B[1] - ny], side);
+        line([B[0] + nx, B[1] + ny], [B[0] - nx, B[1] - ny], end);
+        // a hole cut open that the top view does not name (it runs sideways, or there is no top view): its
+        // thread on a leader from the thin line
+        if (sc && opts.dims !== false && (Math.abs(t.d[2]) < 0.999 || !place.top)) {
+          const sg = Math.abs(ny) > 1e-6 ? (ny > 0 ? -1 : 1) : nx >= 0 ? 1 : -1;
+          const tip = [(A[0] + B[0]) / 2 + nx * sg, (A[1] + B[1]) / 2 + ny * sg], knee = [tip[0] + 6, tip[1] - 6], name = String(t.name).replace('.', ',');
+          line(knee, tip, 'dim arrow1'); line(knee, [knee[0] + Math.max(10, name.length * 1.9), knee[1]], 'dim');
+          text(knee[0] + 1, knee[1] - 1.2, name, 'dtx', 'start');
+        }
       } else if (along < 1e-3 && t.outside) {
+        // a section view: a bolt in front of the cutting plane is cut away with its thread
+        const sc = asSection(k);
+        if (sc) {
+          const planeAt = k === 'front' ? (sc.steps?.length ? sc.steps.find(st => t.c[0] >= st.x0 && t.c[0] <= st.x1)?.y : sc.y) : sc.x;
+          if (planeAt != null && (k === 'front' ? t.c[1] : t.c[0]) + t.r < planeAt + 1e-6) continue;
+        }
         const e = [t.c[0] + t.d[0] * t.L, t.c[1] + t.d[1] * t.L, t.c[2] + t.d[2] * t.L];
         const A = toSheet(k, uv(t.c)), B = toSheet(k, uv(e)), dx = B[0] - A[0], dy = B[1] - A[1], L0 = Math.hypot(dx, dy) || 1, nx = (-dy / L0) * thin * s, ny = (dx / L0) * thin * s;
         line([A[0] + nx, A[1] + ny], [B[0] + nx, B[1] + ny], 'dim'); line([A[0] - nx, A[1] - ny], [B[0] - nx, B[1] - ny], 'dim');
+        // end of the thread: a thick line across the bolt (ISO 6410)
+        { const mx = (-dy / L0) * Rn * s, my = (dx / L0) * Rn * s; line([B[0] + mx, B[1] + my], [B[0] - mx, B[1] - my], 'vis'); }
         if (opts.dims !== false) {
           // name on a leader from the outline, halfway along the thread
           const on = (-dy / L0) * Rn * s, oy = (dx / L0) * Rn * s, sg = Math.abs(oy) > 1e-6 ? (oy > 0 ? -1 : 1) : on >= 0 ? 1 : -1; // on the upper side of the bolt (right of an upright one)

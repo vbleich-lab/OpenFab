@@ -245,11 +245,31 @@ export function tappedHole(f) {
   return { name: t[0], D: t[1], P: t[2], core: t[3] };
 }
 
+// Centres of a hole feature in sketch coordinates: every chosen circle, repeated by the feature's own pattern
+// ("Bohrbild"): a grid (n1 × n2 with spacings in sketch X / Y) or a circle of holes around a centre.
+export function holeCentres(sk, f) {
+  const base = sk.entities.filter(e => e.type === 'circle' && (!Array.isArray(f.points) || f.points.includes(e.id))).map(e => [+e.cx, +e.cy]);
+  const kind = f.patKind || 'none', out = [];
+  const add = p => { if (!out.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-6)) out.push(p); };
+  for (const [x, y] of base) {
+    if (kind === 'linear') {
+      const n1 = Math.max(1, Math.round(+f.patN1 || 1)), n2 = Math.max(1, Math.round(+f.patN2 || 1));
+      if (n1 * n2 > 2000) fail('Bohrbild: mehr als 2000 Bohrungen');
+      for (let j = 0; j < n2; j++) for (let i = 0; i < n1; i++) add([x + i * (+f.patDx || 0), y + j * (+f.patDy || 0)]);
+    } else if (kind === 'circular') {
+      const n = Math.max(1, Math.round(+f.patN1 || 1)), total = +f.patAngle || 360, cx = +f.patCx || 0, cy = +f.patCy || 0;
+      if (n > 2000) fail('Bohrbild: mehr als 2000 Bohrungen');
+      const stepA = Math.abs(Math.abs(total) - 360) < 1e-9 ? total / n : total / Math.max(1, n - 1);
+      for (let i = 0; i < n; i++) { const a = (stepA * i * Math.PI) / 180, c = Math.cos(a), sn = Math.sin(a); add([cx + (x - cx) * c - (y - cy) * sn, cy + (x - cx) * sn + (y - cy) * c]); }
+    } else add([x, y]);
+  }
+  return out;
+}
 function holeTool(sk, f) {
   const tap = tappedHole(f);
   if (tap) f = { ...f, dia: tap.core };
   const b = basis(sk);
-  const circles = sk.entities.filter(e => e.type === 'circle' && (!Array.isArray(f.points) || f.points.includes(e.id)));
+  const circles = holeCentres(sk, f).map(([cx, cy]) => ({ cx, cy }));
   if (!circles.length) fail('Keine Kreise als Bohrungsmittelpunkte in der Skizze');
   if (!(f.dia > 0)) fail('Durchmesser fehlt');
   const prof = holeProfile(f);
@@ -1029,6 +1049,94 @@ function edgeMatcher(shape, refs) {
   return { count: chosen.size, fn };
 }
 
+// Holes that do not meet any body ("Bohrung außerhalb"): the hole axis is sampled from the sketch plane down to
+// the hole depth; a hole counts as outside when none of the samples lies in a solid. A hole whose axis is in
+// the material but whose rim leaves the body sideways counts as partly outside: a rim point in the open with
+// no material further out (a rim point in another hole or pocket has material behind it and does not count).
+// → { out, partial } numbers of such holes
+function holesOutside(sk, f, bodies) {
+  // the single solids: the distance to a compound (a body after a cut) is measured to its skin only, the
+  // distance to a solid is zero anywhere inside it
+  const solids = [];
+  for (const b of bodies) {
+    if (!b.shape?.wrapped) continue;
+    const oc = R.getOC(), ex = new oc.TopExp_Explorer(b.shape.wrapped, oc.TopAbs_ShapeEnum.TopAbs_SOLID, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+    for (; ex.More(); ex.Next()) solids.push({ shape: { wrapped: ex.Current() }, box: b.shape.boundingBox.bounds });
+    ex.delete();
+  }
+  if (!solids.length) return { out: 0, partial: 0 };
+  const bs = basis(sk), n = bs.n.toArray(), d = n.map(v => -v);
+  const boxes = solids.map(b => b.box);
+  const centres = holeCentres(sk, f);
+  const samples = centres.length > 500 ? 3 : 6;
+  const inSolid = p => {
+    for (let bi = 0; bi < solids.length; bi++) {
+      const [lo, hi] = boxes[bi];
+      if (![0, 1, 2].every(q => p[q] >= lo[q] - 1e-6 && p[q] <= hi[q] + 1e-6)) continue;
+      let v = null, hit = false;
+      try { v = R.makeVertex(p); hit = R.measureDistanceBetween(solids[bi].shape, v) < 1e-6; } catch { hit = true; /* cannot tell: no warning */ }
+      try { v?.delete(); } catch { /* already gone */ }
+      if (hit) return true;
+    }
+    return false;
+  };
+  const rim = Math.max(0.05, (+f.dia || 0) / 2 - 0.01);
+  let diag = 0;
+  for (const [lo, hi] of boxes) diag = Math.max(diag, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]));
+  const checkRim = centres.length <= 200 && +f.dia > 0;
+  let out = 0, partial = 0;
+  for (const [hx, hy] of centres) {
+    const o = toWorld(bs, hx, hy).toArray();
+    let depth = +f.depth || 1;
+    if (f.through) {
+      depth = 0;
+      for (const [lo, hi] of boxes) for (const x of [lo[0], hi[0]]) for (const y of [lo[1], hi[1]]) for (const z of [lo[2], hi[2]]) depth = Math.max(depth, (x - o[0]) * d[0] + (y - o[1]) * d[1] + (z - o[2]) * d[2]);
+      if (!(depth > 0)) { out++; continue; }
+    }
+    let hit = false, tHit = 0;
+    const depthAt = k => Math.min(depth, 0.02) + ((depth - Math.min(depth, 0.04)) * k) / (samples - 1);
+    for (let k = 0; k < samples && !hit; k++) {
+      tHit = depthAt(k);
+      hit = inSolid(o.map((v, i) => v + d[i] * tHit));
+    }
+    if (!hit) {
+      // the axis runs through the open: a hole that widens an existing bore still cuts with its rim
+      let rimHit = false;
+      if (+f.dia > 0) for (let k = 0; k < samples && !rimHit; k++) for (let a = 0; a < 8 && !rimHit; a++) rimHit = inSolid(toWorld(bs, hx + rim * Math.cos((a * Math.PI) / 4), hy + rim * Math.sin((a * Math.PI) / 4)).toArray().map((v, i) => v + d[i] * depthAt(k)));
+      if (!rimHit) out++;
+      continue;
+    }
+    if (!checkRim) continue;
+    // eight points on the rim, at the depth where the axis first meets the material
+    let open = false;
+    for (let a = 0; a < 8 && !open; a++) {
+      const ca = Math.cos((a * Math.PI) / 4), sa = Math.sin((a * Math.PI) / 4);
+      const at = rr => toWorld(bs, hx + rr * ca, hy + rr * sa).toArray().map((v, i) => v + d[i] * tHit);
+      if (inSolid(at(rim))) continue;
+      open = true;
+      for (let k = 1; k <= 12 && open; k++) if (inSolid(at(rim + (diag * k) / 12))) open = false;
+    }
+    if (open) partial++;
+  }
+  return { out, partial };
+}
+
+// measures for "this step changed nothing": the material of all bodies and the number of separate lumps
+function bodiesVolume(bodies) {
+  return bodies.reduce((s, b) => { try { return s + (hasSolid(b.shape) ? R.measureVolume(b.shape) : 0); } catch { return NaN; } }, 0);
+}
+function bodiesLumps(bodies) {
+  let n = 0;
+  for (const b of bodies) {
+    if (!b.shape?.wrapped) return NaN; // other kernels: cannot tell
+    const oc = R.getOC(), ex = new oc.TopExp_Explorer(b.shape.wrapped, oc.TopAbs_ShapeEnum.TopAbs_SOLID, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+    for (; ex.More(); ex.Next()) n++;
+    ex.delete();
+  }
+  return n;
+}
+const sameVolume = (a, b) => Math.abs(a - b) <= 1e-9 * a + 1e-6;
+
 function applyOp(bodies, tool, op, id, target) {
   if (op === 'new' || (!bodies.length && op === 'join')) {
     bodies.push({ id, name: `Körper${bodies.length + 1}`, shape: tool });
@@ -1120,7 +1228,9 @@ function patternTools(src, f, features = []) {
     for (let k = 1; k < n; k++) out.push(src.clone().rotate(step * k, c, d));
   } else {
     const dirs = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
-    const d1 = dirs[f.dir1 || 'x'], d2 = dirs[f.dir2 || 'y'];
+    // a direction is a main axis or a construction axis (through two points, a cylinder, two planes)
+    const dirOf = (k, def) => { if (dirs[k || def]) return dirs[k || def]; const ca = axisRef(k, features); if (!ca) fail('Konstruktionsachse für die Musterrichtung fehlt'); return V.norm(ca.d); };
+    const d1 = dirOf(f.dir1, 'x'), d2 = dirOf(f.dir2, 'y');
     const n1 = Math.max(1, Math.round(+f.n1)), n2 = Math.max(1, Math.round(+f.n2 || 1));
     for (let i = 0; i < n1; i++) for (let j = 0; j < n2; j++) {
       if (!i && !j) continue;
@@ -1220,12 +1330,19 @@ function runFeature(f, ctx) {
       tool = f.type === 'extrude' ? extrudeTool(sk, f) : f.type === 'revolve' ? revolveTool(sk, f, ctx.features) : holeTool(sk, f);
       // tapped holes carry their thread (drawn as a cosmetic thread, named in drawings): it starts below a
       // counterbore / countersink and runs as deep as given, or down the whole hole
+      if (f.type === 'hole' && ctx.notes) {
+        const total = holeCentres(sk, f).length, { out, partial } = holesOutside(sk, f, bodies);
+        const msg = [];
+        if (out) msg.push(total === 1 ? 'Die Bohrung liegt außerhalb des Körpers – sie nimmt kein Material weg.' : out === total ? `Alle ${total} Bohrungen liegen außerhalb des Körpers – sie nehmen kein Material weg.` : out === 1 ? `1 von ${total} Bohrungen liegt außerhalb des Körpers.` : `${out} von ${total} Bohrungen liegen außerhalb des Körpers.`);
+        if (partial) msg.push(total === 1 ? 'Die Bohrung ragt seitlich über den Körper hinaus.' : partial === 1 ? `1 von ${total} Bohrungen ragt seitlich über den Körper hinaus.` : `${partial} von ${total} Bohrungen ragen seitlich über den Körper hinaus.`);
+        if (msg.length) ctx.notes[f.id] = msg.join(String.fromCharCode(10)); // one sentence per line: each is translated by itself
+      }
       const tap = f.type === 'hole' && tappedHole(f);
       if (tap) {
         const bs = basis(sk), n = bs.n.toArray(), d = n.map(v => -v);
         const skip = f.kind === 'cbore' ? +f.cbDepth || 0 : f.kind === 'csink' ? Math.max(0, ((+f.csDia || 0) - tap.core) / 2 / Math.tan((((+f.csAngle || 90) / 2) * Math.PI) / 180)) : 0;
-        for (const c of sk.entities.filter(e => e.type === 'circle' && (!Array.isArray(f.points) || f.points.includes(e.id)))) {
-          const o = toWorld(bs, c.cx, c.cy).toArray(), start = o.map((v, i) => v + d[i] * skip);
+        for (const [hx, hy] of holeCentres(sk, f)) {
+          const c = { cx: hx, cy: hy }, o = toWorld(bs, c.cx, c.cy).toArray(), start = o.map((v, i) => v + d[i] * skip);
           // how far the material goes below the start (through holes): the far side of the bodies' boxes
           let far = 0;
           for (const bd of bodies) { try { const [lo, hi] = bd.shape.boundingBox.bounds; for (const x of [lo[0], hi[0]]) for (const y of [lo[1], hi[1]]) for (const z of [lo[2], hi[2]]) far = Math.max(far, (x - start[0]) * d[0] + (y - start[1]) * d[1] + (z - start[2]) * d[2]); } catch { /* no box */ } }
@@ -1256,7 +1373,13 @@ function runFeature(f, ctx) {
     // thicken joins / cuts the body whose faces were picked (does the same)
     if (f.type === 'thicken' && !target) target = bodiesWithPoints(bodies, f.faces || [])[0]?.b.id;
     tools[f.id] = { tool: tool.clone(), op, target };
+    // a cut that misses every body changes nothing: say so instead of leaving a step without effect
+    const before = op === 'cut' && f.type !== 'hole' && ctx.notes && bodies.length ? bodiesVolume(bodies) : 0;
+    // a join that does not touch its body leaves a loose piece in it
+    const lumps = op === 'join' && ctx.notes && bodies.length ? bodiesLumps(bodies) : NaN;
     applyOp(bodies, tool, op, f.id, target);
+    if (before > 0 && sameVolume(before, bodiesVolume(bodies))) ctx.notes[f.id] = 'Der Schnitt trifft keinen Körper – es wird kein Material entfernt.';
+    if (bodiesLumps(bodies) > lumps) ctx.notes[f.id] = 'Die Form berührt den Körper nicht – im selben Körper entsteht ein loses Stück.';
     return;
   }
   if (f.type === 'delface') {
@@ -1308,6 +1431,40 @@ function runFeature(f, ctx) {
   }
   if (f.type === 'align') {
     // the body of the first face moves so that this face lies on the second one (facing it, or the same way round)
+    if (f.mode === 'edge') {
+      // two edges: straight ones are laid onto each other, round ones (holes, pins) made concentric
+      const [ea, eb] = f.edges || [];
+      if (!ea || !eb) fail('Zwei Kanten wählen: erst die am Körper, der bewegt wird, dann die Zielkante');
+      const edgeOn = ref => {
+        for (const b of bodies) {
+          if (!b.shape?.wrapped) continue;
+          for (const e of b.shape.edges) {
+            const c = e.pointAt(0.5);
+            if (Math.hypot(c.x - ref[0], c.y - ref[1], c.z - ref[2]) > 1e-3) continue;
+            const A = e.pointAt(0), M = e.pointAt(0.5), Z = e.pointAt(1), a = [A.x, A.y, A.z], mm = [M.x, M.y, M.z], z = [Z.x, Z.y, Z.z];
+            if (e.geomType === 'LINE') return { b, p: mm, d: V.norm(V.sub(z, a)) };
+            if (e.geomType === 'CIRCLE') {
+              // centre and axis from three points of the arc
+              const q = e.pointAt(0.25), p3 = [q.x, q.y, q.z], nrm = V.norm(V.cross(V.sub(p3, a), V.sub(mm, a)));
+              const u = V.sub(p3, a), w = V.sub(mm, a), uu = V.dot(u, u), ww = V.dot(w, w), uw = V.dot(u, w), den = 2 * (uu * ww - uw * uw);
+              if (Math.abs(den) < 1e-12) return null;
+              const s1 = (ww * (uu - uw)) / den, s2 = (uu * (ww - uw)) / den;
+              return { b, p: V.add(a, V.add(V.mul(u, s1), V.mul(w, s2))), d: nrm };
+            }
+            return null;
+          }
+        }
+        return null;
+      };
+      const A = edgeOn(ea), B = edgeOn(eb);
+      if (!A || !B) fail('Gewählte Kanten nicht mehr gefunden oder keine Gerade / kein Kreis – neu auswählen');
+      if (A.b === B.b) fail('Die beiden Kanten müssen an verschiedenen Körpern liegen');
+      const want = f.flip ? V.mul(B.d, -1) : B.d, dot = Math.max(-1, Math.min(1, V.dot(A.d, want)));
+      let shape = A.b.shape;
+      if (dot < 1 - 1e-9) shape = shape.rotate((Math.acos(dot) * 180) / Math.PI, A.p, dot > -1 + 1e-9 ? V.norm(V.cross(A.d, want)) : perp(A.d));
+      A.b.shape = shape.translate(V.add(V.sub(B.p, A.p), V.mul(want, +f.offset || 0)));
+      return;
+    }
     const [from, to] = f.faces || [];
     if (!from || !to) fail('Zwei Flächen wählen: erst die am Körper, der bewegt wird, dann die Zielfläche');
     const faceOn = p => { for (const b of bodies) { const bb = b.shape.boundingBox?.bounds; if (!bb || ![0, 1, 2].every(k => p[k] >= bb[0][k] - 1e-3 && p[k] <= bb[1][k] + 1e-3)) continue; const fs = new R.FaceFinder().containsPoint(p).find(b.shape); if (fs.length) { const nv = fs[0].normalAt(p); return { b, n: V.norm([nv.x, nv.y, nv.z]) }; } } return null; };
@@ -1361,6 +1518,22 @@ function runFeature(f, ctx) {
     if (!(v > 0)) fail('Größe fehlt');
     // "Veränderlicher Radius": the radius runs from one value at the start of each edge to another at its end
     const v2 = f.type === 'fillet' && f.variable ? +f.radius2 : 0;
+    // picked faces stand for every edge around them: [{ e, face, mid }] of one body
+    const faceHits = shape => {
+      const out = [];
+      if (!(f.faces || []).length) return out;
+      const bb = shape.boundingBox.bounds;
+      for (const p of f.faces) {
+        if (![0, 1, 2].every(k => p[k] >= bb[0][k] - 1e-3 && p[k] <= bb[1][k] + 1e-3)) continue;
+        for (const fc of new R.FaceFinder().containsPoint(p).find(shape)) for (const e of fc.edges) {
+          if (out.some(q => q.e.isSame(e))) continue;
+          const c = e.pointAt(0.5);
+          out.push({ e, face: fc, mid: [c.x, c.y, c.z] });
+        }
+      }
+      return out;
+    };
+    const refsOf = (shape, hits = faceHits(shape)) => [...(f.edges || []), ...hits.map(q => q.mid)];
     if (f.type === 'fillet' && f.variable) {
       if (!(v2 > 0)) fail('Endradius fehlt');
       if (f.all) fail('Veränderlicher Radius: einzelne Kanten wählen statt „Alle Kanten“');
@@ -1372,7 +1545,7 @@ function runFeature(f, ctx) {
         const rAt = u => { for (let k = 1; k < course.length; k++) if (u <= course[k][0] + 1e-12) { const [u0, r0] = course[k - 1], [u1, r1] = course[k]; return r0 + ((r1 - r0) * (u - u0)) / Math.max(1e-12, u1 - u0); } return course[course.length - 1][1]; };
         let nc = 0;
         for (const b of bodies) {
-          const m = edgeMatcher(b.shape, f.edges || []);
+          const m = edgeMatcher(b.shape, refsOf(b.shape));
           if (!m.count) continue;
           const es = b.shape.edges.filter(e => m.fn(e)).map(e => { const a = e.pointAt(0), z = e.pointAt(1), c = e.pointAt(0.5); return { a: [a.x, a.y, a.z], b: [z.x, z.y, z.z], p: [c.x, c.y, c.z], len: e.length }; });
           const near3 = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 0.01;
@@ -1407,7 +1580,8 @@ function runFeature(f, ctx) {
         const law = [[0, v], ...mid, [1, v2]].map(([u, r]) => [f.flip ? 1 - u : u, r]).sort((p, q) => p[0] - q[0]);
         let nl = 0;
         for (const b of bodies) {
-          const refs = (f.edges || []).filter(r => edgeMatcher(b.shape, [r]).count);
+          const seen = new Set();
+          const refs = refsOf(b.shape).filter(r => { if (!edgeMatcher(b.shape, [r]).count) return false; const key = r.map(x => (+x).toFixed(3)).join(','); if (seen.has(key)) return false; seen.add(key); return true; });
           if (!refs.length) continue;
           nl += refs.length;
           b.shape = viaFullKernel(b.shape, ['filletlaw', refs, law], text => fullFilletLaw(text, refs, law));
@@ -1417,7 +1591,7 @@ function runFeature(f, ctx) {
       }
       let nv = 0;
       for (const b of bodies) {
-        const m = edgeMatcher(b.shape, f.edges || []);
+        const m = edgeMatcher(b.shape, refsOf(b.shape));
         if (!m.count) continue;
         nv += m.count;
         const rr = f.flip ? [v2, v] : [v, v2];
@@ -1426,15 +1600,59 @@ function runFeature(f, ctx) {
       if (!nv) fail('Keine Kanten gewählt (oder nicht mehr gefunden)');
       return;
     }
+    // chamfer with two distances or distance and angle: measured on one of the two faces at the edge – the one
+    // facing more upwards (Z), or the other one with "Seiten tauschen"
+    const kind = f.type === 'chamfer' ? f.chamferKind || 'equal' : 'equal';
+    if (kind !== 'equal') {
+      const d2 = +f.distance2, ang = +f.angle;
+      if (kind === 'two' && !(d2 > 0)) fail('Zweiter Abstand fehlt');
+      if (kind === 'angle' && !(ang > 0 && ang < 90)) fail('Winkel zwischen 0° und 90° angeben');
+      if (f.all) fail('Fase mit zwei Abständen oder Winkel: einzelne Kanten wählen statt „Alle Kanten“');
+      let nk = 0;
+      for (const b of bodies) {
+        const hits = faceHits(b.shape);
+        const m = edgeMatcher(b.shape, refsOf(b.shape, hits));
+        if (!m.count) continue;
+        nk += m.count;
+        const shape = b.shape;
+        const cfg = e => {
+          const c = e.pointAt(0.5), faces = new R.FaceFinder().containsPoint([c.x, c.y, c.z]).find(shape);
+          if (faces.length < 2) return v;
+          // an edge of a picked face: the first distance is measured on that face
+          const own = hits.find(q => q.e.isSame(e));
+          const onPicked = own && faces.find(x => x.isSame(own.face));
+          if (onPicked) {
+            const other = faces.find(x => !x.isSame(own.face)) || onPicked, refFace = f.flip ? other : onPicked;
+            const selectedFace = ff => ff.when(({ element }) => element.isSame(refFace));
+            return kind === 'two' ? { distances: [v, d2], selectedFace } : { distance: v, angle: ang, selectedFace };
+          }
+          const up = fc => { try { const q = fc.pointOnSurface(0.5, 0.5), nv = fc.normalAt(q); return nv.z / (Math.hypot(nv.x, nv.y, nv.z) || 1); } catch { return 0; } };
+          const sorted = faces.slice(0, 2).sort((p, q) => up(q) - up(p)), ref = f.flip ? sorted[1] : sorted[0];
+          const selectedFace = ff => ff.when(({ element }) => element.isSame(ref));
+          return kind === 'two' ? { distances: [v, d2], selectedFace } : { distance: v, angle: ang, selectedFace };
+        };
+        try { b.shape = shape.chamfer(e => (m.fn(e) ? cfg(e) : null)); } catch { fail('Fase mit diesen Maßen nicht möglich – Abstände verkleinern'); }
+      }
+      if (!nk) fail('Keine Kanten oder Flächen gewählt (oder nicht mehr gefunden)');
+      return;
+    }
     let n = 0;
     for (const b of bodies) {
       if (f.all) { b.shape = f.type === 'fillet' ? b.shape.fillet(v) : b.shape.chamfer(v); n++; continue; }
       const m = edgeMatcher(b.shape, f.edges || []);
-      if (!m.count) continue;
-      n += m.count;
-      b.shape = f.type === 'fillet' ? b.shape.fillet(e => (m.fn(e) ? v : null)) : b.shape.chamfer(e => (m.fn(e) ? v : null));
+      // picked faces: every edge around them counts as chosen
+      const faceEdges = [];
+      for (const p of f.faces || []) {
+        const bb = b.shape.boundingBox.bounds;
+        if (![0, 1, 2].every(k => p[k] >= bb[0][k] - 1e-3 && p[k] <= bb[1][k] + 1e-3)) continue;
+        for (const fc of new R.FaceFinder().containsPoint(p).find(b.shape)) faceEdges.push(...fc.edges);
+      }
+      if (!m.count && !faceEdges.length) continue;
+      const chosen = e => m.fn(e) || faceEdges.some(q => q.isSame(e));
+      n += m.count + faceEdges.length;
+      b.shape = f.type === 'fillet' ? b.shape.fillet(e => (chosen(e) ? v : null)) : b.shape.chamfer(e => (chosen(e) ? v : null));
     }
-    if (!n) fail('Keine Kanten gewählt (oder nicht mehr gefunden)');
+    if (!n) fail('Keine Kanten oder Flächen gewählt (oder nicht mehr gefunden)');
     return;
   }
   if (f.type === 'shell') {
@@ -1478,7 +1696,21 @@ function runFeature(f, ctx) {
     const copies = f.type === 'pattern'
       ? patternTools(src.tool, f, ctx.features)
       : [src.tool.clone().mirror(f.plane || 'YZ', { XY: [0, 0, +f.offset || 0], XZ: [0, +f.offset || 0, 0], YZ: [+f.offset || 0, 0, 0] }[f.plane || 'YZ'])];
-    copies.forEach((t, i) => applyOp(bodies, t, src.op, `${f.id}_${i}`, src.target));
+    // copies without effect: a cut that meets no body, a join that does not touch its body
+    const watch = ctx.notes && bodies.length && copies.length <= 60 && (src.op === 'cut' || src.op === 'join');
+    let idle = 0;
+    copies.forEach((t, i) => {
+      const v0 = watch && src.op === 'cut' ? bodiesVolume(bodies) : 0, l0 = watch && src.op === 'join' ? bodiesLumps(bodies) : NaN;
+      applyOp(bodies, t, src.op, `${f.id}_${i}`, src.target);
+      if (v0 > 0 && sameVolume(v0, bodiesVolume(bodies))) idle++;
+      else if (bodiesLumps(bodies) > l0) idle++;
+    });
+    if (idle) {
+      const n = copies.length, mirror = f.type === 'mirror';
+      ctx.notes[f.id] = src.op === 'cut'
+        ? (mirror ? 'Die Spiegelung trifft keinen Körper – es wird kein Material entfernt.' : idle === n ? 'Keine der Kopien trifft einen Körper – es wird kein Material entfernt.' : idle === 1 ? `1 von ${n} Kopien trifft keinen Körper.` : `${idle} von ${n} Kopien treffen keinen Körper.`)
+        : (mirror ? 'Die gespiegelte Form berührt den Körper nicht – es entsteht ein loses Stück.' : idle === 1 ? `1 von ${n} Kopien berührt den Körper nicht – es entsteht ein loses Stück.` : `${idle} von ${n} Kopien berühren den Körper nicht – es entstehen lose Stücke.`);
+    }
     return;
   }
   if (f.type === 'thread') { applyThread(f, ctx); return; }
@@ -1656,6 +1888,7 @@ function takeSnap(ctx, errors, patches) {
     threads: JSON.parse(JSON.stringify(ctx.threads)),
     faceExtrude: JSON.parse(JSON.stringify(ctx.faceExtrude || {})),
     errors: { ...errors },
+    notes: { ...(ctx.notes || {}) },
     patches: JSON.parse(JSON.stringify(patches)),
   };
 }
@@ -1723,7 +1956,7 @@ const paintPause = () => new Promise(res => {
 
 function* regenSteps(project, upTo = null) {
   const K = activeKernel();
-  const ctx = { bodies: [], sketches: {}, tools: {}, threads: [], faceExtrude: {}, features: project.features };
+  const ctx = { bodies: [], sketches: {}, tools: {}, threads: [], faceExtrude: {}, notes: {}, features: project.features };
   let errors = {};
   let patches = {};
   const list = upTo == null ? project.features : project.features.slice(0, upTo);
@@ -1750,6 +1983,7 @@ function* regenSteps(project, upTo = null) {
     ctx.threads = JSON.parse(JSON.stringify(snap.threads));
     ctx.faceExtrude = JSON.parse(JSON.stringify(snap.faceExtrude));
     errors = { ...snap.errors };
+    ctx.notes = { ...(snap.notes || {}) };
     patches = JSON.parse(JSON.stringify(snap.patches));
     start = i + 1;
     cacheStats.hits++;
@@ -1781,6 +2015,7 @@ function* regenSteps(project, upTo = null) {
       yield { i, n: list.length, name: f.name || FEATURE_TYPES[f.type] || f.type, type: f.type };
       cacheStats.ran++;
       const t0 = performance.now();
+      delete ctx.notes[f.id];
       try {
         K.runFeature(f, ctx);
       } catch (err) {
@@ -1809,7 +2044,7 @@ function* regenSteps(project, upTo = null) {
       errors[b.id] = 'Vernetzung fehlgeschlagen: ' + (err.message || err);
     }
   }
-  return { bodies, errors, threads: ctx.threads, faceExtrude: ctx.faceExtrude || {}, kernel: K.id, resumedAt: start, featureCount: list.length };
+  return { bodies, errors, notes: ctx.notes, threads: ctx.threads, faceExtrude: ctx.faceExtrude || {}, kernel: K.id, resumedAt: start, featureCount: list.length };
 }
 
 export function edgeMidpoint(body, edgeIndex) {

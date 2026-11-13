@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "Vurgu rengi",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "Seçim, düğmeler ve simgelerin rengi",
+ "Blau": "Mavi",
+ "Türkis": "Turkuaz",
+ "Grün": "Yeşil",
+ "Violett": "Mor",
+ "Rot": "Kırmızı",
+ "Größe der Oberfläche": "Arayüz boyutu",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = normal; yüksek çözünürlüklü ekranlar veya sunumlar için 1,25",
+ "Fang aussetzen mit": "Yakalamayı askıya alma tuşu",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "Tuş basılı tutulduğu sürece nokta ne noktalara ne de ızgaraya yakalanır",
+ "Keine Taste": "Tuş yok",
+ "Name, z. B. Laptop": "Ad, ör. Dizüstü",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "Bu profilin değerlerini al („Uygula“ sonrasında geçerli olur)",
+ "Das Profil mit den jetzigen Werten überschreiben": "Profili mevcut değerlerle değiştir",
+ "Profil „{0}“ aktualisiert": "„{0}“ profili güncellendi",
+ "Aktualisieren": "Güncelle",
+ "Neues Profil": "Yeni profil",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "Tüm mevcut tercihleri bir adla kaydeder – örneğin dizüstü bilgisayar, büyük ekran veya sunum için",
+ "Erst einen Namen für das Profil eingeben.": "Önce profil için bir ad girin.",
+ "Speichern": "Kaydet"
+}

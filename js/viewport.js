@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { getSettings } from './settings.js';
 
 const VIEWS = {
   top: [0, -0.001, 1],
@@ -44,7 +45,7 @@ function studioEnvironment(renderer) {
 export class Viewport {
   constructor(container) {
     this.el = container;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: getSettings().antialias !== false, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.localClippingEnabled = true; // section analysis
     container.appendChild(this.renderer.domElement);
@@ -115,7 +116,75 @@ export class Viewport {
     return act === THREE.MOUSE.ROTATE ? !mod : act === THREE.MOUSE.PAN ? mod : false;
   }
 
+  // the point the view turns around for a gesture that starts at this pointer position
+  pivotAt(e) {
+    if (this.orbitAround === 'origin') return new THREE.Vector3();
+    if (this.orbitAround === 'cursor' && e) {
+      const meshes = [];
+      this.model.traverse(o => { if (o.isMesh && o.visible) meshes.push(o); });
+      this.raycaster.setFromCamera(this.ndc(e), this.camera);
+      const hit = this.raycaster.intersectObjects(meshes, false)[0];
+      if (hit) return hit.point.clone();
+    }
+    return null; // the centre of the view
+  }
+
+  // keyboard and touchpad navigation: turn by angles (degrees), move by pixels, zoom by a factor
+  turnBy(az, el) {
+    this.anim = null;
+    if (this.orbitMode === 'free') { const h = this.el.clientHeight || 600, k = h / (360 * (this.orbitSpeed || 1)); return this.orbitBy(az * k, el * k); }
+    const cam = this.camera, t = this.controls.target, off = cam.position.clone().sub(t);
+    off.applyAxisAngle(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(-az));
+    const right = new THREE.Vector3().crossVectors(off, new THREE.Vector3(0, 0, 1)).normalize().negate();
+    const tilted = off.clone().applyAxisAngle(right, THREE.MathUtils.degToRad(-el));
+    if (Math.abs(tilted.clone().normalize().z) < 0.999) off.copy(tilted);
+    cam.position.copy(t).add(off);
+    cam.up.set(0, 0, 1);
+    cam.lookAt(t);
+  }
+  panBy(px, py) {
+    this.anim = null;
+    const cam = this.camera, w = this.worldPerPixel();
+    cam.updateMatrixWorld();
+    const d = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).multiplyScalar(-px * w).add(new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1).multiplyScalar(py * w));
+    cam.position.add(d);
+    this.controls.target.add(d);
+  }
+  zoomBy(f) {
+    this.anim = null;
+    const t = this.controls.target, off = this.camera.position.clone().sub(t);
+    this.camera.position.copy(t).add(off.multiplyScalar(Math.max(0.05, f)));
+  }
+
   initFreeOrbit() {
+    // middle double-click (two presses close together at the same place)
+    let midT = 0, midX = 0, midY = 0;
+    this.canvas.addEventListener('pointerdown', e => {
+      if (e.button !== 1) return;
+      const now = performance.now();
+      if (now - midT < 400 && Math.hypot(e.clientX - midX, e.clientY - midY) < 6) { midT = 0; this.onMiddleDouble?.(); }
+      else { midT = now; midX = e.clientX; midY = e.clientY; }
+    });
+    // touchpad layout: no button needed – Shift + move pans, Alt + move turns
+    let px = null, py = null;
+    this.canvas.addEventListener('pointermove', e => {
+      const on = this.mousePreset === 'touchpad' && e.buttons === 0 && (e.shiftKey || e.altKey) && !(e.ctrlKey || e.metaKey);
+      if (on && px != null) {
+        const dx = e.clientX - px, dy = e.clientY - py;
+        if (e.shiftKey) this.panBy(dx * this.panSign, dy * this.panSign);
+        else if (this.orbitMode === 'free') { this.pivot = null; this.orbitBy(dx, dy); }
+        else this.turnBy(dx * 0.4, dy * 0.4);
+      }
+      px = on ? e.clientX : null; py = on ? e.clientY : null;
+    });
+    // two-finger scroll moves the view (a pinch arrives as Ctrl + wheel and zooms)
+    this.canvas.addEventListener('wheel', e => {
+      if (!this.scrollPans || e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const k = e.deltaMode === 1 ? 16 : 1;
+      this.panBy(-e.deltaX * k * this.panSign, -e.deltaY * k * this.panSign);
+    }, { capture: true, passive: false });
     let drag = null;
     const move = e => {
       if (!drag) return;
@@ -128,6 +197,7 @@ export class Viewport {
     this.canvas.addEventListener('pointerdown', e => {
       if (this.orbitMode !== 'free' || this.controls.enableRotate === false || !this.isRotateGesture(e)) return;
       this.anim = null;
+      this.pivot = this.pivotAt(e);
       drag = { x: e.clientX, y: e.clientY };
       addEventListener('pointermove', move, true);
       addEventListener('pointerup', up, true);
@@ -141,9 +211,13 @@ export class Viewport {
     const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).normalize();
     const upS = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1).normalize();
     const q = new THREE.Quaternion().setFromAxisAngle(upS, -k * dx).multiply(new THREE.Quaternion().setFromAxisAngle(right, -k * dy));
-    const off = cam.position.clone().sub(t).applyQuaternion(q);
+    // around the centre of the view, or around the chosen point (origin, point under the pointer): then the
+    // centre of the view travels along
+    const piv = this.pivot || t;
+    const off = cam.position.clone().sub(piv).applyQuaternion(q);
+    if (piv !== t) t.sub(piv).applyQuaternion(q).add(piv);
     cam.up.copy(upS.applyQuaternion(q)).normalize();
-    cam.position.copy(t).add(off);
+    cam.position.copy(piv).add(off);
     cam.lookAt(t);
   }
 
@@ -155,9 +229,29 @@ export class Viewport {
       const d = this.camera.position.clone().sub(this.controls.target).normalize();
       if (Math.abs(d.z) > 0.999) d.y -= 0.001 * Math.sign(d.z);
       this.camera.up.set(0, 0, 1);
-      this.camera.position.copy(this.controls.target).addScaledVector(d.normalize(), this.camera.position.distanceTo(this.controls.target));
+      const dist = this.camera.position.distanceTo(this.controls.target); // (measured before the camera moves)
+      this.camera.position.copy(this.controls.target).addScaledVector(d.normalize(), dist);
       this.camera.lookAt(this.controls.target);
     }
+  }
+
+  // soft shadow on the ground under the model (box = bounds of the model, null = none)
+  setGroundShadow(box) {
+    if (!box) { if (this.shadow) this.shadow.visible = false; return; }
+    if (!this.shadow) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 256;
+      const g = c.getContext('2d'), grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      grad.addColorStop(0, 'rgba(0,0,0,.55)'); grad.addColorStop(0.55, 'rgba(0,0,0,.22)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+      this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+      this.shadow.renderOrder = -1;
+      this.scene.add(this.shadow);
+    }
+    const s = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3());
+    this.shadow.scale.set(Math.max(10, s.x) * 1.9, Math.max(10, s.y) * 1.9, 1);
+    this.shadow.position.set(ctr.x, ctr.y, box.min.z - 0.02);
+    this.shadow.visible = true;
   }
 
   // screen-up for a standard view: Z, or +Y when looking straight down/up
@@ -166,17 +260,24 @@ export class Viewport {
   // Mouse button layouts of common CAD programs (-1 = button not used for navigation)
   setMouse(preset) {
     const M = THREE.MOUSE, N = -1;
+    this.mousePreset = preset;
     this.controls.mouseButtons = {
       openfab: { LEFT: M.ROTATE, MIDDLE: M.PAN, RIGHT: M.PAN },
       fusion: { LEFT: N, MIDDLE: M.PAN, RIGHT: N },       // Umschalt + Mitte = drehen
       inventor: { LEFT: N, MIDDLE: M.PAN, RIGHT: N },
       solidworks: { LEFT: N, MIDDLE: M.ROTATE, RIGHT: N }, // Strg + Mitte = verschieben
       tinkercad: { LEFT: N, MIDDLE: M.PAN, RIGHT: M.ROTATE },
+      touchpad: { LEFT: N, MIDDLE: M.PAN, RIGHT: N },      // Umschalt / Alt + bewegen, ohne Taste
     }[preset] || { LEFT: M.ROTATE, MIDDLE: M.PAN, RIGHT: M.PAN };
   }
 
-  setNavigation({ invertZoom = false, zoomToCursor = true, orbitSpeed = 1, fov = 40 } = {}) {
-    this.controls.zoomSpeed = invertZoom ? -1 : 1;
+  setNavigation({ invertZoom = false, zoomToCursor = true, orbitSpeed = 1, fov = 40, zoomSpeed = 1, invertPan = false, scrollPans = false, orbitAround = 'target', animViews = true, animSpeed = 1 } = {}) {
+    this.controls.zoomSpeed = (invertZoom ? -1 : 1) * Math.max(0.1, Math.min(5, +zoomSpeed || 1));
+    this.panSign = invertPan ? -1 : 1;
+    this.controls.panSpeed = this.panSign;
+    this.scrollPans = !!scrollPans;
+    this.orbitAround = orbitAround;
+    this.animFactor = animViews === false ? 0 : 1 / Math.max(0.2, Math.min(5, +animSpeed || 1));
     this.controls.zoomToCursor = !!zoomToCursor;
     this.orbitSpeed = +orbitSpeed || 1;
     this.controls.rotateSpeed = this.orbitMode === 'free' ? 0 : this.orbitSpeed;
@@ -246,6 +347,7 @@ export class Viewport {
 
   // smooth camera move (direction turns on a sphere, target and distance blend)
   animateTo(target, pos, ms = 300, up = null) {
+    ms *= this.animFactor ?? 1;
     const fromT = this.controls.target.clone(), fromP = this.camera.position.clone();
     const fromU = this.camera.up.clone(), toU = (up || this.camera.up).clone().normalize();
     const fromD = fromP.clone().sub(fromT), toD = pos.clone().sub(target);

@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Hiiren osoittimen koordinaatit",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Näyttää hiiren osoittimen X- ja Y-koordinaatit luonnoksessa vasemmalla alhaalla",
+ "Eigenes Design": "Oma teema",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Ikkunoiden takana oleva alue – pätee, kun yllä on valittu teema ”Oma”",
+ "Fenster und Leisten": "Ikkunat ja palkit",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Tumma väri = tumma teema, vaalea väri = vaalea teema",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Tulisi erottua selvästi kohdasta ”Ikkunat ja palkit”",
+ "Linien und Ränder": "Viivat ja reunat",
+ "Titelleiste": "Otsikkopalkki",
+ "Kantenglättung": "Reunojen tasoitus",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Tasoittaa reunat 3D-näkymässä; tulee voimaan ohjelman uudelleenkäynnistyksen jälkeen",
+ "Bodenschatten": "Lattiavarjo",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Pehmeä varjo mallin alla (Suunnittelu-työtila)",
+ "Eigenes": "Oma",
+ "Design als Datei": "Teema tiedostona",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Teema, värit, kuvakkeet, muoto ja kirjasin yhdessä tiedostossa – jaettavaksi tai toiselle tietokoneelle",
+ "Speichern …": "Tallenna …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Teema ladattu – se tulee voimaan painamalla ”Käytä”.",
+ "Das ist keine WerkFab-Design-Datei.": "Tämä ei ole WerkFab-teematiedosto.",
+ "Laden …": "Lataa …"
+}

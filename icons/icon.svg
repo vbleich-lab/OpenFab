@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- WerkFab program icon: the letter W as a milled, extruded part with an end mill at the end of its path.
+       PNG and ICO files are made from this drawing by tools/make-icon.cjs. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34404e"/><stop offset="0.55" stop-color="#1c232c"/><stop offset="1" stop-color="#0e1217"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34"/><stop offset="0.35" stop-color="#ffffff" stop-opacity="0.04"/><stop offset="1" stop-color="#000000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.6">
+      <stop offset="0" stop-color="#3fb4ff" stop-opacity="0.30"/><stop offset="1" stop-color="#3fb4ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="side" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0d5a9c"/><stop offset="0.5" stop-color="#0a4780"/><stop offset="1" stop-color="#062f58"/>
+    </linearGradient>
+    <linearGradient id="top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8fdcff"/><stop offset="0.45" stop-color="#3db0ff"/><stop offset="1" stop-color="#1583e6"/>
+    </linearGradient>
+    <linearGradient id="bevel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9f3ff"/><stop offset="1" stop-color="#55bdff"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7d8792"/><stop offset="0.28" stop-color="#f4f7fa"/><stop offset="0.55" stop-color="#aeb7c1"/><stop offset="1" stop-color="#4b545e"/>
+    </linearGradient>
+    <linearGradient id="shank" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3a424b"/><stop offset="0.3" stop-color="#9aa4af"/><stop offset="0.6" stop-color="#5d6670"/><stop offset="1" stop-color="#262c33"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="160%"><feGaussianBlur stdDeviation="22"/></filter>
+    <filter id="soft2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
+    <clipPath id="clip"><rect x="48" y="48" width="928" height="928" rx="212"/></clipPath>
+    <path id="w" d="M236 372 L384 742 L512 470 L640 742 L788 372" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </defs>
+
+  <!-- tile -->
+  <rect x="48" y="48" width="928" height="928" rx="212" fill="url(#tile)"/>
+  <g clip-path="url(#clip)">
+    <rect x="48" y="48" width="928" height="928" fill="url(#glow)"/>
+    <!-- machine table: faint lines running into the distance -->
+    <g stroke="#ffffff" stroke-opacity="0.05" stroke-width="3">
+      <path d="M-200 880 L1224 880 M-200 820 L1224 820 M-200 770 L1224 770 M-200 728 L1224 728"/>
+      <path d="M512 640 L-240 1000 M512 640 L60 1000 M512 640 L360 1000 M512 640 L664 1000 M512 640 L964 1000 M512 640 L1264 1000" />
+    </g>
+  </g>
+  <rect x="51" y="51" width="922" height="922" rx="209" fill="none" stroke="url(#rim)" stroke-width="6"/>
+
+  <!-- shadow of the part on the table -->
+  <use href="#w" stroke="#000" stroke-opacity="0.55" stroke-width="150" transform="translate(26 118)" filter="url(#soft)"/>
+
+  <!-- the part: side walls (the outline pushed down step by step), then the top face -->
+  <g stroke="url(#side)" stroke-width="132">
+    <use href="#w" transform="translate(0 84)"/><use href="#w" transform="translate(0 78)"/><use href="#w" transform="translate(0 72)"/>
+    <use href="#w" transform="translate(0 66)"/><use href="#w" transform="translate(0 60)"/><use href="#w" transform="translate(0 54)"/>
+    <use href="#w" transform="translate(0 48)"/><use href="#w" transform="translate(0 42)"/><use href="#w" transform="translate(0 36)"/>
+    <use href="#w" transform="translate(0 30)"/><use href="#w" transform="translate(0 24)"/><use href="#w" transform="translate(0 18)"/>
+    <use href="#w" transform="translate(0 12)"/><use href="#w" transform="translate(0 6)"/>
+  </g>
+  <use href="#w" stroke="#04213f" stroke-opacity="0.55" stroke-width="132" transform="translate(0 84)" fill="none" style="mix-blend-mode:multiply" opacity="0.35"/>
+  <use href="#w" stroke="url(#bevel)" stroke-width="132"/>
+  <use href="#w" stroke="url(#top)" stroke-width="112"/>
+  <!-- the milled groove along the middle: dark floor, lit lower edge -->
+  <use href="#w" stroke="#0a4a86" stroke-width="34"/>
+  <use href="#w" stroke="#062c52" stroke-width="34" transform="translate(0 -5)" opacity="0.75"/>
+  <use href="#w" stroke="#bfe9ff" stroke-opacity="0.55" stroke-width="5" transform="translate(0 15)"/>
+
+  <!-- end mill standing in the groove at the end of the path -->
+  <ellipse cx="800" cy="392" rx="58" ry="20" fill="#000" opacity="0.45" filter="url(#soft2)"/>
+  <rect x="742" y="96" width="92" height="150" rx="10" fill="url(#shank)"/>
+  <rect x="742" y="228" width="92" height="16" fill="#1a1f25" opacity="0.6"/>
+  <path d="M754 244 H822 V366 A34 13 0 0 1 754 366 Z" fill="url(#steel)"/>
+  <g fill="none" stroke="#2f3740" stroke-opacity="0.6" stroke-width="6" stroke-linecap="round">
+    <path d="M758 262 C780 276 800 286 820 296"/><path d="M758 300 C780 314 800 324 820 334"/><path d="M758 338 C776 350 794 358 812 366"/>
+  </g>
+  <ellipse cx="788" cy="366" rx="34" ry="13" fill="#39424c"/>
+  <ellipse cx="788" cy="364" rx="26" ry="9" fill="#11161b"/>
+  <!-- chips of light on the tool and the part -->
+  <path d="M768 106 V236" stroke="#ffffff" stroke-opacity="0.35" stroke-width="8" stroke-linecap="round"/>
+  <path d="M250 352 L262 380" stroke="#ffffff" stroke-opacity="0.7" stroke-width="12" stroke-linecap="round"/>
+</svg>

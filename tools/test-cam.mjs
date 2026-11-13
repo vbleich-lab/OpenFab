@@ -646,3 +646,29 @@ const bbox = pts => pts.reduce((b, q) => q.map((v, i) => [Math.min(b[i][0], v), 
   const r = cam.orderByTool([it('a', 'T1', ring, 3), it('b', 'T2', hole, 4), it('c', 'T1', ring, 3)]);
   ok('Werkzeugwechsel sparen: Kontur außen und Bohrung innen stören sich nicht', [...ch].every(k => !cr.has(k)) && r.order.join('') === 'acb' && r.after === 1, `${cr.size} / ${ch.size} Felder, ${r.before} → ${r.after}`);
 }
+
+// ---- thread milling in several radial passes ----
+{
+  const one = run({ type: 'thread', tool: 'T6', sketch: 'skBig', entities: 'all', pitch: 1.5 }).r;
+  const three = run({ type: 'thread', tool: 'T6', sketch: 'skBig', entities: 'all', pitch: 1.5, threadPasses: 3, threadSpring: true }).r;
+  // hole centre g0 at (100, 60), Ø10: the cutter axis may never be further out than (10 − Ø tool) / 2, and it gets there only in the last passes
+  const R = toolOf(project(), 'T6').dia / 2, far = r => Math.max(...r.moves.filter(m => m.t === 'f').map(m => Math.min(Math.hypot(m.x - 100, m.y - 60), Math.hypot(m.x - 100, m.y - 70), Math.hypot(m.x - 112, m.y - 65))));
+  ok('Gewindefräsen in 3 Zustellungen mit Leerdurchgang: viermal so viele Umläufe, gleicher Enddurchmesser', !three.error && three.threadPasses === 4 && Math.abs(far(three) - far(one)) < 1e-9 && Math.abs(far(one) - (5 - R)) < 1e-6 && three.length > one.length * 3, `${one.length.toFixed(0)} → ${three.length.toFixed(0)} mm Weg, Achsabstand ${far(three).toFixed(3)}`);
+  const radii = [...new Set(three.moves.filter(m => m.t === 'f' && m.z > three.heights.bottom + 0.5 && Math.hypot(m.x - 100, m.y - 60) < 6).map(m => +Math.hypot(m.x - 100, m.y - 60).toFixed(3)))].filter(v => v > 0.5).sort((a, b) => a - b);
+  ok('Gewindefräsen: Zustellungen wachsen mit der Wurzel', radii.length === 3 && radii[1] - radii[0] > radii[2] - radii[1], radii.join(' / '));
+  // external thread on a pin Ø10, pitch 1.5: the teeth cut down to the root diameter (10 − 2 · 0.6134 · 1.5), so
+  // the cutter axis comes as close as root radius + cutter radius – and no closer, also in several passes
+  const near = r => Math.min(...r.moves.filter(m => m.t === 'f').map(m => Math.hypot(m.x - 100, m.y - 60)));
+  const ext = run({ type: 'thread', tool: 'T6', sketch: 'skBig', entities: ['g0'], pitch: 1.5, side: 'outside' }).r;
+  const ext3 = run({ type: 'thread', tool: 'T6', sketch: 'skBig', entities: ['g0'], pitch: 1.5, side: 'outside', threadPasses: 3 }).r;
+  const want = 5 - 0.6134 * 1.5 + R;
+  ok('Außengewinde fräsen: Fräser schneidet bis zum Kerndurchmesser', !ext.error && Math.abs(near(ext) - want) < 1e-6 && !ext3.error && Math.abs(near(ext3) - want) < 1e-6, `Achsabstand ${near(ext).toFixed(3)} / ${near(ext3).toFixed(3)}, Soll ${want.toFixed(3)}`);
+  // a thread mill around a pin cannot clear its own way: warning while the pin stands in the full stock, none
+  // once a contour with a further pass outwards has made room
+  {
+    const q = project(), th = { id: 't1', name: 'Gewinde', setup: 'S1', enabled: true, type: 'thread', tool: 'T6', sketch: 'skBig', entities: ['g0'], pitch: 1.5, side: 'outside' };
+    q.cam.ops = [{ id: 'c1', name: 'Frei', setup: 'S1', enabled: true, type: 'contour', tool: 'T1', sketch: 'skBig', entities: ['g0'], side: 'outside', roughPasses: true, roughCount: 2, roughStepover: toolOf(q, 'T1').dia * 0.5 }, th];
+    const g2 = cam.generateSetup(q, bodies, q.cam.setups[0], null, null), cleared = g2.results.get('t1'), c1 = g2.results.get('c1');
+    ok('Außengewinde im vollen Material: Warnung, nach dem Freifräsen keine', ext.fullStock > 0.5 && /vollen Material/.test(ext.warning || '') && !c1.error && !cleared.error && !cleared.fullStock && !cleared.warning, `voll ${Math.round((ext.fullStock || 0) * 100)} %, nach Kontur ${Math.round((cleared.fullStock || 0) * 100)} %${c1.error ? ' – ' + c1.error : ''}`);
+  }
+}

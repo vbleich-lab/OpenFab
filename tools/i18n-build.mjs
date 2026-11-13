@@ -5,6 +5,7 @@
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { toUS, toUK } from './i18n/spelling.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = join(root, 'tools', 'i18n');
@@ -52,7 +53,17 @@ if (cmd === 'split') {
     if (existsSync(fix)) Object.assign(dict, read(fix));
     const bad = problems(dict, keys);
     const known = new Set(keys);
-    const clean = Object.fromEntries(Object.entries(dict).filter(([k, v]) => known.has(k) && typeof v === 'string' && v.trim() && v !== k && holders(k) === holders(v)).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    // (a translation that reads like the German text is kept in the further languages: they fall back to English,
+    // and Extrusion must stay Extrusion in French)
+    const clean = Object.fromEntries(Object.entries(dict).filter(([k, v]) => known.has(k) && typeof v === 'string' && v.trim() && (v !== k || !['en', 'zh'].includes(lang)) && holders(k) === holders(v)).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    // English: one spelling throughout (American); "English (UK)" (gb) is the same dictionary in British spelling
+    if (lang === 'en') {
+      for (const k of Object.keys(clean)) clean[k] = toUS(clean[k]);
+      const uk = Object.fromEntries(Object.entries(clean).map(([k, v]) => [k, toUK(v)]));
+      const NL = String.fromCharCode(10);
+      writeFileSync(join(root, 'js', 'lang', 'gb.js'), '// gb: English (UK) – the English dictionary in British spelling. Built by tools/i18n-build.mjs (tools/i18n/spelling.mjs).' + NL
+        + 'export default ' + JSON.stringify(uk, null, 0).split('","').join('",' + NL + '"') + ';' + NL);
+    }
     writeFileSync(join(root, 'js', 'lang', `${lang}.js`), `// ${lang}: translations of the user interface (German text → translation). Built by tools/i18n-build.mjs\n// from tools/i18n/out and tools/i18n/fix-${lang}.json – edit those, not this file.\nexport default ${JSON.stringify(clean, null, 0).replace(/","/g, '",\n"')};\n`);
     console.log(`${lang}: ${Object.keys(clean).length} von ${keys.length} Texten, ${bad.length} verworfen`);
     for (const b of bad.slice(0, 15)) console.log('  ' + b);

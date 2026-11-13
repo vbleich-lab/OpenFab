@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Coördinaten bij de muisaanwijzer",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Toont X en Y van de muisaanwijzer linksonder in de schets",
+ "Eigenes Design": "Eigen thema",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Vlak achter de vensters – geldt wanneer hierboven het thema „Eigen“ is gekozen",
+ "Fenster und Leisten": "Vensters en balken",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Donkere kleur = donker thema, lichte kleur = licht thema",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Moet duidelijk afsteken tegen „Vensters en balken“",
+ "Linien und Ränder": "Lijnen en randen",
+ "Titelleiste": "Titelbalk",
+ "Kantenglättung": "Anti-aliasing",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Maakt de randen in de 3D-weergave vloeiender; werkt na het herstarten van het programma",
+ "Bodenschatten": "Bodemschaduw",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Zachte schaduw onder het model (werkruimte Ontwerp)",
+ "Eigenes": "Eigen",
+ "Design als Datei": "Thema als bestand",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Thema, kleuren, pictogrammen, vorm en lettertype in één bestand – om door te geven of voor een andere computer",
+ "Speichern …": "Opslaan …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Thema geladen – met „Toepassen“ wordt het actief.",
+ "Das ist keine WerkFab-Design-Datei.": "Dit is geen WerkFab-themabestand.",
+ "Laden …": "Laden …"
+}

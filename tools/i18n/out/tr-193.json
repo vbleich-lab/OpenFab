@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Fare imleci koordinatları",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Eskiz sırasında imlecin X ve Y değerlerini sol altta gösterir",
+ "Eigenes Design": "Özel tema",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Pencerelerin arkasındaki alan – yukarıda “Özel” tema seçiliyse geçerlidir",
+ "Fenster und Leisten": "Pencereler ve çubuklar",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Koyu renk = koyu tema, açık renk = açık tema",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "“Pencereler ve çubuklar” renginden belirgin biçimde ayrılmalıdır",
+ "Linien und Ränder": "Çizgiler ve kenarlıklar",
+ "Titelleiste": "Başlık çubuğu",
+ "Kantenglättung": "Kenar yumuşatma",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "3D görünümde kenarları yumuşatır; program yeniden başlatıldıktan sonra etkili olur",
+ "Bodenschatten": "Zemin gölgesi",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Modelin altında yumuşak gölge (TASARIM çalışma alanı)",
+ "Eigenes": "Özel",
+ "Design als Datei": "Tema dosyası",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Tema, renkler, simgeler, biçim ve yazı tipi tek dosyada – paylaşmak veya başka bir bilgisayar için",
+ "Speichern …": "Kaydet …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Tema yüklendi – “Uygula” ile etkinleşir.",
+ "Das ist keine WerkFab-Design-Datei.": "Bu bir WerkFab tema dosyası değil.",
+ "Laden …": "Yükle …"
+}

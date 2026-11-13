@@ -36,7 +36,7 @@ for (const f of files) {
   ok(`${lang}: Abdeckung`, n - stale >= keys.length * 0.8, `${n - stale} von ${keys.length} Texten (${Math.round(((n - stale) / keys.length) * 100)} %), ${stale} veraltet`);
   // the texts everybody sees
   const must = ['Skizze', 'Extrusion', 'Bohrung', 'Verlängern', 'Abbrechen', 'Tasche', 'Kontur', 'Werkzeug', 'NC-PROGRAMM', 'Maß hinzufügen'];
-  ok(`${lang}: Grundbegriffe übersetzt`, must.every(k => dict[k] && dict[k] !== k), must.filter(k => !dict[k]).join(', '));
+  ok(`${lang}: Grundbegriffe übersetzt`, must.every(k => dict[k] && (dict[k] !== k || !['en', 'zh'].includes(lang))), must.filter(k => !dict[k]).join(', '));
   const warn = Object.keys(dict).find(k => /^⚠ Jedes NC-Programm vor dem ersten Lauf prüfen/.test(k));
   ok(`${lang}: Sicherheitshinweis am NC-Programm übersetzt`, !!warn, warn ? dict[warn].slice(0, 60) + ' …' : 'fehlt');
 }

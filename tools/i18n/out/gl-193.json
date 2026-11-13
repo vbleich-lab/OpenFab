@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Coordenadas do punteiro",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Mostra X e Y do punteiro na parte inferior esquerda do esbozo",
+ "Eigenes Design": "Deseño propio",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Área detrás das fiestras – aplícase se arriba se escolle o deseño «Propio»",
+ "Fenster und Leisten": "Fiestras e barras",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Cor escura = deseño escuro, cor clara = deseño claro",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Debería destacar claramente de «Fiestras e barras»",
+ "Linien und Ränder": "Liñas e bordos",
+ "Titelleiste": "Barra de título",
+ "Kantenglättung": "Suavizado de arestas",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Suaviza as arestas na vista 3D; ten efecto tras reiniciar o programa",
+ "Bodenschatten": "Sombra no chan",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Sombra suave baixo o modelo (espazo de traballo Deseño)",
+ "Eigenes": "Propio",
+ "Design als Datei": "Deseño como ficheiro",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Deseño, cores, iconas, forma e tipo de letra nun ficheiro – para compartir ou para outro ordenador",
+ "Speichern …": "Gardar …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Deseño cargado – ten efecto con «Aplicar».",
+ "Das ist keine WerkFab-Design-Datei.": "Este non é un ficheiro de deseño de WerkFab.",
+ "Laden …": "Cargar …"
+}

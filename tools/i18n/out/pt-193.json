@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Coordenadas no cursor",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Mostra X e Y do cursor no esboço, no canto inferior esquerdo",
+ "Eigenes Design": "Tema próprio",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Área atrás das janelas – vale quando o tema „Próprio“ está selecionado acima",
+ "Fenster und Leisten": "Janelas e barras",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Cor escura = tema escuro, cor clara = tema claro",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Deve contrastar claramente com „Janelas e barras“",
+ "Linien und Ränder": "Linhas e bordas",
+ "Titelleiste": "Barra de título",
+ "Kantenglättung": "Suavização de arestas",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Suaviza as arestas na vista 3D; tem efeito após reiniciar o programa",
+ "Bodenschatten": "Sombra no chão",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Sombra suave sob o modelo (área de trabalho Projeto)",
+ "Eigenes": "Próprio",
+ "Design als Datei": "Tema como arquivo",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Tema, cores, ícones, forma e fonte em um arquivo – para compartilhar ou para outro computador",
+ "Speichern …": "Salvar …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Tema carregado – ele entra em vigor com „Aplicar“.",
+ "Das ist keine WerkFab-Design-Datei.": "Este não é um arquivo de tema do WerkFab.",
+ "Laden …": "Carregar …"
+}

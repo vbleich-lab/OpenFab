@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Współrzędne przy kursorze",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Pokazuje X i Y kursora w szkicu w lewym dolnym rogu",
+ "Eigenes Design": "Własny motyw",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Powierzchnia za oknami – obowiązuje, gdy powyżej wybrano motyw „Własny“",
+ "Fenster und Leisten": "Okna i paski",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Ciemny kolor = ciemny motyw, jasny kolor = jasny motyw",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Powinien wyraźnie odróżniać się od „Okna i paski“",
+ "Linien und Ränder": "Linie i obramowania",
+ "Titelleiste": "Pasek tytułu",
+ "Kantenglättung": "Wygładzanie krawędzi",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Wygładza krawędzie w widoku 3D; działa po ponownym uruchomieniu programu",
+ "Bodenschatten": "Cień na podłożu",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Miękki cień pod modelem (obszar roboczy Projekt)",
+ "Eigenes": "Własny",
+ "Design als Datei": "Motyw jako plik",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Motyw, kolory, ikony, kształt i czcionka w jednym pliku – do udostępnienia lub na inny komputer",
+ "Speichern …": "Zapisz …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Motyw wczytany – zacznie obowiązywać po kliknięciu „Zastosuj“.",
+ "Das ist keine WerkFab-Design-Datei.": "To nie jest plik motywu WerkFab.",
+ "Laden …": "Wczytaj …"
+}

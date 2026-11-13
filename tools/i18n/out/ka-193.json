@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "კოორდინატები მაუსის კურსორთან",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "ესკიზში აჩვენებს მაუსის კურსორის X და Y მნიშვნელობებს ქვემოთ მარცხნივ",
+ "Eigenes Design": "საკუთარი დიზაინი",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "ფართობი ფანჯრების უკან – მოქმედებს, როცა ზემოთ არჩეულია დიზაინი „საკუთარი“",
+ "Fenster und Leisten": "ფანჯრები და პანელები",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "მუქი ფერი = მუქი დიზაინი, ღია ფერი = ღია დიზაინი",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "უნდა გამოირჩეოდეს „ფანჯრები და პანელები“-სგან",
+ "Linien und Ränder": "ხაზები და კიდეები",
+ "Titelleiste": "სათაურის ზოლი",
+ "Kantenglättung": "კიდეების დამუშავება (ანტიალიასინგი)",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "ამცირებს კიდეების დაკბილულობას 3D ხედში; ძალაში შედის პროგრამის გადატვირთვის შემდეგ",
+ "Bodenschatten": "ჩრდილი იატაკზე",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "რბილი ჩრდილი მოდელის ქვეშ (სამუშაო არე კონსტრუირება)",
+ "Eigenes": "საკუთარი",
+ "Design als Datei": "დიზაინი ფაილად",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "დიზაინი, ფერები, სიმბოლოები, ფორმა და შრიფტი ერთ ფაილში – გასაზიარებლად ან სხვა კომპიუტერისთვის",
+ "Speichern …": "შენახვა …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "დიზაინი ჩაიტვირთა – ძალაში შედის „გამოყენება“-ზე დაჭერით.",
+ "Das ist keine WerkFab-Design-Datei.": "ეს არ არის WerkFab-ის დიზაინის ფაილი.",
+ "Laden …": "ჩატვირთვა …"
+}

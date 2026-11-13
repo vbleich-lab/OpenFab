@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Coordinate del puntatore",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Mostra X e Y del puntatore in basso a sinistra nello schizzo",
+ "Eigenes Design": "Tema personalizzato",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Sfondo dietro le finestre – vale se sopra è scelto il tema «Personalizzato»",
+ "Fenster und Leisten": "Finestre e barre",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Colore scuro = tema scuro, colore chiaro = tema chiaro",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Dovrebbe distinguersi chiaramente da «Finestre e barre»",
+ "Linien und Ränder": "Linee e bordi",
+ "Titelleiste": "Barra del titolo",
+ "Kantenglättung": "Anti-aliasing",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Leviga gli spigoli nella vista 3D; ha effetto dopo il riavvio del programma",
+ "Bodenschatten": "Ombra a terra",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Ombra morbida sotto il modello (area di lavoro PROGETTAZIONE)",
+ "Eigenes": "Personalizzato",
+ "Design als Datei": "Tema come file",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Tema, colori, icone, forma e carattere in un unico file – da condividere o per un altro computer",
+ "Speichern …": "Salva …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Tema caricato – ha effetto con «Applica».",
+ "Das ist keine WerkFab-Design-Datei.": "Questo non è un file di tema WerkFab.",
+ "Laden …": "Carica …"
+}

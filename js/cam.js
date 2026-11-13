@@ -534,6 +534,34 @@ function featureZs(op, project, stock) {
   return zs;
 }
 
+// How much of an operation runs where no operation before it has made room: share (0…1) of its feed positions
+// whose centre still stands in the stock. Thread mills and other tools that cannot cut with their full width
+// need the material gone before they come.
+export function fullStockShare(res, prior, stock) {
+  const feeds = (res.moves || []).filter(m => m.t === 'f' && Number.isFinite(m.x));
+  if (!feeds.length) return 0;
+  const step = Math.max(1, Math.floor(feeds.length / 60));
+  const cuts = [];
+  for (const r of prior || []) {
+    if (!r?.tool || r.error || r.disabled || !r.moves?.length) continue;
+    const R = (+r.tool.dia || 0) / 2 * 0.95;
+    for (let k = 1; k < r.moves.length; k++) { const a = r.moves[k - 1], b = r.moves[k]; if (b.t !== 'r' && Number.isFinite(a.x)) cuts.push([a, b, R]); }
+  }
+  const free = m => {
+    if (m.x < stock.minX || m.x > stock.maxX || m.y < stock.minY || m.y > stock.maxY) return true;
+    if (!(stockTopAt(stock, m.x, m.y) > m.z + 0.05)) return true;
+    for (const [a, b, R] of cuts) {
+      if (Math.min(a.z, b.z) > m.z + 0.3) continue;
+      const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy, u = L2 > 1e-12 ? Math.max(0, Math.min(1, ((m.x - a.x) * dx + (m.y - a.y) * dy) / L2)) : 0;
+      if (Math.hypot(m.x - a.x - u * dx, m.y - a.y - u * dy) <= R) return true;
+    }
+    return false;
+  };
+  let n = 0, bad = 0;
+  for (let k = 0; k < feeds.length; k += step) { n++; if (!free(feeds[k])) bad++; }
+  return bad / n;
+}
+
 // Tool positions closer to a fixture than the safety distances get a warning.
 function checkFixtures(allBodies, setup, results) {
   const ids = new Set(setup.fixtures || []);
@@ -1426,28 +1454,43 @@ function genThread(op, t, P, h, project) {
   const pitch = +op.pitch || 1.5;
   const external = op.side === 'outside';
   const rightHand = op.hand !== 'left';
+  // radial passes ("Zustellungen"): the thread depth is taken in steps that remove about the same amount each
+  // (depth grows with the square root), plus an optional pass without infeed against spring-back
+  const passes = Math.max(1, Math.min(12, Math.round(+op.threadPasses || 1)));
+  const depthT = (external ? 0.6134 : 0.5413) * pitch;
+  const steps = Array.from({ length: passes }, (_, k) => depthT * (1 - Math.sqrt((k + 1) / passes)));
+  if (op.threadSpring) steps.push(0);
   for (const { p: [cx, cy], r } of holes) {
     const D = +op.majorDia || 2 * r;
-    const R = external ? D / 2 + t.dia / 2 : D / 2 - t.dia / 2;
-    if (R <= 0.05) throw new Error(`Gewinde Ø${D} ist zu klein für Werkzeug Ø${t.dia}`);
+    // final path of the cutter axis: inside a hole the teeth reach the nominal diameter, on a pin they cut
+    // down to the root (core) diameter
+    const Rf = external ? D / 2 - depthT + t.dia / 2 : D / 2 - t.dia / 2;
+    if (Rf <= 0.05) throw new Error(`Gewinde Ø${D} ist zu klein für Werkzeug Ø${t.dia}`);
     const N = 72;
     // right-hand internal thread, climb milling: counter-clockwise while rising
     const dir = (rightHand ? 1 : -1) * (external ? -1 : 1);
     const zTop = cycleTop(h);
-    if (external) P.moveAbove(cx + R + t.dia, cy); else P.moveAbove(cx, cy);
-    P.feed(P.p.x, P.p.y, h.bottom, t.plunge);
-    P.feed(cx + R, cy, h.bottom, t.feed / 2);
-    let a = 0, z = h.bottom;
-    while (z < zTop - 1e-6) {
-      for (let k = 1; k <= N && z < zTop + pitch; k++) {
-        a += (dir * 2 * Math.PI) / N;
-        z = Math.min(zTop + pitch * 0.25, z + pitch / N);
-        P.feed(cx + R * Math.cos(a), cy + R * Math.sin(a), z, t.feed);
+    // (a pin: start beside it with 1 mm of air to the nominal diameter – the room a contour around the pin leaves)
+    const outX = cx + (external ? Rf + depthT + Math.max(1, 0.2 * t.dia) : 0);
+    steps.forEach((back, k) => {
+      // (external: the cutter stands further out while less deep; internal: further in)
+      const R = Math.max(0.05, external ? Rf + back : Rf - back);
+      if (k === 0) { P.moveAbove(outX, cy); P.feed(outX, cy, h.bottom, t.plunge); }
+      else P.rapid(outX, cy, h.bottom); // through the space the first pass has left
+      P.feed(cx + R, cy, h.bottom, t.feed / 2);
+      let a = 0, z = h.bottom;
+      while (z < zTop - 1e-6) {
+        for (let q = 1; q <= N && z < zTop + pitch; q++) {
+          a += (dir * 2 * Math.PI) / N;
+          z = Math.min(zTop + pitch * 0.25, z + pitch / N);
+          P.feed(cx + R * Math.cos(a), cy + R * Math.sin(a), z, t.feed);
+        }
       }
-    }
-    if (external) P.feed(cx + R + t.dia, cy, z, t.feed); else P.feed(cx, cy, z, t.feed);
+      P.feed(outX, cy, z, t.feed);
+    });
     P.retract();
   }
+  return { threadPasses: steps.length };
 }
 
 function genBore(op, t, P, h, project) {
@@ -2795,10 +2838,19 @@ function genCorner3d(op, t, P, h, stock, ctx) {
   // neither tool cuts below the part (+ stock to leave): compare what stands above it
   for (let k = 0; k < mask.length; k++) if (hm.h[k] > -Infinity && Math.max(Mp[k], hm.h[k] + stl) - Math.max(Ms[k], hm.h[k] + stl) > tol) mask[k] = 1;
   // tool centres within reach of the rest material, plus a little overlap into the area already finished
-  const grow = Math.max(1, Math.round((t.dia * 0.75) / hm.res)), g2 = new Uint8Array(mask.length);
+  // … and up to which height the rest material stands there: waterline passes above it would cut air along
+  // a wall the reference tool has already finished
+  const grow = Math.max(1, Math.round((t.dia * 0.75) / hm.res)), g2 = new Uint8Array(mask.length), restTop = new Float32Array(mask.length).fill(-Infinity);
   for (let j = 0; j < hm.ny; j++) for (let i = 0; i < hm.nx; i++) {
-    if (!mask[j * hm.nx + i]) continue;
-    for (let dj = -grow; dj <= grow; dj++) for (let di = -grow; di <= grow; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < hm.nx && jj < hm.ny) g2[jj * hm.nx + ii] = 1; }
+    const k0 = j * hm.nx + i;
+    if (!mask[k0]) continue;
+    for (let dj = -grow; dj <= grow; dj++) for (let di = -grow; di <= grow; di++) {
+      const ii = i + di, jj = j + dj;
+      if (ii < 0 || jj < 0 || ii >= hm.nx || jj >= hm.ny) continue;
+      const kk = jj * hm.nx + ii;
+      g2[kk] = 1;
+      if (Mp[k0] > restTop[kk]) restTop[kk] = Mp[k0];
+    }
   }
   mask = g2;
   if (!mask.some(v => v)) throw new Error('Kein Restmaterial für dieses Referenzwerkzeug');
@@ -2812,7 +2864,7 @@ function genCorner3d(op, t, P, h, stock, ctx) {
     for (const loop of waterLoops(hm, T, z, climb)) {
       let cur = null;
       for (const [x, y] of densify(loop, step, true)) {
-        if (inMask(x, y, true)) (cur ||= []).push([x, y, z]); else { if (cur?.length > 1) runs.push(cur); cur = null; }
+        if (inMask(x, y, true) && z <= restTop[cellOf(hm, x, y)] + 1e-6) (cur ||= []).push([x, y, z]); else { if (cur?.length > 1) runs.push(cur); cur = null; }
       }
       if (cur?.length > 1) runs.push(cur);
     }
@@ -3398,7 +3450,7 @@ function generateOpInner(op, project, stock, ctx, t, s) {
     case 'chamfer': genChamfer(op, t, P, h, project); break;
     case 'drill': extra = genDrill(op, t, P, h, project) || {}; break;
     case 'bore': genBore(op, t, P, h, project); break;
-    case 'thread': genThread(op, t, P, h, project); break;
+    case 'thread': extra = genThread(op, t, P, h, project) || {}; break;
     case 'trace': genTrace(op, t, P, h, project); break;
     case 'rough3d': genRough3d(op, t, P, h, stock, ctx); break;
     case 'contour3d': genContour3d(op, t, P, h, stock, ctx); break;
@@ -3733,6 +3785,11 @@ export function generateSetup(project, allBodies, setup, prevGen = null, modelKe
         const sl = shortLinks(res.moves, res.tool, field, Math.max(0.2, +(op.safeDist ?? 1)), res.heights?.retract ?? stock.top);
         field.done = ops.indexOf(op) + 1; // shortLinks has cut this operation into the field
         if (sl.links) { res.moves = sl.moves; Object.assign(res, stats(res.moves, ctx.rapid), { shortLinks: { n: sl.links, saved: sl.saved } }); }
+      }
+      // a thread mill around a pin cannot clear its own way
+      if (op.type === 'thread' && op.side === 'outside' && res.moves?.length) {
+        const share = fullStockShare(res, ctx.prior, stock);
+        if (share > 0.1) { res.fullStock = share; res.warning = 'Der Gewindefräser läuft im vollen Material: Den Zapfen vorher freifräsen (2D-Kontur außen um den Zapfen bis zur Gewindetiefe).'; }
       }
       res.calcMs = performance.now() - t0;
     } catch (err) {

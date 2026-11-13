@@ -11,7 +11,7 @@ WerkFab is a parametric 3D CAD program with integrated CAM. Parts are designed w
 > [!CAUTION]
 > **Every NC program must be verified before it runs on a machine for the first time – in a dry run on the machine (single block, reduced rapid, in the air or with a safe Z offset) or in an external NC simulator.** The simulation inside WerkFab does not replace this check. WerkFab is free software and comes with no warranty of any kind; there is no liability for damage to machines, tools, workpieces or people. See [Safety](#safety-always-simulate-nc-programs-first).
 
-> **Status: Release Candidate 8 (v1.0.0-rc.8).** Feature complete for 1.0.
+> **Status: Release Candidate 9 (v1.0.0-rc.9).** Feature complete for 1.0.
 
 ![Designing a part on the timeline, then toolpaths and a simulation with stock removal](docs/media/demo.gif)
 
@@ -28,8 +28,10 @@ WerkFab is a parametric 3D CAD program with integrated CAM. Parts are designed w
 | ![Toolpaths for facing, pocket, drilling and contour](docs/media/03-fertigung.png) | ![Simulation of the milling operations](docs/media/04-simulation.png) |
 | **Turning** | **Rendering** |
 | ![Turned part with roughing, finishing, grooving and threading passes](docs/media/05-drehen.png) | ![Rendering in a photo studio](docs/media/06-rendern.png) |
+| **Hole recognition** | **Trace image** |
+| ![Holes of the model grouped by diameter and kind, with the operations and tools that will be created](docs/media/07-bohrungen.png) | ![A picture traced into lines, arcs and circles for a sketch, SVG or DXF](docs/media/08-nachzeichnen.png) |
 
-The interface is available in **English, German and Chinese**.
+The interface is available in **26 languages**: English (US and UK), German, Chinese, French, Spanish, Italian, Portuguese (Brazil), Dutch, Polish, Turkish, Japanese, Korean, Russian, Czech, Danish, Finnish, Norwegian, Ukrainian, Croatian, Bosnian, Serbian, Georgian, Latvian, Malay and Galician.
 
 ---
 
@@ -40,8 +42,15 @@ The interface is available in **English, German and Chinese**.
 - **Geometric constraint solver** with dimensions and constraints (tangent, concentric, equal … also on arcs)
 - **Trim and extend**: constraints and dimensions are kept; trim also works on slots and rounded contours, and by swiping with the mouse button held down
 - **Fillet, chamfer and offset** as click tools with a preview at the cursor
+- **Trace image**: outlines (outer, inner or both) or the centre line of strokes from PNG, JPG, WebP, GIF, BMP or SVG – recognises straight lines, arcs, circles and sharp corners, can separate a picture by colours, and saves the result as SVG or DXF
+- **Reference images** on the sketch plane, calibrated by two points and their real distance; SVG and DXF import into the open sketch
+- **Project** faces, single edges, a body's silhouette and intersection curves – projected geometry follows the body when it changes
+- **Move / copy, rotate and scale** with a preview, mirror and patterns; sketch palette (look at, slice, profiles)
 - **Solids**: extrude, revolve, sweep, loft, pipe, coil, rib, press/pull, hole (also tapped), thread, fillet, chamfer, draft, shell, thicken, emboss (flat or wrapped on a cylinder), combine, split, scale
-- **Patterns**: rectangular, circular and along a path; mirror
+- **Patterns**: rectangular (also along construction axes), circular and along a path; mirror; hole patterns (grid, bolt circle) right in the hole feature
+- **Direct editing**: delete face, replace face, offset face (also hole and pin diameters), align bodies by faces or edges
+- **Fillet** with variable radius, control points and continuous along a chain of edges; **chamfer** with two distances or distance and angle; both also by picking faces
+- **Extrude with taper angle**; moments of inertia in the body properties
 - **Construction geometry**: planes (offset, at an angle, through 3 points, tangent), axes and points
 - **Surfaces**: extrude, revolve, loft, patch, offset, stitch, trim, extend, fill
 - **Sheet metal**: flanges, flange on flange (U hem, Z step, 180° hem), open or closed corners with corner relief (round or square), flat pattern with bend table
@@ -64,18 +73,21 @@ The interface is available in **English, German and Chinese**.
 
 ### Manufacture (CAM)
 - **Setups** with stock (box, cylinder, rest material from the previous setup), work origin, fixtures and 3+2 tilting
-- **2D milling**: face, contour and pocket (both also for the rest material of a larger cutter only), 2D adaptive, slot, engrave, chamfer / deburr, drilling, thread milling, bore milling, probing
-- **3D milling**: adaptive roughing, parallel, contour (Z levels), spiral, radial, morph, geodesic, scallop, flats, rest material in corners and more
+- **2D milling**: face, contour and pocket (both also for the rest material of a larger cutter only, with dogbone / T-bone corner relief), 2D adaptive, slot (also trochoidal), engrave, chamfer / deburr, drilling, thread milling (internal and external, several radial passes), bore milling, probing
+- **Hole recognition**: finds all holes along the tool axis and creates spot drilling, drilling, tapping or thread milling, counterbores and chamfers in one go, including missing tools
+- **3D milling**: adaptive roughing, plunge roughing, parallel, contour (Z levels), spiral, radial, morph, geodesic, scallop, flats, rest material against a reference tool and more; bull-nose cutters are computed with their real shape
+- **Manual NC** (comment, stop, dwell, message, pass-through code), **toolpath patterns** (grid, circular, mirrored), feed reduction in corners, reordering of operations to save tool changes
 - **4-axis simultaneous**: rotary (helix / lines), 4-axis roughing, wrapping sketches onto the cylinder
 - **Turning**: facing, roughing / finishing (with nose radius compensation), grooving, threading, parting, drilling on the axis, boring, internal grooves and internal threads; with live tools and C axis: drilling (axial on a bolt circle, radial as a cross hole), keyways, wrench flats (two flats, square, hexagon), free sketch contours on the face or wrapped around the diameter, and pockets in the face
-- **Tool library** with a cutting data calculator, material presets, tool life and holder display
+- **Tool library** with a cutting data calculator, material presets, tool life and holder display; setup sheet with a tool list as CSV
 - **Simulation** with stock removal (also on cylindrical stock), comparison with the finished part (rest / too deep), machining time per setup
 - **NC editor** with backplot, search and editing; the **NC check** detects collisions of holder, shank and rapid moves, contact with fixtures and table, axis limits and syntax errors (Heidenhain)
 - **Post processors**: Heidenhain Klartext (incl. APPR/DEP, cycles 2xx, hole patterns 220/221), Fanuc, Sinumerik, Okuma (milling / turning), LinuxCNC, GRBL and more. Your own post processors can be adapted in the built-in editor with a live preview.
 - **Control cycles** instead of computed paths: drilling and pocket cycles, studs, bolt circles and grids, turning roughing cycle and threading cycle
 
 ### User interface
-- **Languages**: English, German and Chinese (Preferences → Units and value display → Language; the first start follows the browser language)
+- **Languages**: 26 – English (US and UK), German, Chinese, French, Spanish, Italian, Portuguese (Brazil), Dutch, Polish, Turkish, Japanese, Korean, Russian, Czech, Danish, Finnish, Norwegian, Ukrainian, Croatian, Bosnian, Serbian, Georgian, Latvian, Malay and Galician (Preferences → Units and value display → Language; “System” follows the language of the browser or operating system). Everything except German, English and Chinese is a machine translation that no native speaker has reviewed yet – corrections are welcome
+- **Look**: ten designs (light, dark, high contrast), accent colour of your choice, icon colour and size, density, corner shape, font, window opacity, interface size, and named profiles of all preferences
 - **Updates**: the program looks for a new version on GitHub at start. The installed Windows app and the Linux AppImage download and install it on request; the portable Windows folder, macOS and the browser version show a note with the download page. This look-up is the only connection WerkFab makes to the net by itself, and it can be switched off (Preferences → General → Updates).
 - Marking menu (right click), ViewCube, keyboard shortcuts (e.g. Q press/pull, F fillet, M move, I measure, X construction line)
 - Several documents in tabs, versions on save; import of STEP, IGES, STL, OBJ and DXF, tool libraries and post processors (.cps)

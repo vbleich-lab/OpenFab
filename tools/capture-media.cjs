@@ -9,7 +9,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'docs', 'media');
 const FRAMES = process.argv[2] || path.join(ROOT, 'dist', 'frames');
-const ONLY = process.argv[3] || 'all'; // 'stills' | 'gif' | 'all'
+const ONLY = process.argv[3] || 'all'; // 'stills' | 'gif' | 'all' | 'extra' (only the pictures 07 and 08)
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' };
 const ZOOM = +(process.argv[4] || 3);
@@ -75,7 +75,49 @@ app.whenReady().then(async () => {
 
   const loadExample = async turning => { await click(turning ? '[data-act=example-turn]' : '[data-act=example]'); await sleep(5000); await click('[data-view=iso]'); await sleep(700); await click('[data-nav=fit]'); await sleep(700); await zoom(ZOOM); };
 
+  // a toolbar command by its German label: the button itself, or the entry in its group's drop-down
+  const tool = async (label, group) => {
+    const hit = await js(`const {deText:D}=await import('/js/i18n.js'); const b=[...document.querySelectorAll('#tools button.tbtn')].find(x=>D(x).trim()===${JSON.stringify(label)}); if(b){b.click(); return true;} return false;`);
+    if (hit) return;
+    await js(`const {deText:D}=await import('/js/i18n.js'); const g=[...document.querySelectorAll('#tools .tgroup-label.dd')].find(x=>D(x).trim().startsWith(${JSON.stringify(group)})); if(!g) throw new Error('group '+${JSON.stringify(group)}); g.click();`);
+    await sleep(500);
+    await js(`const {deText:D}=await import('/js/i18n.js'); const e=[...document.querySelectorAll('.tdrop-item, .tdrop button')].find(x=>D(x).trim().includes(${JSON.stringify(label)})); if(!e) throw new Error('entry '+${JSON.stringify(label)}); e.click();`);
+  };
+  const extra = async () => {
+    // 7 hole recognition on the example plate
+    await loadExample(false);
+    await workspace('cam');
+    await sleep(5000);
+    await tool('Bohrungen erkennen', 'BOHREN');
+    await sleep(1500);
+    await still('07-bohrungen');
+    await js(`document.querySelector('.mwin .modal-head button')?.click();`);
+    await sleep(500);
+    // 8 trace image: a drawn sign instead of a file from the disk (the file dialog is answered in the page)
+    await workspace('design');
+    await sleep(1500);
+    await js(`
+      const c = document.createElement('canvas'); c.width = 900; c.height = 600; const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, 900, 600);
+      g.fillStyle = '#1d2a38'; g.beginPath();
+      for (let i = 0; i < 24; i++) { const a = (i / 24) * 2 * Math.PI, r = i % 2 ? 170 : 205; g.lineTo(300 + r * Math.cos(a - 0.07), 300 + r * Math.sin(a - 0.07)); g.lineTo(300 + r * Math.cos(a + 0.07), 300 + r * Math.sin(a + 0.07)); }
+      g.closePath(); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(300, 300, 95, 0, 7); g.fill();
+      g.fillStyle = '#d4322c'; g.beginPath(); g.roundRect(560, 150, 260, 130, 30); g.fill();
+      g.fillStyle = '#1e63c8'; g.beginPath(); g.moveTo(690, 330); g.lineTo(830, 500); g.lineTo(550, 500); g.closePath(); g.fill();
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      window.__capFile = new File([blob], 'sign.png', { type: 'image/png' });
+      const click0 = HTMLInputElement.prototype.click;
+      HTMLInputElement.prototype.click = function () { if (this.type !== 'file') return click0.call(this); const dt = new DataTransfer(); dt.items.add(window.__capFile); this.files = dt.files; this.dispatchEvent(new Event('change')); };
+    `);
+    await tool('Bild nachzeichnen', 'EINFÜGEN');
+    await sleep(2500);
+    await still('08-nachzeichnen');
+    await js(`document.querySelector('.mwin .modal-head button')?.click();`);
+    await sleep(500);
+  };
   try {
+    if (ONLY === 'extra') { await extra(); app.quit(); return; }
     if (ONLY !== 'gif') {
       // 1 design
       await loadExample(false);
@@ -114,6 +156,7 @@ app.whenReady().then(async () => {
       await still('06-rendern');
       await workspace('design');
       await sleep(1500);
+      await extra();
     }
     if (ONLY !== 'stills') {
       fs.rmSync(FRAMES, { recursive: true, force: true });

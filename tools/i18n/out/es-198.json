@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "Color de énfasis",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "Color de la selección, los botones y los iconos",
+ "Blau": "Azul",
+ "Türkis": "Turquesa",
+ "Grün": "Verde",
+ "Violett": "Violeta",
+ "Rot": "Rojo",
+ "Größe der Oberfläche": "Tamaño de la interfaz",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = normal; 1,25 para pantallas de alta resolución o presentaciones",
+ "Fang aussetzen mit": "Suspender el forzado con",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "Mientras se mantenga pulsada la tecla, el punto no se ajusta ni a puntos ni a la cuadrícula",
+ "Keine Taste": "Ninguna tecla",
+ "Name, z. B. Laptop": "Nombre, p. ej. Portátil",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "Adoptar los valores de este perfil (efectivo tras «Aplicar»)",
+ "Das Profil mit den jetzigen Werten überschreiben": "Sobrescribir el perfil con los valores actuales",
+ "Profil „{0}“ aktualisiert": "Perfil «{0}» actualizado",
+ "Aktualisieren": "Actualizar",
+ "Neues Profil": "Nuevo perfil",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "Guarda todas las preferencias actuales con un nombre, por ejemplo para un portátil, una pantalla grande o una presentación",
+ "Erst einen Namen für das Profil eingeben.": "Introduzca primero un nombre para el perfil.",
+ "Speichern": "Guardar"
+}

@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "Kolor akcentu",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "Kolor zaznaczenia, przycisków i ikon",
+ "Blau": "Niebieski",
+ "Türkis": "Turkusowy",
+ "Grün": "Zielony",
+ "Violett": "Fioletowy",
+ "Rot": "Czerwony",
+ "Größe der Oberfläche": "Rozmiar interfejsu",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = normalnie; 1,25 dla ekranów wysokiej rozdzielczości lub prezentacji",
+ "Fang aussetzen mit": "Wstrzymaj przyciąganie klawiszem",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "Dopóki klawisz jest wciśnięty, punkt nie przyciąga się ani do punktów, ani do siatki",
+ "Keine Taste": "Brak klawisza",
+ "Name, z. B. Laptop": "Nazwa, np. Laptop",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "Przejmij wartości tego profilu (zadziała po „Zastosuj”)",
+ "Das Profil mit den jetzigen Werten überschreiben": "Nadpisz profil bieżącymi wartościami",
+ "Profil „{0}“ aktualisiert": "Zaktualizowano profil „{0}”",
+ "Aktualisieren": "Aktualizuj",
+ "Neues Profil": "Nowy profil",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "Zapisuje wszystkie bieżące ustawienia pod nazwą – np. dla laptopa, dużego monitora lub prezentacji",
+ "Erst einen Namen für das Profil eingeben.": "Najpierw wprowadź nazwę profilu.",
+ "Speichern": "Zapisz"
+}

@@ -89,6 +89,26 @@ ok('Eigene Maße als greifbare Gruppen (eine je Maß, mit breiten Greiflinien)',
   const badT = withT.match(/NaN|undefined|Infinity/);
   ok('Gewinde: keine ungültigen Werte', !badT, badT ? badT[0] : '');
 }
+// threads in a section view: a tapped hole the plane cuts open shows thin solid lines and a thick end line; a
+// hole away from the plane shows nothing there (sections have no hidden edges); the side view keeps its dashes
+{
+  const tap = { id: 't2', name: 'M8×1.25', c: [60, 40, 10], d: [0, 0, -1], r: 4 - 0.5413 * 1.25, L: 8, P: 1.25, outside: false };
+  const sec = y => makeDrawing(bodies, { ...base, userDims: [], threads: [tap], section: { bodies, polys: [], y } });
+  const cut = sec(40), away = sec(10), sc = cut.scale;
+  const lines = (svg, cls) => [...svg.matchAll(new RegExp('<line x1="([0-9.-]+)" y1="([0-9.-]+)" x2="([0-9.-]+)" y2="([0-9.-]+)" class="' + cls + '"/>', 'g'))].map(m => m.slice(1, 5).map(Number));
+  const solid = lines(cut.svg, 'dim thrs');
+  ok('Gewinde im Schnitt: aufgeschnittene Gewindebohrung mit dünnen Volllinien am Nenndurchmesser', solid.length === 2 && solid.every(l => Math.abs(l[0] - l[2]) < 1e-6 && Math.abs(Math.abs(l[1] - l[3]) - 8 * sc) < 0.01) && Math.abs(Math.abs(solid[0][0] - solid[1][0]) - 8 * sc) < 0.01, `${solid.length} Linien`);
+  ok('Gewinde im Schnitt: Seitenansicht bleibt gestrichelt, Vorderansicht ohne Strichlinien', lines(cut.svg, 'thr').length === 3);
+  ok('Gewinde im Schnitt: Abschluss als breite Linie', lines(cut.svg, 'vis').length === lines(away.svg, 'vis').length + 1);
+  ok('Gewinde im Schnitt: Bohrung neben der Schnittebene wird in der Schnittansicht nicht gezeigt', lines(away.svg, 'dim thrs').length === 0 && lines(away.svg, 'thr').length === 3);
+}
+// centre cross in the top view from an axis: only for a full cylinder that has no circle of its own there
+{
+  const ctrL = svg => svg.split(String.fromCharCode(99) + "lass=\"ctr\"/>").length - 1;
+  const ax = { p: [60, 40, 0], d: [0, 0, 1], t0: 0, t1: 10, r: 5 };
+  const part = makeDrawing(bodies, { ...base, userDims: [], axes: [ax] }).svg, full = makeDrawing(bodies, { ...base, userDims: [], axes: [{ ...ax, full: true }] }).svg;
+  ok('Mittelkreuz in der Draufsicht aus der Achse eines vollen Zylinders (Teilzylinder: keines)', ctrL(part) === 2 && ctrL(full) === 4, `${ctrL(part)} / ${ctrL(full)} Mittellinien`);
+}
 // nothing to draw (no body): an empty sheet without broken numbers
 {
   const empty = makeDrawing([], { ...base, userDims: [] }).svg, badE = empty.match(/NaN|undefined|Infinity/);

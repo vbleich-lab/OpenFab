@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "Accentkleur",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "Kleur van selectie, knoppen en pictogrammen",
+ "Blau": "Blauw",
+ "Türkis": "Turquoise",
+ "Grün": "Groen",
+ "Violett": "Violet",
+ "Rot": "Rood",
+ "Größe der Oberfläche": "Grootte van de interface",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = normaal; 1,25 voor schermen met hoge resolutie of presentaties",
+ "Fang aussetzen mit": "Snappen onderbreken met",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "Zolang de toets ingedrukt is, snapt het punt noch op punten noch op het raster",
+ "Keine Taste": "Geen toets",
+ "Name, z. B. Laptop": "Naam, bijv. Laptop",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "De waarden van dit profiel overnemen (actief na „Toepassen“)",
+ "Das Profil mit den jetzigen Werten überschreiben": "Het profiel overschrijven met de huidige waarden",
+ "Profil „{0}“ aktualisiert": "Profiel „{0}“ bijgewerkt",
+ "Aktualisieren": "Bijwerken",
+ "Neues Profil": "Nieuw profiel",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "Slaat alle huidige voorkeuren op onder een naam – bijvoorbeeld voor een laptop, groot scherm of presentatie",
+ "Erst einen Namen für das Profil eingeben.": "Voer eerst een naam voor het profiel in.",
+ "Speichern": "Opslaan"
+}

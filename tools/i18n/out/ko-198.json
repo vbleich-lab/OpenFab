@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "강조 색상",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "선택 항목, 버튼, 아이콘의 색상",
+ "Blau": "파랑",
+ "Türkis": "청록",
+ "Grün": "초록",
+ "Violett": "보라",
+ "Rot": "빨강",
+ "Größe der Oberfläche": "인터페이스 크기",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = 보통, 고해상도 화면이나 시연에는 1,25",
+ "Fang aussetzen mit": "스냅 일시 중지 키",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "키를 누르고 있는 동안 점이 다른 점이나 격자에 스냅되지 않습니다",
+ "Keine Taste": "키 없음",
+ "Name, z. B. Laptop": "이름 (예: 노트북)",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "이 프로필의 값을 가져옵니다 („적용“ 후 반영)",
+ "Das Profil mit den jetzigen Werten überschreiben": "현재 값으로 프로필을 덮어씁니다",
+ "Profil „{0}“ aktualisiert": "프로필 „{0}“을(를) 업데이트했습니다",
+ "Aktualisieren": "업데이트",
+ "Neues Profil": "새 프로필",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "현재 환경설정을 모두 하나의 이름으로 저장합니다 – 예를 들어 노트북, 대형 모니터, 시연용",
+ "Erst einen Namen für das Profil eingeben.": "먼저 프로필 이름을 입력하십시오.",
+ "Speichern": "저장"
+}

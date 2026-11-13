@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "アクセントカラー",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "選択、ボタン、アイコンの色",
+ "Blau": "青",
+ "Türkis": "ターコイズ",
+ "Grün": "緑",
+ "Violett": "紫",
+ "Rot": "赤",
+ "Größe der Oberfläche": "UIのサイズ",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = 標準、高解像度ディスプレイやプレゼンテーションには1,25",
+ "Fang aussetzen mit": "スナップを一時停止するキー",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "キーを押している間、点は他の点にもグリッドにもスナップしません",
+ "Keine Taste": "キーなし",
+ "Name, z. B. Laptop": "名前（例：ノートPC）",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "このプロファイルの値を取り込みます（「適用」後に有効）",
+ "Das Profil mit den jetzigen Werten überschreiben": "現在の値でプロファイルを上書きします",
+ "Profil „{0}“ aktualisiert": "プロファイル「{0}」を更新しました",
+ "Aktualisieren": "更新",
+ "Neues Profil": "新規プロファイル",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "現在の基本設定をすべて名前を付けて保存します。ノートPC、大型ディスプレイ、プレゼンテーション用などに使えます",
+ "Erst einen Namen für das Profil eingeben.": "先にプロファイル名を入力してください。",
+ "Speichern": "保存"
+}

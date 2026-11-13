@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Coordenadas del puntero",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Muestra X e Y del puntero abajo a la izquierda en el boceto",
+ "Eigenes Design": "Tema personalizado",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Fondo detrás de las ventanas – se aplica si arriba se elige el tema «Personalizado»",
+ "Fenster und Leisten": "Ventanas y barras",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Color oscuro = tema oscuro, color claro = tema claro",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Debe distinguirse claramente de «Ventanas y barras»",
+ "Linien und Ränder": "Líneas y bordes",
+ "Titelleiste": "Barra de título",
+ "Kantenglättung": "Suavizado de bordes",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Suaviza las aristas en la vista 3D; surte efecto tras reiniciar el programa",
+ "Bodenschatten": "Sombra en el suelo",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Sombra suave bajo el modelo (espacio de trabajo DISEÑO)",
+ "Eigenes": "Personalizado",
+ "Design als Datei": "Tema como archivo",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Tema, colores, iconos, forma y fuente en un archivo – para compartir o para usar en otro equipo",
+ "Speichern …": "Guardar …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Tema cargado – surte efecto con «Aplicar».",
+ "Das ist keine WerkFab-Design-Datei.": "Este no es un archivo de tema de WerkFab.",
+ "Laden …": "Cargar …"
+}

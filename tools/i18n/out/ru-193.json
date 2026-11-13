@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Координаты указателя",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Показывать X и Y указателя мыши внизу слева в эскизе",
+ "Eigenes Design": "Собственная тема",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Фон за окнами – действует, если выше выбрана тема «Собственная»",
+ "Fenster und Leisten": "Окна и панели",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Тёмный цвет = тёмная тема, светлый цвет = светлая тема",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Должен заметно отличаться от «Окна и панели»",
+ "Linien und Ränder": "Линии и границы",
+ "Titelleiste": "Строка заголовка",
+ "Kantenglättung": "Сглаживание",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Сглаживает рёбра в 3D-виде; вступает в силу после перезапуска программы",
+ "Bodenschatten": "Тень на полу",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Мягкая тень под моделью (рабочее пространство «Проектирование»)",
+ "Eigenes": "Собственная",
+ "Design als Datei": "Тема в виде файла",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Тема, цвета, значки, форма и шрифт в одном файле – для передачи или для другого компьютера",
+ "Speichern …": "Сохранить …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Тема загружена – она вступит в силу после нажатия «Применить».",
+ "Das ist keine WerkFab-Design-Datei.": "Это не файл темы WerkFab.",
+ "Laden …": "Загрузить …"
+}

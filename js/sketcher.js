@@ -2,6 +2,7 @@
 // drawing tools, handle selection (points, lines, circles), dragging through
 // the constraint solver and automatic coincidence when snapping.
 import * as THREE from 'three';
+import { getSettings } from './settings.js';
 import { state, feature, uid } from './state.js';
 import { distToEntity, arcPts, splinePts, entityPoly } from './profiles.js';
 import { basis, planeMatrix, toLocal, toWorld } from './plane.js';
@@ -51,6 +52,9 @@ export class Sketcher {
 
     const c = vp.canvas;
     c.addEventListener('pointerdown', e => this.onDown(e));
+    const mods = e => { const k = getSettings().snapOffKey; this.noSnap = k === 'ctrl' ? e.ctrlKey || e.metaKey : k === 'none' ? false : e.altKey; };
+    c.addEventListener('pointermove', mods, true);
+    c.addEventListener('pointerdown', mods, true);
     c.addEventListener('pointermove', e => { if (this.active) this.move(e); });
     c.addEventListener('pointerup', e => this.onUp(e));
     c.addEventListener('pointerleave', () => this.active && this.hooks.tip(null));
@@ -120,6 +124,8 @@ export class Sketcher {
   }
 
   snap([x, y]) {
+    // the chosen key held: the point stays where the pointer is (no snapping to points, no grid)
+    if (this.noSnap) { this.snapped = false; this.snapRef = null; return [r2(x), r2(y)]; }
     const tol = this.vp.worldPerPixel() * 9;
     let best = null, bd = tol;
     const H = sketchHandles(this.entities);
@@ -222,6 +228,7 @@ export class Sketcher {
   move(e) {
     const p = this.localPoint(e);
     if (!p) return;
+    this.hooks.cursor?.(p);
     if (this.dragCand && this.down && Math.hypot(e.clientX - this.down[0], e.clientY - this.down[1]) >= 4) this.drag = this.dragCand;
     if (this.drag) {
       const d = [p[0] - this.drag.start[0], p[1] - this.drag.start[1]];
@@ -886,7 +893,7 @@ export class Sketcher {
     if (e.key === 'Delete' || e.key === 'Backspace') return this.deleteSelected();
     if (!e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'x') return this.toggleConstruction();
     //: T = Stutzen (text has no shortcut there)
-    const map = { l: 'line', r: 'rect', c: 'circle', p: 'ngon', s: 'select', o: 'slot', t: 'trim', j: 'project', a: 'arc', e: 'ellipse', b: 'spline', d: 'dim' };
+    const map = { l: 'line', r: 'rect', c: 'circle', g: 'ngon', s: 'select', u: 'slot', o: 'offset', t: 'trim', p: 'project', j: 'project', a: 'arc', e: 'ellipse', b: 'spline', d: 'dim' };
     if (!e.ctrlKey && !e.metaKey && map[e.key.toLowerCase()]) { this.setTool(map[e.key.toLowerCase()]); return true; }
     return false;
   }

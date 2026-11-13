@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Koordinate na pokazivaču miša",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Prikazuje X i Y pokazivača miša u skici dolje lijevo",
+ "Eigenes Design": "Vlastiti dizajn",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Površina iza prozora – vrijedi kada je gore odabran dizajn „Vlastiti“",
+ "Fenster und Leisten": "Prozori i trake",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Tamna boja = tamni dizajn, svijetla boja = svijetli dizajn",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Treba se jasno razlikovati od „Prozori i trake“",
+ "Linien und Ränder": "Linije i rubovi",
+ "Titelleiste": "Naslovna traka",
+ "Kantenglättung": "Izglađivanje rubova",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Izglađuje rubove u 3D prikazu; djeluje nakon ponovnog pokretanja programa",
+ "Bodenschatten": "Sjena na podu",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Mekana sjena ispod modela (radni prostor Konstrukcija)",
+ "Eigenes": "Vlastiti",
+ "Design als Datei": "Dizajn kao datoteka",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Dizajn, boje, simboli, oblik i pismo u jednoj datoteci – za dijeljenje ili za drugo računalo",
+ "Speichern …": "Spremi …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Dizajn učitan – postaje aktivan pomoću „Primijeni“.",
+ "Das ist keine WerkFab-Design-Datei.": "Ovo nije datoteka dizajna WerkFab.",
+ "Laden …": "Učitaj …"
+}

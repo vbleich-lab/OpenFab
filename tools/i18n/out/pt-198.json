@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "Cor de destaque",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "Cor da seleção, dos botões e dos ícones",
+ "Blau": "Azul",
+ "Türkis": "Turquesa",
+ "Grün": "Verde",
+ "Violett": "Violeta",
+ "Rot": "Vermelho",
+ "Größe der Oberfläche": "Tamanho da interface",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = normal; 1,25 para telas de alta resolução ou apresentações",
+ "Fang aussetzen mit": "Suspender o snap com",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "Enquanto a tecla estiver pressionada, o ponto não encaixa nem em pontos nem na grade",
+ "Keine Taste": "Nenhuma tecla",
+ "Name, z. B. Laptop": "Nome, p. ex. Laptop",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "Adotar os valores deste perfil (efetivo após „Aplicar“)",
+ "Das Profil mit den jetzigen Werten überschreiben": "Sobrescrever o perfil com os valores atuais",
+ "Profil „{0}“ aktualisiert": "Perfil „{0}“ atualizado",
+ "Aktualisieren": "Atualizar",
+ "Neues Profil": "Novo perfil",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "Salva todas as preferências atuais com um nome – por exemplo, para laptop, tela grande ou apresentação",
+ "Erst einen Namen für das Profil eingeben.": "Digite primeiro um nome para o perfil.",
+ "Speichern": "Salvar"
+}

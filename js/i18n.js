@@ -5,8 +5,21 @@
 //
 // The German original of everything translated is remembered: code that reads a text back from the page uses
 // deText(el) / deAttr(el, name).
-export const LANGS = { de: 'Deutsch', en: 'English', zh: '中文' };
+export const LANGS = {
+  de: 'Deutsch', en: 'English', gb: 'English (UK)', bs: 'Bosanski', cs: 'Čeština', da: 'Dansk', es: 'Español', fr: 'Français', gl: 'Galego', hr: 'Hrvatski',
+  it: 'Italiano', lv: 'Latviešu', ms: 'Bahasa Melayu', nl: 'Nederlands', nb: 'Norsk bokmål', pl: 'Polski', pt: 'Português (Brasil)', fi: 'Suomi', tr: 'Türkçe',
+  ru: 'Русский', sr: 'Српски', uk: 'Українська', ka: 'ქართული', ja: '日本語', ko: '한국어', zh: '中文',
+};
+// what the document is declared as (hyphenation, fonts, screen readers)
+const HTML_LANG = { zh: 'zh-CN', pt: 'pt-BR', gb: 'en-GB' };
+// language tags of the system that do not start with the code of their dictionary
+const TAGS = { 'en-gb': 'gb', 'en-au': 'gb', 'en-nz': 'gb', 'en-ie': 'gb', 'en-za': 'gb', 'en-in': 'gb', no: 'nb', nn: 'nb' };
 const KEY = 'openfab.lang';
+
+// the stored choice: a language code, or 'system' (follow the languages of the browser / operating system)
+export function langChoice() {
+  try { const saved = localStorage.getItem(KEY); return saved && LANGS[saved] ? saved : 'system'; } catch { return 'system'; }
+}
 
 function detect() {
   try {
@@ -14,7 +27,7 @@ function detect() {
     if (saved && LANGS[saved]) return saved;
   } catch { /* no storage */ }
   for (const l of (typeof navigator !== 'undefined' && navigator.languages) || []) {
-    const c = String(l).slice(0, 2).toLowerCase();
+    const tag = String(l).toLowerCase(), c = TAGS[tag] || TAGS[tag.slice(0, 2)] || tag.slice(0, 2);
     if (LANGS[c]) return c;
   }
   // unknown language: English reaches more people than German
@@ -25,12 +38,13 @@ export let lang = detect();
 let exact = null; // Map: German text → translation
 let byPrefix = null; // Map: first characters → [{ re, to }], for texts with changing parts
 let loose = []; // patterns that start with a changing part
+let upper = null; // Map: German text in capitals → translation in capitals (window and panel headings)
 const cache = new Map();
 const PRE = 3;
 
 export function setLanguage(code) {
-  if (!LANGS[code]) return;
-  try { localStorage.setItem(KEY, code); } catch { /* no storage */ }
+  if (code !== 'system' && !LANGS[code]) return;
+  try { if (code === 'system') localStorage.removeItem(KEY); else localStorage.setItem(KEY, code); } catch { /* no storage */ }
   if (typeof location !== 'undefined') location.reload();
 }
 
@@ -40,9 +54,16 @@ function compile(dict) {
   exact = new Map();
   byPrefix = new Map();
   loose = [];
+  upper = new Map();
   for (const [k, v] of Object.entries(dict)) {
     if (typeof v !== 'string' || !v) continue;
-    if (!/\{\d+\}/.test(k)) { exact.set(k, v); continue; }
+    if (!/\{\d+\}/.test(k)) {
+      exact.set(k, v);
+      // headings are written in capitals by the program: "Bohrungen erkennen" is shown as "BOHRUNGEN ERKENNEN"
+      const ku = k.toUpperCase();
+      if (ku !== k && !upper.has(ku)) upper.set(ku, v.toUpperCase());
+      continue;
+    }
     // "Maß {0} von {1}" → /^Maß (.+?) von (.+?)$/ with the groups in the order of their numbers
     const order = [];
     const src = k.split(/(\{\d+\})/).map(part => { const m = /^\{(\d+)\}$/.exec(part); if (!m) return esc(part); order.push(+m[1]); return '([\\s\\S]*?)'; }).join('');
@@ -63,6 +84,13 @@ function compile(dict) {
 function lookup(s, depth) {
   const hit = exact.get(s);
   if (hit != null) return hit;
+  if (s === s.toUpperCase() && /\p{Lu}{3}/u.test(s)) {
+    const up = upper.get(s);
+    if (up != null) return up;
+    // "2D-TASCHE : NAME" – the kind in front of the name of an operation or setup
+    const cut = s.indexOf(' : ');
+    if (cut > 0) { const head = exact.get(s.slice(0, cut)) ?? upper.get(s.slice(0, cut)); if (head != null) return head + s.slice(cut); }
+  }
   if (s.length > 1200 || depth > 2) return null;
   for (const list of [byPrefix.get(s.slice(0, PRE)), loose]) {
     if (!list) continue;
@@ -181,13 +209,17 @@ export function deAttr(el, name) {
 export async function initI18n() {
   if (lang === 'de' || typeof document === 'undefined') return;
   try {
-    compile((await import(`./lang/${lang}.js`)).default);
+    const own = (await import(`./lang/${lang}.js`)).default;
+    // a text a language does not have yet is shown in English rather than in German
+    let base = {};
+    if (lang !== 'en') { try { base = (await import('./lang/en.js')).default; } catch { /* German stays */ } }
+    compile({ ...base, ...own });
   } catch (e) {
     console.warn('Sprache nicht geladen:', lang, e);
     lang = 'de';
     return;
   }
-  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+  document.documentElement.lang = HTML_LANG[lang] || lang;
   tree(document.documentElement);
   cssTexts();
   if (document.title) document.title = t(document.title);

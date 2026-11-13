@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "マウスポインターの座標",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "スケッチ中にポインターのXとYを左下に表示します",
+ "Eigenes Design": "カスタムテーマ",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "ウィンドウの背面の領域です。上で「カスタム」テーマを選択している場合に有効です",
+ "Fenster und Leisten": "ウィンドウとバー",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "暗い色＝ダークテーマ、明るい色＝ライトテーマ",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "「ウィンドウとバー」とはっきり区別できる色にしてください",
+ "Linien und Ränder": "線と枠",
+ "Titelleiste": "タイトルバー",
+ "Kantenglättung": "アンチエイリアス",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "3Dビューのエッジを滑らかにします。プログラムの再起動後に有効になります",
+ "Bodenschatten": "地面の影",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "モデルの下に柔らかい影を表示します（作業領域：設計）",
+ "Eigenes": "カスタム",
+ "Design als Datei": "テーマをファイルに",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "テーマ、色、アイコン、形状、フォントを1つのファイルにまとめます。共有や別のコンピューターへの移行用です",
+ "Speichern …": "保存 …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "テーマを読み込みました。「適用」で有効になります。",
+ "Das ist keine WerkFab-Design-Datei.": "WerkFabのテーマファイルではありません。",
+ "Laden …": "読み込み …"
+}

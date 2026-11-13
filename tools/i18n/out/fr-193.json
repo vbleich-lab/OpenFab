@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Coordonnées du pointeur",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Affiche X et Y du pointeur en bas à gauche dans l’esquisse",
+ "Eigenes Design": "Thème personnalisé",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Arrière-plan derrière les fenêtres – s’applique si le thème « Personnalisé » est choisi ci-dessus",
+ "Fenster und Leisten": "Fenêtres et barres",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Couleur sombre = thème sombre, couleur claire = thème clair",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Doit se distinguer nettement de « Fenêtres et barres »",
+ "Linien und Ränder": "Lignes et bordures",
+ "Titelleiste": "Barre de titre",
+ "Kantenglättung": "Anticrénelage",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Lisse les arêtes dans la vue 3D ; prend effet après un redémarrage du programme",
+ "Bodenschatten": "Ombre au sol",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Ombre douce sous le modèle (espace de travail CONCEPTION)",
+ "Eigenes": "Personnalisé",
+ "Design als Datei": "Thème en fichier",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Thème, couleurs, icônes, forme et police dans un seul fichier – pour le partager ou l’utiliser sur un autre ordinateur",
+ "Speichern …": "Enregistrer …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Thème chargé – il prend effet avec « Appliquer ».",
+ "Das ist keine WerkFab-Design-Datei.": "Ce n’est pas un fichier de thème WerkFab.",
+ "Laden …": "Charger …"
+}

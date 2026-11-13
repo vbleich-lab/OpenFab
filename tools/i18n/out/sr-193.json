@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Координате на показивачу миша",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Приказује X и Y показивача миша у скици доле лево",
+ "Eigenes Design": "Сопствени дизајн",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Површина иза прозора – важи када је изнад изабран дизајн „Сопствени“",
+ "Fenster und Leisten": "Прозори и траке",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Тамна боја = тамни дизајн, светла боја = светли дизајн",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Требало би да се јасно разликује од „Прозори и траке“",
+ "Linien und Ränder": "Линије и ивице",
+ "Titelleiste": "Насловна трака",
+ "Kantenglättung": "Углађивање ивица",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Углађује ивице у 3D приказу; делује након поновног покретања програма",
+ "Bodenschatten": "Сенка на поду",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Мека сенка испод модела (радни простор Конструкција)",
+ "Eigenes": "Сопствени",
+ "Design als Datei": "Дизајн као датотека",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Дизајн, боје, симболи, облик и писмо у једној датотеци – за прослеђивање или за други рачунар",
+ "Speichern …": "Сачувај …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Дизајн учитан – постаје активан помоћу „Примени“.",
+ "Das ist keine WerkFab-Design-Datei.": "Ово није датотека дизајна WerkFab.",
+ "Laden …": "Учитај …"
+}

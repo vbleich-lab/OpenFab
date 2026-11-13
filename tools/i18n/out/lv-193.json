@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Kursora koordinātes",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Skicē apakšā pa kreisi rāda kursora X un Y",
+ "Eigenes Design": "Pielāgots dizains",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Laukums aiz logiem – darbojas, ja augšā izvēlēts dizains „Pielāgots“",
+ "Fenster und Leisten": "Logi un joslas",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Tumša krāsa = tumšs dizains, gaiša krāsa = gaišs dizains",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Tai jāizceļas uz „Logi un joslas“ fona",
+ "Linien und Ränder": "Līnijas un malas",
+ "Titelleiste": "Virsraksta josla",
+ "Kantenglättung": "Malu izlīdzināšana",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Izlīdzina malas 3D skatā; stājas spēkā pēc programmas restartēšanas",
+ "Bodenschatten": "Grīdas ēna",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Mīksta ēna zem modeļa (darba vide Konstruēšana)",
+ "Eigenes": "Pielāgots",
+ "Design als Datei": "Dizains failā",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Dizains, krāsas, simboli, forma un burti vienā failā – nodošanai tālāk vai citam datoram",
+ "Speichern …": "Saglabāt …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Dizains ielādēts – ar „Lietot“ tas stāsies spēkā.",
+ "Das ist keine WerkFab-Design-Datei.": "Šis nav WerkFab dizaina fails.",
+ "Laden …": "Ielādēt …"
+}

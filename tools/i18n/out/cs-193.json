@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "Souřadnice u kurzoru myši",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "Zobrazuje ve skice X a Y kurzoru myši vlevo dole",
+ "Eigenes Design": "Vlastní vzhled",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "Plocha za okny – platí, je-li nahoře zvolen vzhled „Vlastní“",
+ "Fenster und Leisten": "Okna a panely",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "Tmavá barva = tmavý vzhled, světlá barva = světlý vzhled",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "Měla by se zřetelně lišit od „Okna a panely“",
+ "Linien und Ränder": "Čáry a okraje",
+ "Titelleiste": "Záhlaví okna",
+ "Kantenglättung": "Vyhlazování hran",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "Vyhlazuje hrany v 3D zobrazení; projeví se po restartu programu",
+ "Bodenschatten": "Stín na podlaze",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "Měkký stín pod modelem (pracovní prostor Konstrukce)",
+ "Eigenes": "Vlastní",
+ "Design als Datei": "Vzhled jako soubor",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "Vzhled, barvy, symboly, tvar a písmo v jednom souboru – k předání nebo pro jiný počítač",
+ "Speichern …": "Uložit …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "Vzhled načten – platnosti nabude tlačítkem „Použít“.",
+ "Das ist keine WerkFab-Design-Datei.": "Toto není soubor vzhledu WerkFab.",
+ "Laden …": "Načíst …"
+}

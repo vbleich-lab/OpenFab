@@ -1,0 +1,23 @@
+{
+ "Akzentfarbe": "Colore di risalto",
+ "Farbe von Auswahl, Schaltflächen und Symbolen": "Colore di selezione, pulsanti e icone",
+ "Blau": "Blu",
+ "Türkis": "Turchese",
+ "Grün": "Verde",
+ "Violett": "Viola",
+ "Rot": "Rosso",
+ "Größe der Oberfläche": "Dimensione dell’interfaccia",
+ "1 = normal; 1,25 für hochauflösende Bildschirme oder Vorführungen": "1 = normale; 1,25 per schermi ad alta risoluzione o presentazioni",
+ "Fang aussetzen mit": "Sospendi snap con",
+ "Solange die Taste gedrückt ist, rastet der Punkt weder an Punkten noch am Raster ein": "Finché il tasto è premuto, il punto non si aggancia né ai punti né alla griglia",
+ "Keine Taste": "Nessun tasto",
+ "Name, z. B. Laptop": "Nome, es. Portatile",
+ "Die Werte dieses Profils übernehmen (wirksam nach „Übernehmen“)": "Adottare i valori di questo profilo (efficace dopo «Applica»)",
+ "Das Profil mit den jetzigen Werten überschreiben": "Sovrascrivere il profilo con i valori attuali",
+ "Profil „{0}“ aktualisiert": "Profilo «{0}» aggiornato",
+ "Aktualisieren": "Aggiorna",
+ "Neues Profil": "Nuovo profilo",
+ "Speichert alle jetzigen Einstellungen unter einem Namen – etwa für Laptop, großen Bildschirm oder Vorführung": "Salva tutte le preferenze attuali con un nome, ad esempio per un portatile, uno schermo grande o una presentazione",
+ "Erst einen Namen für das Profil eingeben.": "Inserire prima un nome per il profilo.",
+ "Speichern": "Salva"
+}
