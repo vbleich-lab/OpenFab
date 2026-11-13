@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "წიბო {0} (წრეწირი R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "წიბო {0} (რკალი R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} კონუსური/სფერული წახნაგი, როგორც ნამდვილი წახნაგები",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}“ ახლა ასევე სხეულია (შესაძლებელია მომრგვალება, ამოჭრა და 2D დამუშავება){1}{2}{3}. ბადე დამალულია.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "წიბო {0}: რკალი ძალიან ვიწროა ამ ფლანგისთვის",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "წიბო {0}: ფლანგი მოხრილ წიბოზე – მისი კიდე ფორმირებისას {1} %-ით იკუმშება (ნაოჭების საფრთხე); გაშლა იქ მიახლოებითია.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "წიბო {0}: ფლანგი მოხრილ წიბოზე – მისი კიდე ფორმირებისას {1} %-ით იჭიმება (ბზარების საფრთხე); გაშლა იქ მიახლოებითია.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "წიბო {0}: მოხრილ წიბოზე არსებულ ფლანგში ამოჭრები არ იჭრება."
+}

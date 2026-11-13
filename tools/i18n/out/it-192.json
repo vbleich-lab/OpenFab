@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Tasca sul diametro",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Tasca sulla circonferenza ricavata dai contorni chiusi di uno schizzo disposto lungo l'asse di rotazione (i contorni interni restano come isole). Lo schizzo viene avvolto sul diametro; una fresa a candela motorizzata, rivolta verso l'asse, svuota dall'interno verso l'esterno (Z e C si muovono insieme; Fanuc: interpolazione cilindrica G7.1). La fresa penetra in direzione radiale.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Valore di tolleranza seguito dai riferimenti (separati da spazi), ad es. Ø0,05 A B. Le aggiunte tra parentesi vengono disegnate come lettera in un cerchio: Ø0,05(M) A(M) – (M) massimo materiale, (L) minimo materiale, (P) proiettata, (F) stato libero, (E) requisito di inviluppo",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Tornitura: asse Y attivo (piano X/Y; indicare qui anche il bloccaggio C della macchina)",
+ "Drehen: Y-Achse aus": "Tornitura: asse Y disattivato",
+ "Y-Achse statt Polar-Interpolation": "Asse Y al posto dell'interpolazione polare",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Tornio con asse Y: spianature per chiave, contorni e tasche sulla faccia frontale vengono eseguiti con il pezzo fermo (C bloccato) in X e Y, con maggiore precisione rispetto all'interpolazione polare. Ciò che supera la corsa Y resta in interpolazione polare.",
+ "Y-Verfahrweg (±)": "Corsa Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Corsa massima dell'asse Y dal centro, in mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: il percorso supera la corsa Y (± {1} mm) – emesso con interpolazione polare",
+ "Tasche Mantelfläche (C-Achse)": "Tasca sul diametro (asse C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Lo schizzo della tasca deve essere disposto lungo l'asse di rotazione (viene avvolto sulla circonferenza); per il lato frontale usare «Tasca su faccia piana»",
+ "Die Tasche liegt in Z nicht am Teil": "La tasca non si trova sul pezzo in Z"
+}

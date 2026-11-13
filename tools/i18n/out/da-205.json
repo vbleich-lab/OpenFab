@@ -1,0 +1,10 @@
+{
+ "Laschenmaß": "Flangemål",
+ "Gerader Teil (nach der Biegung)": "Ret del (efter bukningen)",
+ "Außenmaß (ab Außenfläche der Platte)": "Ydermål (fra pladens yderside)",
+ "Innenmaß (ab Innenfläche der Platte)": "Indermål (fra pladens inderside)",
+ "Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil. Auch eine Lasche an einer gebogenen Kante wird an einer echten Ecke auf Gehrung geschnitten (dort ohne Eckfreistellung).": "Lukket: flanger på to nabokanter løber til hjørnets vinkelhalveringslinje og lader spalten stå åben dér. Hjørneudsparingen sidder, hvor bukkezonerne krydser hinanden – i udfoldningen og i den bukkede del. Også en flange på en buet kant skæres på gering ved et ægte hjørne (dér uden hjørneudsparing).",
+ "Presskraft": "Pressekraft",
+ "Presskraft: Richtwert für freies Biegen im Gesenk V = {0} mm mit Zugfestigkeit {1} N/mm² ({2}); kürzester Schenkel dafür etwa {3} mm. Größte Biegung: {4} kN.": "Pressekraft: vejledende værdi for fri bukning i matrice V = {0} mm ved trækstyrke {1} N/mm² ({2}); korteste ben hertil ca. {3} mm. Største bukning: {4} kN.",
+ "Kante {0}: das Laschenmaß {1} mm ist kleiner als die Biegung ({2} mm)": "Kant {0}: flangemålet {1} mm er mindre end bukningen ({2} mm)"
+}

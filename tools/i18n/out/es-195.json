@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Rampa a lo largo de la trayectoria",
+ "Gerade (radial)": "Recta (radial)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Cajera en la circunferencia a partir de los contornos cerrados de un boceto situado a lo largo del eje de torneado (los contornos interiores permanecen como islas). El boceto se enrolla sobre el diámetro; una fresa de punta plana motorizada orientada hacia el eje desbasta de dentro hacia fuera (Z y C se mueven conjuntamente; Fanuc: interpolación cilíndrica G7.1). La fresa penetra en rampa a lo largo del anillo más interior.",
+ "+ Neue Maschine": "+ Nueva máquina",
+ "+ Neue Vorgabe": "+ Nuevo preajuste"
+}

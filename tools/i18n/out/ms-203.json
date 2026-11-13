@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Tepi {0} (bulatan R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Tepi {0} (lengkok R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} muka kon/sfera sebagai muka sebenar",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}“ kini juga merupakan jasad (fillet, pemotongan dan pemesinan 2D boleh dilakukan){1}{2}{3}. Jejaring disembunyikan.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Tepi {0}: lengkok terlalu sempit untuk bebibir ini",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Tepi {0}: bebibir pada tepi melengkung – pinggirnya dimampatkan sebanyak {1} % semasa pembentukan (risiko berkedut); bentangan di situ hanyalah anggaran.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Tepi {0}: bebibir pada tepi melengkung – pinggirnya diregangkan sebanyak {1} % semasa pembentukan (risiko retak); bentangan di situ hanyalah anggaran.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Tepi {0}: potongan dalam bebibir pada tepi melengkung tidak dipotong."
+}

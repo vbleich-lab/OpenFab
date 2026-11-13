@@ -60,7 +60,8 @@ for (const f of files) {
   ok('Reihenfolge der Platzhalter darf wechseln', t('Schruppen: 3 von 7') === '7 total, 3 done: Schruppen', t('Schruppen: 3 von 7'));
   ok('Eingesetzter Teil wird selbst übersetzt', t('Restmaterial: Tasche') === 'Rest material: Pocket', t('Restmaterial: Tasche'));
   ok('Das genauere Muster gewinnt', t('Restmaterial: Kontur (Vorfräser Ø12)') === 'Rest material: Contour (previous cutter Ø12)', t('Restmaterial: Kontur (Vorfräser Ø12)'));
-  ok('Zahlen und Namen bleiben', t('12,5') === '12,5' && t('M8×1,25') === 'M8×1,25');
+  ok('Zeichen vor einer Meldung bleibt, die Meldung wird übersetzt', t('⚠ Restmaterial: Tasche') === '⚠ Rest material: Pocket' && t('⚠ Unbekannt') === '⚠ Unbekannt', t('⚠ Restmaterial: Tasche'));
+  ok('Zahlen und Namen bleiben',t('12,5') === '12,5' && t('M8×1,25') === 'M8×1,25');
   ok('Texte in Markup (Export)', tHtml('<text x="1">Schnitt A–A</text><td>Tasche</td><style>.a{b:c}</style>') === '<text x="1">Section A–A</text><td>Pocket</td><style>.a{b:c}</style>', tHtml('<text x="1">Schnitt A–A</text><td>Tasche</td>'));
   useDictionary(null);
   ok('Ohne Wörterbuch bleibt alles deutsch', t('Abbrechen') === 'Abbrechen' && tHtml('<b>Tasche</b>') === '<b>Tasche</b>');

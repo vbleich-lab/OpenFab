@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "외주 포켓",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "회전축 방향으로 놓인 스케치의 닫힌 윤곽으로 외주면에 포켓을 만듭니다(내부 윤곽은 아일랜드로 남음). 스케치는 지름에 감겨 적용되며, 축을 향한 구동 엔드밀이 안쪽에서 바깥쪽으로 가공합니다(Z와 C가 함께 이동, Fanuc: 원통 보간 G7.1). 엔드밀은 반경 방향으로 진입합니다.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "공차값 뒤에 데이텀(공백으로 구분), 예: Ø0,05 A B. 괄호 안의 추가 기호는 원 안의 문자로 그려집니다: Ø0,05(M) A(M) – (M) 최대 실체, (L) 최소 실체, (P) 돌출 공차역, (F) 자유 상태, (E) 포락 조건",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "선삭: Y축 켜기(X/Y 평면, 여기에 기계의 C 클램프도 입력)",
+ "Drehen: Y-Achse aus": "선삭: Y축 끄기",
+ "Y-Achse statt Polar-Interpolation": "극좌표 보간 대신 Y축 사용",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Y축이 있는 선반: 단면의 렌치 평면, 윤곽, 포켓을 공작물을 고정한 채(C 고정) X와 Y로 가공합니다. 극좌표 보간보다 정확합니다. Y축 이동 범위를 넘는 부분은 극좌표 보간으로 남습니다.",
+ "Y-Verfahrweg (±)": "Y축 이동 범위(±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "중심에서 Y축의 최대 이동 거리(mm)",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: 경로가 Y축 이동 범위(± {1} mm)를 벗어납니다. 극좌표 보간으로 출력되었습니다",
+ "Tasche Mantelfläche (C-Achse)": "외주면 포켓(C축)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "포켓 스케치는 회전축 방향으로 놓여야 합니다(외주에 감겨 적용됨). 단면에는 „단면 포켓“을 사용하세요",
+ "Die Tasche liegt in Z nicht am Teil": "포켓이 Z 방향에서 공작물 위에 있지 않습니다"
+}

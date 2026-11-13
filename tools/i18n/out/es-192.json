@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Cajera en diámetro",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Cajera en la circunferencia a partir de los contornos cerrados de un boceto situado a lo largo del eje de giro (los contornos interiores se conservan como islas). El boceto se enrolla sobre el diámetro; una fresa de vástago accionada, dirigida hacia el eje, vacía de dentro hacia fuera (Z y C se mueven conjuntamente; Fanuc: interpolación cilíndrica G7.1). La fresa penetra radialmente.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Valor de tolerancia seguido de las referencias (separadas por espacios), p. ej. Ø0,05 A B. Los añadidos entre paréntesis se dibujan como una letra dentro de un círculo: Ø0,05(M) A(M) – (M) máxima condición de material, (L) mínima condición de material, (P) proyectada, (F) estado libre, (E) condición de envolvente",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Torneado: eje Y activado (plano X/Y; indique aquí también el bloqueo C de la máquina)",
+ "Drehen: Y-Achse aus": "Torneado: eje Y desactivado",
+ "Y-Achse statt Polar-Interpolation": "Eje Y en lugar de interpolación polar",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Torno con eje Y: las caras de llave, contornos y cajeras en la cara frontal se mecanizan con la pieza fija (C fijo) en X e Y, con más precisión que la interpolación polar. Lo que excede el recorrido Y se mantiene con interpolación polar.",
+ "Y-Verfahrweg (±)": "Recorrido Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Recorrido máximo del eje Y desde el centro, en mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: la trayectoria excede el recorrido Y (± {1} mm); se emite con interpolación polar",
+ "Tasche Mantelfläche (C-Achse)": "Cajera en diámetro (eje C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "El boceto de la cajera debe estar situado a lo largo del eje de giro (se enrolla sobre la circunferencia); para la cara frontal, use «Cajera en cara plana»",
+ "Die Tasche liegt in Z nicht am Teil": "La cajera no se encuentra sobre la pieza en Z"
+}

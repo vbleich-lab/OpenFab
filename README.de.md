@@ -11,7 +11,7 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 > [!CAUTION]
 > **Jedes NC-Programm muss vor dem ersten Einsatz geprüft werden – an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang, ohne Werkstück oder mit Abstand in Z) oder in einem externen NC-Simulator.** Die Simulation in WerkFab ersetzt diese Prüfung nicht. WerkFab ist freie Software ohne jede Gewährleistung; für Schäden an Maschine, Werkzeug, Werkstück oder Personen wird nicht gehaftet (siehe [Sicherheit](#sicherheit-nc-programme-immer-vorher-simulieren)).
 
-> **Status: Release Candidate 9 (v1.0.0-rc.9).** Der Funktionsumfang ist vollständig für 1.0.
+> **Status: Release Candidate 10 (v1.0.0-rc.10).** Der Funktionsumfang ist vollständig für 1.0.
 
 ![Konstruktion über die Zeitachse, danach Fräsbahnen und Simulation mit Materialabtrag](docs/media/demo.gif)
 
@@ -51,7 +51,7 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 - **Extrusion mit Schrägungswinkel**; Trägheitsmomente in den Körpereigenschaften
 - **Konstruktionsgeometrie**: Ebenen (versetzt, unter Winkel, durch 3 Punkte, tangential), Achsen und Punkte
 - **Flächen**: Extrusion, Rotation, Loft, Pflaster, Versatz, Vernähen, Trennen, Verlängern, Füllen
-- **Blech**: Laschen, Lasche an Lasche (U-Falz, Z-Stufe, 180°-Umschlag), offene oder geschlossene Ecken mit Eckfreistellung (rund oder eckig), Abwicklung mit Biegetabelle
+- **Blech**: Laschen, Lasche an Lasche (U-Falz, Z-Stufe, 180°-Umschlag), offene oder geschlossene Ecken mit Eckfreistellung (rund oder eckig), Biegelinien, Sicken, Durchzüge, Kiemen, Prägungen, Abwicklung mit Biegetabelle, Schachteln mit Schneidprogramm je Tafel
 - **Zeitachse** mit Zwischenspeicher: Änderungen berechnen nur die betroffenen Features neu, mit schrittweiser Berechnung und Fortschrittsanzeige
 
 ### Baugruppen
@@ -84,7 +84,7 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 - **Steuerungszyklen** statt ausgerechneter Bahnen: Bohr- und Taschenzyklen, Zapfen, Lochkreise und -raster, Dreh-Schruppzyklus und Gewindezyklus
 
 ### Bedienung
-- **Sprachen**: 26 – Deutsch, Englisch (US und UK), Chinesisch, Französisch, Spanisch, Italienisch, Portugiesisch (Brasilien), Niederländisch, Polnisch, Türkisch, Japanisch, Koreanisch, Russisch, Tschechisch, Dänisch, Finnisch, Norwegisch, Ukrainisch, Kroatisch, Bosnisch, Serbisch, Georgisch, Lettisch, Malaiisch und Galicisch (Voreinstellungen → Einheiten- und Wertanzeige → Sprache; „System“ folgt der Sprache des Browsers oder Betriebssystems). Alles außer Deutsch, Englisch und Chinesisch ist maschinell übersetzt und noch von keinem Muttersprachler geprüft – Korrekturen sind willkommen
+- **Sprachen**: 28 – Deutsch, Englisch (US und UK), Chinesisch, Französisch, Spanisch, Italienisch, Portugiesisch (Brasilien), Niederländisch, Polnisch, Türkisch, Japanisch, Koreanisch, Russisch, Tschechisch, Dänisch, Finnisch, Norwegisch, Ukrainisch, Kroatisch, Bosnisch, Serbisch, Georgisch, Lettisch, Malaiisch, Galicisch, Arabisch und Hebräisch – die beiden letzten mit gespiegelter Oberfläche (Voreinstellungen → Einheiten- und Wertanzeige → Sprache; „System“ folgt der Sprache des Browsers oder Betriebssystems). Alles außer Deutsch, Englisch und Chinesisch ist maschinell übersetzt und noch von keinem Muttersprachler geprüft – Korrekturen sind willkommen
 - **Aussehen**: zehn Designs (hell, dunkel, hoher Kontrast), frei wählbare Akzentfarbe, Farbe und Größe der Symbole, Dichte, Eckenform, Schrift, Deckkraft der Fenster, Größe der Oberfläche und benannte Profile aller Einstellungen
 - **Updates**: Das Programm sieht beim Start auf GitHub nach einer neuen Version. Die installierte Windows-App und das Linux-AppImage laden und installieren sie auf Wunsch selbst; der Windows-Ordner ohne Installation, macOS und die Browser-Version zeigen einen Hinweis mit der Download-Seite. Diese Abfrage ist die einzige Verbindung ins Netz, die WerkFab von sich aus aufbaut, und sie lässt sich abschalten (Voreinstellungen → Allgemein → Updates).
 - Markierungsmenü (Rechtsklick), ViewCube, Tastenkürzel (z. B. Q Drücken/Ziehen, F Verrundung, M Verschieben, I Messen, X Konstruktionslinie)

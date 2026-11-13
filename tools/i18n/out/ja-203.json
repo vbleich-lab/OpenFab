@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "エッジ {0}(円 R{1}、{2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "エッジ {0}(円弧 R{1}、{2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– 円錐面/球面 {0}個を実際の面として",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "「{0}」はボディにもなりました(フィレット、切り抜き、2D加工が可能です){1}{2}{3}。メッシュは非表示になっています。",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "エッジ {0}:円弧がこのフランジには小さすぎます",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "エッジ {0}:曲線エッジ上のフランジです。成形時にその縁が {1} % 圧縮されます(しわの恐れ)。この部分のブランクは近似です。",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "エッジ {0}:曲線エッジ上のフランジです。成形時にその縁が {1} % 伸びます(割れの恐れ)。この部分のブランクは近似です。",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "エッジ {0}:曲線エッジ上のフランジの切り欠きは切り抜かれません。"
+}

@@ -463,14 +463,21 @@ export function makeDrawing(bodies, opts) {
       const p = toSheet(dm.view, dm.a), ang = ((+dm.ang || 45) * Math.PI) / 180, ux = Math.cos(ang), uy = -Math.sin(ang), len = +dm.off || 14;
       const knee = [p[0] + ux * len, p[1] + uy * len], right = ux >= 0;
       line(knee, p, 'dim arrow1');
-      const cells = String(dm.text || '').trim().split(/[\s|]+/).filter(Boolean), H = 6, ws = [7, ...cells.map(c => Math.max(7, c.length * 1.9 + 2.6))];
+      // a cell may end with a modifier in brackets – (M) maximum material, (L) least material, (P) projected,
+      // (F) free state, (E) envelope, (U) unequal: drawn as the letter in a circle behind the value or the datum
+      const MOD = 4.4, cells = String(dm.text || '').trim().split(/[\s|]+/).filter(Boolean).map(c => { const m = /^(.+?)\(([MLPFEU])\)$/i.exec(c); return m ? { t: m[1], mod: m[2].toUpperCase() } : { t: c, mod: '' }; });
+      const H = 6, ws = [7, ...cells.map(c => Math.max(7, c.t.length * 1.9 + 2.6 + (c.mod ? MOD : 0)))];
       const total = ws.reduce((a, b) => a + b, 0), x0 = right ? knee[0] + 3 : knee[0] - 3 - total, y0 = knee[1] - H / 2;
       line(knee, [right ? x0 : x0 + total, knee[1]], 'dim');
       line([x0, y0], [x0 + total, y0], 'dim'); line([x0, y0 + H], [x0 + total, y0 + H], 'dim');
       let x = x0;
       line([x, y0], [x, y0 + H], 'dim');
       ws.forEach((w, i) => {
-        if (i) text(x + w / 2, knee[1] + 1.3, cells[i - 1], 'dtx');
+        if (i) {
+          const c = cells[i - 1];
+          text(x + (w - (c.mod ? MOD : 0)) / 2, knee[1] + 1.3, c.t, 'dtx');
+          if (c.mod) { const mx = x + w - MOD / 2 - 0.5; circle(mx, knee[1], 1.9); text(mx, knee[1] + 0.95, c.mod, 'dtx gm'); }
+        }
         x += w;
         line([x, y0], [x, y0 + H], 'dim');
       });
@@ -615,6 +622,77 @@ export function makeDrawing(bodies, opts) {
     });
   }
 
+  // ----- flat pattern of a sheet metal part (opts.flat = { outline, table, size, thickness }): outline, bend
+  // lines (dash-dot, B1 …), overall size and the bend table; a view of its own that can be moved -----
+  let flatInfo = null;
+  if (opts.flat?.outline?.length) {
+    cur = 'flat';
+    const F = opts.flat;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of F.outline) for (const [x, y] of p) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    const bw = x1 - x0, bh = y1 - y0;
+    // as large as the other views if it fits into the lower right part of the sheet, else the next smaller scale
+    const fs2 = SCALES.find(s => s <= scale && bw * s <= SW * 0.42 && bh * s <= SH * 0.36) ?? SCALES[SCALES.length - 1];
+    const rows = F.table?.length || 0, below = 16 + rows * 4;
+    const px = SW - 10 - gap - bw * fs2 - 14, py = SH - 10 - tbH - (opts.parts?.length ? (opts.parts.length + 1) * 6 : 0) - 12 - below - bh * fs2;
+    const S2 = ([x, y]) => [px + (x - x0) * fs2, py + (y1 - y) * fs2];
+    for (const p of F.outline) L.push(`<path d="${p.map((q, i) => `${i ? 'L' : 'M'}${S2(q).map(v => v.toFixed(3)).join(' ')}`).join('')}Z" class="vis" fill="none"/>`);
+    (F.table || []).forEach((b, i) => {
+      if (b.centre.length > 2) {
+        // the bend line of a curved edge
+        L.push(`<path d="${b.centre.map((q, j) => `${j ? 'L' : 'M'}${S2(q).map(v => v.toFixed(3)).join(' ')}`).join('')}" class="ctr" fill="none"/>`);
+        const m = S2(b.centre[b.centre.length >> 1]);
+        text(m[0], m[1] - 1, `B${i + 1}`, 'gm');
+        return;
+      }
+      const a = S2(b.centre[0]), c = S2(b.centre[1]);
+      line(a, c, 'ctr');
+      text((a[0] + c[0]) / 2, (a[1] + c[1]) / 2 - 1, `B${i + 1}`, 'gm');
+    });
+    // overall size: width below, height on the left
+    const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',');
+    const yb = py + bh * fs2 + 7, xl = px - 7;
+    line([px, py + bh * fs2 + 1], [px, yb + 1.5], 'ext'); line([px + bw * fs2, py + bh * fs2 + 1], [px + bw * fs2, yb + 1.5], 'ext');
+    line([px, yb], [px + bw * fs2, yb], 'dim arrow2');
+    text(px + (bw * fs2) / 2, yb - 1, fmt(bw), 'dtx');
+    line([px - 1, py], [xl - 1.5, py], 'ext'); line([px - 1, py + bh * fs2], [xl - 1.5, py + bh * fs2], 'ext');
+    line([xl, py], [xl, py + bh * fs2], 'dim arrow2');
+    text(xl - 1, py + (bh * fs2) / 2, fmt(bh), 'dtx', 'middle', -90);
+    text(px + (bw * fs2) / 2, yb + 6, `Abwicklung${fs2 !== scale ? ` (${scaleLabel(fs2)})` : ''} · t = ${fmt(F.thickness)} mm`, 'lbl');
+    // (one text per direction, so every one is a whole sentence for the translations)
+    (F.table || []).forEach((b, i) => {
+      const n = i + 1, a = fmt(Math.abs(b.angle)), rr = fmt(b.radius), len = fmt(b.length);
+      const s = b.level ? (b.angle > 0 ? `B${n}: ${a}° gleichsinnig · R${rr} · Biegelänge ${len}` : `B${n}: ${a}° gegensinnig · R${rr} · Biegelänge ${len}`) : b.angle > 0 ? `B${n}: ${a}° hoch · R${rr} · Biegelänge ${len}` : `B${n}: ${a}° runter · R${rr} · Biegelänge ${len}`;
+      text(px, yb + 11 + i * 4, s, 'gm', 'start');
+    });
+    // where the bends are: ordinate dimensions of the bend lines from the lower left corner of the blank
+    // (lines across on the right, upright lines along the top; slanted bend lines are left out)
+    let ordR = 0, ordT = 0;
+    const seenR = new Set(), seenT = new Set();
+    for (const b of F.table || []) {
+      if (b.centre.length > 2) continue;
+      const [p, q] = b.centre;
+      if (Math.abs(p[1] - q[1]) < 1e-6) {
+        const v = p[1] - y0, key = v.toFixed(2);
+        if (seenR.has(key)) continue;
+        seenR.add(key);
+        const Y = py + (y1 - p[1]) * fs2, X = px + bw * fs2;
+        line([X + 1, Y], [X + 6, Y], 'ext');
+        text(X + 7, Y + 1.2, fmt(v), 'gm', 'start');
+        ordR = Math.max(ordR, 7 + fmt(v).length * 1.8);
+      } else if (Math.abs(p[0] - q[0]) < 1e-6) {
+        const v = p[0] - x0, key = v.toFixed(2);
+        if (seenT.has(key)) continue;
+        seenT.add(key);
+        const X = px + (p[0] - x0) * fs2;
+        line([X, py - 1], [X, py - 6], 'ext');
+        text(X + 1, py - 7, fmt(v), 'gm', 'start', -90);
+        ordT = Math.max(ordT, 7 + fmt(v).length * 1.8);
+      }
+    }
+    flatInfo = { x: px - 14, y: py - 6 - ordT, w: bw * fs2 + 22 + ordR, h: bh * fs2 + below + 8 + ordT };
+  }
+
   // ----- parts list (Stückliste) above the title block -----
   cur = 'sheet';
   const t = opts.title || {};
@@ -664,7 +742,7 @@ export function makeDrawing(bodies, opts) {
 .cut{stroke:#000;stroke-width:.18;stroke-dasharray:8 1.5 1 1.5}.cutend{stroke:#000;stroke-width:.7}
 .secl{font-family:'Segoe UI',Arial,sans-serif;font-size:5px;font-weight:600;text-anchor:middle}.lbl.sec{font-size:3.5px;font-weight:600;font-style:normal}
 .txt,.lbl,.dtx,.tbl,.tbv{font-family:'Segoe UI',Arial,sans-serif;fill:#000}
-.lbl{font-size:3px;font-style:italic}.dtx{font-size:3.5px}.tbl{font-size:2.2px;fill:#444}.tbv{font-size:3.5px}.tbv.big{font-size:5px;font-weight:600}
+.lbl{font-size:3px;font-style:italic}.dtx{font-size:3.5px}.gm{font-size:2.7px}.tbl{font-size:2.2px;fill:#444}.tbv{font-size:3.5px}.tbv.big{font-size:5px;font-weight:600}
 .tb,.frame{fill:none;stroke:#000;stroke-width:.35}
 </style>
 <rect x="0" y="0" width="${SW}" height="${SH}" fill="#fff"/>
@@ -674,6 +752,7 @@ ${Object.entries(G).map(([k, arr]) => (k === 'sheet' ? arr.join('\n') : `<g data
   // area of every view on the sheet (with its dimensions), for picking it up with the mouse
   const views = Object.fromEntries(Object.keys(place).map(k => { const e = E[k], pl = place[k], s = pl.s || scale; return [k, { x: pl.x - 14, y: pl.y - 14, w: e.w * s + 28, h: e.h * s + 24 }]; }));
   Object.assign(views, detailInfo);
+  if (flatInfo) views.flat = flatInfo;
   // for picking points on the sheet: the mapping sheet ↔ view coordinates and the corner points of every view
   const xf = Object.fromEntries(Object.keys(place).map(k => [k, { px: place[k].x, py: place[k].y, x0: E[k].x0, y1: E[k].y1, s: place[k].s || scale }]));
   const snaps = {};

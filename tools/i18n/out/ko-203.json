@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "모서리 {0} (원 R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "모서리 {0} (호 R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– 원뿔/구면 {0}개를 실제 면으로",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "“{0}”은(는) 이제 바디이기도 합니다 (모깎기, 잘라내기, 2D 가공 가능){1}{2}{3}. 메시는 숨겨져 있습니다.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "모서리 {0}: 호가 이 플랜지에 비해 너무 작습니다",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "모서리 {0}: 곡선 모서리의 플랜지 – 성형 시 가장자리가 {1} % 압축됩니다 (주름 위험). 이 부분의 블랭크는 근사값입니다.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "모서리 {0}: 곡선 모서리의 플랜지 – 성형 시 가장자리가 {1} % 늘어납니다 (균열 위험). 이 부분의 블랭크는 근사값입니다.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "모서리 {0}: 곡선 모서리의 플랜지에 있는 컷아웃은 잘라내지 않습니다."
+}

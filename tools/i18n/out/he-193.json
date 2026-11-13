@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "קואורדינטות בסמן העכבר",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "מציג בסקיצה את X ו-Y של סמן העכבר בפינה השמאלית התחתונה",
+ "Eigenes Design": "עיצוב אישי",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "השטח שמאחורי החלונות – חל כאשר נבחר למעלה העיצוב „אישי“",
+ "Fenster und Leisten": "חלונות ופסים",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "צבע כהה = עיצוב כהה, צבע בהיר = עיצוב בהיר",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "צריך להיות בולט בבירור מ„חלונות ופסים“",
+ "Linien und Ränder": "קווים וגבולות",
+ "Titelleiste": "שורת כותרת",
+ "Kantenglättung": "החלקת קצוות",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "מחליק את הקצוות בתצוגה התלת-ממדית; נכנס לתוקף לאחר הפעלה מחדש של התוכנית",
+ "Bodenschatten": "צל רצפה",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "צל רך מתחת למודל (סביבת עבודה תכנון)",
+ "Eigenes": "אישי",
+ "Design als Datei": "עיצוב כקובץ",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "עיצוב, צבעים, סמלים, צורה וגופן בקובץ אחד – להעברה או למחשב אחר",
+ "Speichern …": "שמירה …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "העיצוב נטען – נכנס לתוקף עם „החל“.",
+ "Das ist keine WerkFab-Design-Datei.": "זה אינו קובץ עיצוב של WerkFab.",
+ "Laden …": "טעינה …"
+}

@@ -62,6 +62,87 @@ for (const cycles of [false, true]) {
     const fan = post.postProcess(p, g, null, { postId: 'fanuc-lathe' }).code;
     ok('Fanuc: Zylinder-Interpolation G7.1 C15. … G7.1 C0 um die Mantelkontur, ohne G0 darin', /G19 W0 H0\nG7\.1 C15\.\n/.test(fan) && /G7\.1 C0\nG18\n/.test(fan) && !fan.split('G7.1 C15.').slice(1).some(part => /^G0\b/m.test(part.split('G7.1 C0')[0])));
     ok('Fanuc: Stirnkontur in Polar-Interpolation', (fan.match(/^G12\.1$/gm) || []).length >= 2);
+    // pocket wrapped on the diameter: 18 × 14 mm on the developed surface, cutter Ø6 → its centre stays 3 mm inside
+    // the outline (arc length = angle × wrap radius 15), two levels, the floor is covered
+    {
+      const rq = g.results.get('wp1'), fq = rq.moves.filter(m => m.t === 'f'), Rw = rq.cyl; // (the part is turned down there: the pocket wraps on that diameter)
+      // the sketch plane looks along +Y: its normal direction is the angle 90°, the arc length grows from there
+      const sOf = m => { let dc = m.c - 90; while (dc > 180) dc -= 360; while (dc < -180) dc += 360; return (dc * Math.PI / 180) * Rw; };
+      const sv = fq.map(m => Math.abs(sOf(m))), zv = fq.map(m => m.z), lv = [...new Set(fq.map(m => +m.xr.toFixed(3)))].sort((a, b) => b - a);
+      ok('Tasche Mantelfläche: erzeugt, Fräsermitte bleibt 3 mm innerhalb der Kontur, zwei Zustellungen', !rq.error && Rw > 5 && Math.max(...sv) <= 6 + 1e-3 && Math.min(...zv) >= 39 - 1e-3 && Math.max(...zv) <= 47 + 1e-3 && lv.join() === [Rw - 1, Rw - 2].map(v => +v.toFixed(3)).join(),
+        rq.error || `Bogenlänge bis ${Math.max(...sv).toFixed(3)}, Z ${Math.min(...zv).toFixed(2)}…${Math.max(...zv).toFixed(2)}, Radien ${lv.join('/')}`);
+      const floor = fq.filter(m => Math.abs(m.xr - (Rw - 2)) < 1e-6);
+      let gap = 0;
+      for (let s = -5.5; s <= 5.5; s += 0.5) for (let z = 39.5; z <= 46.5; z += 0.5) gap = Math.max(gap, distTo([s, z], floor.map(m => [sOf(m), m.z]), false));
+      ok('Tasche Mantelfläche: der Grund wird ganz geräumt', gap <= 3 + 1e-6, `größter Abstand eines Grundpunkts zur Bahn ${gap.toFixed(2)} mm (Fräserradius 3)`);
+      ok('Tasche Mantelfläche: Eilgänge nur über dem Durchmesser', rq.moves.filter(m => m.t === 'r' && m.xr != null).every(m => m.xr >= Rw + 1 - 1e-9));
+    }
+    // the same pocket entered on a ramp of 4°: no feed move drops steeper than that, the floor is still reached
+    {
+      const rr = g.results.get('wp2'), fr = rr.moves.filter(m => m.t === 'f'), Rw = rr.cyl;
+      const sOf = m => { let dc = m.c - 90; while (dc > 180) dc -= 360; while (dc < -180) dc += 360; return (dc * Math.PI / 180) * Rw; };
+      let steep = 0, ramps = 0;
+      for (let i = 1; i < rr.moves.length; i++) {
+        const a = rr.moves[i - 1], b = rr.moves[i];
+        if (b.t !== 'f' || a.xr == null || b.xr == null || !(a.xr <= Rw + 1e-9) || !(b.xr < a.xr - 1e-9)) continue; // going deeper inside the material
+        const run = Math.hypot(sOf(b) - sOf(a), b.z - a.z), ang = Math.atan2(a.xr - b.xr, run) * 180 / Math.PI;
+        steep = Math.max(steep, ang); ramps++;
+      }
+      const deepest = Math.min(...fr.map(m => m.xr));
+      ok('Tasche Mantelfläche mit Rampe: kein Eintauchen steiler als 4°, Grund erreicht', !rr.error && ramps > 2 && steep <= 4 + 0.01 && Math.abs(deepest - (Rw - 2)) < 1e-6, rr.error || `${ramps} Rampenstücke, steilstes ${steep.toFixed(2)}°, tiefster Radius ${deepest.toFixed(3)}`);
+    }
+    // simulation: the pocket on the diameter is really taken out of the stock (floor at its depth, the far side of
+    // the part untouched), contours on the face are drawn as ribbons with round ends
+    {
+      const { TurnSim } = await import('../js/turning.js'), THREE = await import('three');
+      const ts = new TurnSim(new THREE.Group());
+      ts.build(g.stock);
+      for (const op of g.ops) { const r = g.results.get(op.id); if (!r?.moves || (r.live === 'rad' && op.id !== 'wp2')) continue; for (let i = 1; i < r.moves.length; i++) ts.cut(r.moves[i - 1], r.moves[i], r.tool, 0, 1); }
+      ts.update();
+      const rr = g.results.get('wp2'), Rw = rr.cyl, fr = rr.moves.filter(m => m.t === 'f'), deep = fr.find(m => m.xr < Rw - 2 + 1e-6 && m.z > 44 && m.z < 48); // (above the turned groove at z 37.5 … 42.5)
+      const floor = ts.radiusAt(deep.c, deep.z), far = ts.radiusAt(deep.c + 180, deep.z);
+      const mesh = ts.group.children.find(c => c.userData.carved), col = mesh?.geometry.getAttribute('color');
+      let dark = 0;
+      if (col) for (let i = 0; i < col.count; i++) if (col.getX(i) < 0.9) dark++;
+      ok('Simulation: Tasche auf dem Mantel wird abgetragen (Grund auf Tiefe, Gegenseite unberührt)', Math.abs(floor - (Rw - 2)) < 0.02 && Math.abs(far - Rw) < 0.05 && dark > 50, `Grund ${floor.toFixed(3)}, Gegenseite ${far.toFixed(3)}, Soll ${(Rw - 2).toFixed(3)} / ${Rw.toFixed(3)}, ${dark} abgetragene Punkte`);
+      // the pocket in the face and the holes along the axis are taken out as well: floor and hole bottom at their depth
+      const deepOf = id => g.results.get(id).moves.filter(m => m.t === 'f').reduce((a, m) => (m.z < a.z ? m : a));
+      const pk = deepOf('tp1'), hl = deepOf('lv1'), fm = ts.group.children.find(c => c.userData.face), fc = fm?.geometry.getAttribute('color');
+      let fd = 0, fl = 0;
+      if (fc) for (let k = 0; k < fc.count; k++) fc.getX(k) < 0.9 ? fd++ : fl++;
+      ok('Simulation: Tasche in der Planfläche und axiale Bohrungen werden abgetragen', Math.abs(ts.topAt(pk.x, pk.y) - pk.z) < 0.02 && Math.abs(ts.topAt(hl.x, hl.y) - hl.z) < 0.02 && fd > 50 && fl > 50 && ts.marks.size === 0, `Taschengrund ${ts.topAt(pk.x, pk.y).toFixed(3)} (Soll ${pk.z.toFixed(3)}), Bohrungsgrund ${ts.topAt(hl.x, hl.y).toFixed(3)} (Soll ${hl.z.toFixed(3)}), ${fd} abgetragene / ${fl} übrige Punkte`);
+    }
+    // comparison with the part (here: its turned outline all around): most of it at size, the pocket on the
+    // diameter too deep by its depth (the outline has no pocket), nothing counted without a part
+    {
+      const { TurnSim } = await import('../js/turning.js'), THREE = await import('three');
+      const ts = new TurnSim(new THREE.Group());
+      ts.build(g.stock);
+      for (const op of g.ops) { const r = g.results.get(op.id); if (!r?.moves || (r.live && op.id !== 'wp2')) continue; for (let i = 1; i < r.moves.length; i++) ts.cut(r.moves[i - 1], r.moves[i], r.tool, 0, 1); }
+      const n = ts.S.n, NT = ts.NT, rad = new Float32Array(n * NT), top = new Float32Array((ts.NR + 1) * NT).fill(-Infinity);
+      for (let i = 0; i < n; i++) { const z = g.stock.bottom + i * ts.S.dz, r = z >= g.stock.modelBottom && z <= g.stock.modelTop ? g.profile.at(z) : 0; for (let j = 0; j < NT; j++) rad[i * NT + j] = r; }
+      const none = ts.compareStats();
+      ts.setCompare({ rad, top, threads: [] });
+      const st = ts.compareStats();
+      ok('Simulation: Vergleich beim Drehen (auf Maß / Rest / zu tief)', none === null && st && st.ok > 0.5 && st.gouge > 0.005 && Math.abs(st.worst + 2) < 0.6 && Math.abs(st.ok + st.left + st.gouge - 1) < 1e-9, st ? `${(st.ok * 100).toFixed(1)} % auf Maß, ${(st.left * 100).toFixed(1)} % Rest, ${(st.gouge * 100).toFixed(1)} % zu tief (max. ${st.worst.toFixed(2)})` : 'keine Werte');
+    }
+    // Y axis on the other controls: LinuxCNC G17 / G18, Okuma Y-axis mode G138 / G136
+    {
+      const lc = post.postProcess(p, g, null, { postId: 'linuxcnc-lathe', props: { latheY: true } }).code.split('Zweiflach SW16')[1].split('(')[0];
+      const ok1 = lc.includes('G17') && lc.includes(' Y') && lc.includes('G18');
+      const okc = post.postProcess(p, g, null, { postId: 'okuma-lathe', props: { latheY: true } }).code.split('Zweiflach SW16')[1];
+      ok('Y-Achse: LinuxCNC mit G17 / G18, Okuma mit G138 / G136', ok1 && okc.includes('G138') && okc.includes('G136') && okc.includes(' Y'));
+    }
+    // Y axis: the flats and the face contour with the part standing still – G17, Y words, C only as an index angle
+    {
+      const y = post.postProcess(p, g, null, { postId: 'fanuc-lathe', props: { latheY: true } });
+      const flat = y.code.split('Zweiflach SW16')[1].split('(')[0];
+      ok('Y-Achse: Schlüsselflächen mit G17 und Y-Wörtern statt Polar-Interpolation', flat.includes('G17') && flat.includes(' Y') && !flat.includes('G12.1') && flat.includes('G18'), flat.split(String.fromCharCode(10)).slice(0, 8).join(' | '));
+      const cs = [...new Set(flat.split(String.fromCharCode(10)).map(l => (l.split(' ').find(w => w[0] === 'C' && '0123456789'.includes(w[1])) || '')).filter(Boolean))];
+      ok('Y-Achse: C steht je Fläche fest (0° und 180°)', cs.length === 2 && cs.includes('C0.') && cs.includes('C180.'), cs.join(' '));
+      const narrow = post.postProcess(p, g, null, { postId: 'fanuc-lathe', props: { latheY: true, latheYTravel: 2 } });
+      ok('Y-Achse: Bahn über dem Y-Verfahrweg bleibt bei der Polar-Interpolation, mit Hinweis', narrow.warnings.some(w => w.includes('Y-Verfahrweg')) && narrow.code.split('Zweiflach SW16')[1].split('(')[0].includes('G12.1'));
+    }
     const oku = post.postProcess(p, g, null, { postId: 'okuma-lathe' });
     ok('Okuma: Hinweis auf fehlende Zylinder-Interpolation', oku.warnings.some(w => /Zylinder-Interpolation/.test(w)));
   }

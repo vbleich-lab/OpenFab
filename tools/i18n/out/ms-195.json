@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Ramp sepanjang laluan",
+ "Gerade (radial)": "Lurus (jejari)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Poket pada lilitan daripada kontur tertutup sebuah lakaran yang terletak memanjang dengan paksi putaran (kontur dalam kekal sebagai pulau). Lakaran dililit pada diameter; pemotong hujung berpacu yang menghala ke paksi membuang bahan dari dalam ke luar (Z dan C bergerak bersama; Fanuc: interpolasi silinder G7.1). Pemotong masuk melalui ramp sepanjang cincin paling dalam.",
+ "+ Neue Maschine": "+ Mesin baharu",
+ "+ Neue Vorgabe": "+ Pratetap baharu"
+}

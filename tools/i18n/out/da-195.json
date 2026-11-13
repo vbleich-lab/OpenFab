@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Rampe langs banen",
+ "Gerade (radial)": "Lige (radialt)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Lomme på omkredsen ud fra de lukkede konturer i en skitse, der ligger langs drejeaksen (indre konturer bliver stående som øer). Skitsen vikles om diameteren; en drevet endefræser, der peger mod aksen, udfræser indefra og ud (Z og C kører samtidigt; Fanuc: cylinderinterpolation G7.1). Fræseren dykker ned på en rampe langs den inderste ring.",
+ "+ Neue Maschine": "+ Ny maskine",
+ "+ Neue Vorgabe": "+ Ny forudindstilling"
+}

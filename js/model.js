@@ -5,7 +5,7 @@ import { registerKernel, activeKernel, getKernel } from './kern/index.js';
 import { entityPolys, entityOutlines, entityOutline, buildRegions, chainLoops, circle3 } from './profiles.js';
 import { cornerPlan, hasCorners } from './sketchcorner.js';
 import { basis, planeMatrix, sketchPlane, toWorld, axisRef, planeRef } from './plane.js';
-import { sheetSolid } from './sheetmetal.js';
+import { sheetSolid, sheetDims } from './sheetmetal.js';
 import { stepSolids, solidsFromStepText, fullKernelReady, requestFullKernel, fullRemoveFaces, fullFilletLaw } from './interop.js';
 import { silhouette, planeCut, curveEntity, chainLoop } from './projection.js';
 
@@ -978,12 +978,44 @@ function freeformTool(f) {
 }
 
 // Base polygon of a sheet-metal part: first closed profile of an XY sketch, in world XY.
-export function sheetBase(sk) {
+// With the feature f and a way to find sketches, the result also carries f with the 'sketch' cut-outs of its
+// flanges resolved to outlines (the closed profiles of that sketch: u along the edge, v along the flange).
+export function sheetBase(sk, f = null, findSketch = null) {
   const b = basis(sk);
   if (Math.abs(Math.abs(b.n.z) - 1) > 1e-6) fail('Blech braucht eine Skizze parallel zur XY-Ebene');
-  const it = profileItems(sk).find(i => i.e.type !== 'text');
+  // the largest closed profile is the plate, the profiles inside it are cut-outs
+  const area = p => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return Math.abs(a / 2); };
+  const items = profileItems(sk).filter(i => i.e.type !== 'text' && i.poly.length >= 3).sort((p, q) => area(q.poly) - area(p.poly));
+  const it = items[0];
   if (!it) fail('Kein geschlossenes Profil in der Skizze');
-  return { poly: it.poly.map(([u, v]) => { const p = toWorld(b, u, v); return [p.x, p.y]; }), z0: b.o.z };
+  const inside = ([x, y], P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < ((P[j][0] - P[i][0]) * (y - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; return c; };
+  const world = poly => poly.map(([u, v]) => { const p = toWorld(b, u, v); return [p.x, p.y]; });
+  let rf = f;
+  if (f && findSketch && (f.flanges || []).some(fl => (fl.holes || []).some(q => q.kind === 'sketch'))) {
+    rf = { ...f, flanges: f.flanges.map(fl => ({ ...fl, holes: (fl.holes || []).flatMap(q => {
+      if (q.kind !== 'sketch') return [q];
+      const hs = findSketch(q.sketch);
+      return hs ? profileItems(hs).filter(i => i.e.type !== 'text' && i.poly.length >= 3).map(i => ({ kind: 'poly', lv: q.lv, s: +q.s || 0, d: +q.d || 0, pts: i.poly.map(p => [p[0], p[1]]) })) : [];
+    }) })) };
+  }
+  const cuts = items.slice(1).filter(i => i.poly.every(p => inside(p, it.poly))), holeIds = cuts.map(i => i.id);
+  // straight lines of the sketch that belong to no profile (construction lines too): bend lines and beads
+  const onProfile = p => items.some(i => i.poly.some((a, j) => {
+    const c = i.poly[(j + 1) % i.poly.length], dx = c[0] - a[0], dy = c[1] - a[1], l2 = dx * dx + dy * dy, s = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+    return Math.hypot(p[0] - a[0] - dx * s, p[1] - a[1] - dy * s) < 0.01;
+  }));
+  const lines = sk.entities.filter(e => e.type === 'poly' && !e.closed && !e.curve && e.pts?.length === 2 && Math.hypot(e.pts[1][0] - e.pts[0][0], e.pts[1][1] - e.pts[0][1]) > 1e-6
+    && !onProfile([(e.pts[0][0] + e.pts[1][0]) / 2, (e.pts[0][1] + e.pts[1][1]) / 2])).map(e => { const [a, c] = world(e.pts); return { id: e.id, a, b: c }; });
+  if (rf && ((rf.lines || []).length || (rf.collars || []).length)) {
+    const kindOf = q => (q.on === false ? '' : q.kind || 'collar'), pick = k => (rf.collars || []).filter(q => kindOf(q) === k && +q.h && holeIds.includes(q.id)).map(q => ({ hole: holeIds.indexOf(q.id), h: +q.h }));
+    const L = id => lines.find(l => l.id === id);
+    rf = { ...rf,
+      folds: (rf.lines || []).filter(q => q.kind === 'bend' && L(q.id)).map(q => ({ a: L(q.id).a, b: L(q.id).b, angle: +q.angle || 90 })),
+      beads: (rf.lines || []).filter(q => q.kind === 'bead' && L(q.id)).map(q => ({ a: L(q.id).a, b: L(q.id).b, w: +q.w || 8, h: +q.h || 2 })),
+      louvers: (rf.lines || []).filter(q => q.kind === 'louver' && L(q.id)).map(q => ({ a: L(q.id).a, b: L(q.id).b, w: +q.w || 8, h: +q.h || 3 })),
+      collars: pick('collar'), embosses: pick('emboss'), dimples: pick('dimple') };
+  }
+  return { poly: world(it.poly), holes: cuts.map(i => world(i.poly)), holeIds, lines, z0: b.o.z, f: rf && sheetDims(rf) };
 }
 
 // Rib / web: an open sketch line thickened in the sketch plane and extruded
@@ -1137,14 +1169,15 @@ function bodiesLumps(bodies) {
 }
 const sameVolume = (a, b) => Math.abs(a - b) <= 1e-9 * a + 1e-6;
 
-function applyOp(bodies, tool, op, id, target) {
+function applyOp(bodies, tool, op, id, target, only = null) {
   if (op === 'new' || (!bodies.length && op === 'join')) {
     bodies.push({ id, name: `Körper${bodies.length + 1}`, shape: tool });
     return;
   }
   if (!bodies.length) fail('Kein Körper vorhanden');
   if (op === 'cut') {
-    for (const b of bodies) b.shape = b.shape.cut(tool.clone());
+    // (only: a cut that belongs to one body – the socket of a screw must not reach into the part it sits in)
+    for (const b of bodies) if (!only || b.id === only) b.shape = b.shape.cut(tool.clone());
     return;
   }
   const t = bodies.find(b => b.id === target) || [...bodies].reverse().find(b => hasSolid(b.shape)) || bodies[bodies.length - 1];
@@ -1356,8 +1389,8 @@ function runFeature(f, ctx) {
     else if (f.type === 'sheet') {
       const sk = sketches[f.sketch];
       if (!sk) fail('Skizze fehlt');
-      const { poly, z0 } = sheetBase(sk);
-      tool = sheetSolid(R, poly, z0, f);
+      const { poly, holes, z0, f: rf } = sheetBase(sk, f, id => sketches[id]);
+      tool = sheetSolid(R, poly, z0, rf, holes);
     }
     else if (f.type === 'sweep') tool = sweepTool(f, sketches);
     else if (f.type === 'pipe') tool = pipeTool(f, sketches);
@@ -1377,7 +1410,7 @@ function runFeature(f, ctx) {
     const before = op === 'cut' && f.type !== 'hole' && ctx.notes && bodies.length ? bodiesVolume(bodies) : 0;
     // a join that does not touch its body leaves a loose piece in it
     const lumps = op === 'join' && ctx.notes && bodies.length ? bodiesLumps(bodies) : NaN;
-    applyOp(bodies, tool, op, f.id, target);
+    applyOp(bodies, tool, op, f.id, target, f.cutOnly || null);
     if (before > 0 && sameVolume(before, bodiesVolume(bodies))) ctx.notes[f.id] = 'Der Schnitt trifft keinen Körper – es wird kein Material entfernt.';
     if (bodiesLumps(bodies) > lumps) ctx.notes[f.id] = 'Die Form berührt den Körper nicht – im selben Körper entsteht ein loses Stück.';
     return;

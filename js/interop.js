@@ -2,6 +2,7 @@
 // Fusion .cps post-processors (converted into an editable WerkFab template).
 import { R } from './kernel.js';
 import { BUILTIN_POSTS, copyPost } from './post.js';
+import { collapseNeedles, findCylinders } from './mesh.js';
 
 // ---------- imported files (kept in IndexedDB, too big for localStorage) ----------
 const mem = new Map();
@@ -56,6 +57,220 @@ export async function takeBlobs(p) {
   for (const text of Object.values(p.blobs || {})) await putBlob(text);
   delete p.blobs;
   return p;
+}
+
+// A closed triangle mesh as a solid (STEP text): every triangle a face, sewn; faces in one plane are merged where
+// the kernel can. The result goes into the model like an imported STEP file.
+// cyls (from findCylinders of mesh.js): round holes and pins of the mesh become true cylinders – a hole is cut
+// again with a cylinder through its corner points, a pin gets the slivers between its facets and the circle.
+// Parts of a ring (fillets, half cylinders, coves) get a band along their arc: fused where the material is
+// inside, cut where it is outside.
+// Returns { text, cylinders: how many were made round, arcs: how many of them are parts of a ring }.
+// One face per flat region of the mesh – its outline and its holes – instead of one per triangle: the kernel gets
+// a few large faces (a cap of hundreds of triangles is one face), every later step is faster and nothing has to
+// be merged afterwards. A region that cannot be made into one face stays as triangles.
+const meshVolume = m => { let v = 0; const P = m.pos, I = m.idx; for (let t = 0; t < I.length; t += 3) { const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3; v += P[a] * (P[b + 1] * P[c + 2] - P[b + 2] * P[c + 1]) - P[a + 1] * (P[b] * P[c + 2] - P[b + 2] * P[c]) + P[a + 2] * (P[b] * P[c + 1] - P[b + 1] * P[c]); } return v / 6; };
+function regionFaces(m) {
+  const info = {};
+  findCylinders(m, 8, info);
+  const reg = info.reg, I = m.idx, P = m.pos, nT = I.length / 3, nV = P.length / 3;
+  const V = v => [P[v * 3], P[v * 3 + 1], P[v * 3 + 2]];
+  const byReg = new Map();
+  for (let t = 0; t < nT; t++) { const l = byReg.get(reg[t]); if (l) l.push(t); else byReg.set(reg[t], [t]); }
+  const faces = [];
+  let merged = 0;
+  const tri = t => { try { faces.push(R.makePolygon([V(I[t * 3]), V(I[t * 3 + 1]), V(I[t * 3 + 2])])); } catch { /* degenerate triangle */ } };
+  for (const ts of byReg.values()) {
+    if (ts.length === 1) { tri(ts[0]); continue; }
+    try {
+      // the outline: the sides of the triangles whose other side is not in the region
+      const dir = new Set(), n = [0, 0, 0];
+      for (const t of ts) {
+        for (let k = 0; k < 3; k++) dir.add(I[t * 3 + k] * nV + I[t * 3 + (k + 1) % 3]);
+        const a = V(I[t * 3]), b = V(I[t * 3 + 1]), c = V(I[t * 3 + 2]), u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], w = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+        n[0] += u[1] * w[2] - u[2] * w[1]; n[1] += u[2] * w[0] - u[0] * w[2]; n[2] += u[0] * w[1] - u[1] * w[0];
+      }
+      const nl = Math.hypot(...n);
+      if (!(nl > 1e-12)) throw 0;
+      n[0] /= nl; n[1] /= nl; n[2] /= nl;
+      const next = new Map();
+      for (const e of dir) {
+        const a = Math.floor(e / nV), b = e % nV;
+        if (dir.has(b * nV + a)) continue;
+        if (next.has(a)) throw 0; // the region touches itself in a corner
+        next.set(a, b);
+      }
+      const loops = [];
+      while (next.size) {
+        const start = next.keys().next().value, loop = [];
+        let v = start;
+        do { loop.push(v); const w = next.get(v); next.delete(v); v = w; } while (v !== start && v !== undefined);
+        if (v === undefined || loop.length < 3) throw 0;
+        loops.push(loop);
+      }
+      const p0 = V(loops[0][0]);
+      for (const l of loops) for (const v of l) { const p = V(v); if (Math.abs((p[0] - p0[0]) * n[0] + (p[1] - p0[1]) * n[1] + (p[2] - p0[2]) * n[2]) > 1e-3) throw 0; }
+      // the largest loop is the outline, the others are holes
+      const area = l => { const s = [0, 0, 0]; for (let i = 0; i < l.length; i++) { const a = V(l[i]), b = V(l[(i + 1) % l.length]); s[0] += a[1] * b[2] - a[2] * b[1]; s[1] += a[2] * b[0] - a[0] * b[2]; s[2] += a[0] * b[1] - a[1] * b[0]; } return (s[0] * n[0] + s[1] * n[1] + s[2] * n[2]) / 2; };
+      const ar = loops.map(area), io = ar.indexOf(Math.max(...ar));
+      if (!(ar[io] > 0) || ar.some((x, i) => i !== io && x > 0)) throw 0;
+      const wire = l => R.assembleWire(l.map((v, i) => R.makeLine(V(v), V(l[(i + 1) % l.length]))));
+      faces.push(R.makeFace(wire(loops[io]), loops.filter((_, i) => i !== io).map(wire)));
+      merged++;
+    } catch { ts.forEach(tri); }
+  }
+  return { faces, merged };
+}
+
+// round = { cones, spheres } (from findRound): countersinks, tapers and cone tips become true cones (a ring turned
+// around the axis), balls, domes and rounded corners true spheres – where the whole sphere fits the part.
+export async function meshToStep(m0, cyls = [], round = {}) {
+  // (needles would leave gaps in the solid: every later cut would silently do nothing)
+  const m = collapseNeedles(m0);
+  const triFaces = () => { const faces = [], P = m.pos; for (let t = 0; t < m.idx.length; t += 3) {
+    const [a, b, c] = [m.idx[t], m.idx[t + 1], m.idx[t + 2]].map(i => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]]);
+    try { faces.push(R.makePolygon([a, b, c])); } catch { /* degenerate triangle */ }
+  } return faces; };
+  if (m.idx.length < 12) throw new Error('Zu wenige Dreiecke für einen Körper');
+  // flat regions as whole faces; if that does not close (or changes the volume), triangle by triangle as before
+  let solid = null;
+  try {
+    const rf = regionFaces(m);
+    if (rf.merged && rf.faces.length >= 4) { const s1 = R.makeSolid(rf.faces), v1 = R.measureVolume(s1), vm = meshVolume(m); if (Number.isFinite(v1) && Math.abs(Math.abs(v1) - Math.abs(vm)) <= 1e-4 * Math.abs(vm) + 1e-6) solid = s1; }
+  } catch { /* triangle by triangle */ }
+  if (!solid) { const faces = triFaces(); if (faces.length < 4) throw new Error('Zu wenige Dreiecke für einen Körper'); solid = R.makeSolid(faces); }
+  try { const s = solid.simplify?.(); if (s) solid = s; } catch { /* stays faceted */ }
+  let made = 0, arcs = 0, cones = 0, spheres = 0;
+  const vol = s => { try { return R.measureVolume(s); } catch { return NaN; } };
+  // First every round face once, quickly: its tool 0.1 µm larger than fitted, one boolean, one look at the volume.
+  // What does not pass that way is then tried at leisure as below (other sizes, tidied up in between).
+  let collect = null;
+  const done = new Set();
+  const one = x => (x && x.solids && x.solids.length === 1 ? x.solids[0] : x);
+  const collector = () => ({ items: [], add(tool, sliver, hole, slack, kind, src) { this.items.push({ tool, sliver, hole, slack, kind, src }); } });
+  for (const pass of [0, 1]) {
+  collect = pass ? null : collector();
+  // (an arc is tried with its exact radius too – where it ends in a face across, that is the cleaner cut – and
+  // the result with fewer faces is taken)
+  for (const c0 of cyls.slice(0, 80)) { if (done.has(c0)) continue; let best = null; for (const grow of c0.full === false ? [0, 1e-4, 1e-3] : [1e-4, 1e-3]) {
+    if (best && (c0.full !== false || grow > 1e-4)) break;
+    // the fitted values carry the noise of single-precision points, so they are rounded. A cylinder exactly
+    // through the corner points leaves shreds of the facets behind (edges lying in its surface): it is made
+    // 0.1 µm larger (1 µm at the second try), which the kernel cuts cleanly
+    const c = { ...c0, r: Math.round(c0.r * 1e4) / 1e4 + grow, c: c0.c.map(x => Math.round(x * 1e5) / 1e5) };
+    try {
+      const v0 = vol(solid), sliver = c.full === false ? c.sl * c.h : Math.PI * c.r * c.r * c.h * (1 - Math.sin((2 * Math.PI) / c.n) / ((2 * Math.PI) / c.n));
+      let tool;
+      if (c.full === false) {
+        // a band between the circle and a smaller one inside the chords, from the first to the last corner
+        const ri = c.r * Math.cos(Math.PI / c.n) * 0.9, at = (rr, a) => [rr * Math.cos(a), rr * Math.sin(a)], a1 = c.a0 + c.sweep, am = c.a0 + c.sweep / 2;
+        const band = R.draw(at(c.r, c.a0)).threePointsArcTo(at(c.r, a1), at(c.r, am)).lineTo(at(ri, a1)).threePointsArcTo(at(ri, c.a0), at(ri, am)).close()
+          .sketchOnPlane(new R.Plane(c.c, c.u, c.d)).extrude(c.h);
+        tool = band;
+      } else if (c.hole) tool = R.makeCylinder(c.r, c.h, c.c, c.d);
+      else {
+        const inner = c.r * Math.cos(Math.PI / c.n) * 0.9;
+        tool = R.makeCylinder(c.r, c.h, c.c, c.d).cut(R.makeCylinder(inner, c.h + 2, c.c.map((x, i) => x - c.d[i]), c.d));
+      }
+      if (collect) { if (grow !== 1e-4) continue; collect.add(tool, sliver, !!c.hole, 0.01 * c.r * c.h, c0.full === false ? 'arc' : 'cyl', c0); break; }
+      let next = c.hole ? solid.cut(tool) : solid.fuse(tool);
+      // only the slivers between the facets and the circle may change: anything else and the step is dropped
+      const dv = vol(next) - v0;
+      if (!Number.isFinite(dv) || Math.abs(Math.abs(dv) - sliver) > 0.05 * sliver + 0.01 * c.r * c.h + 1e-3 || (dv < 0) !== c.hole) continue;
+      // (the next boolean works on clean faces only)
+      try { const q = next.simplify?.(); if (q) next = q; } catch { /* as it is */ }
+      if (!best || next.faces.length < best.faces.length) best = next;
+    } catch { /* stays faceted there */ }
+  }
+    if (best) { solid = best; made++; if (c0.full === false) arcs++; }
+  }
+  // cones and spheres: the same way – only the volume between the facets and the true face may change
+  const tryTools = (mk, sliver, hole, slack, kind, src) => {
+    if (collect) { try { collect.add(mk(1e-4), sliver, !!hole, slack, kind, src); } catch { /* not this one */ } return false; }
+    let best = null;
+    for (const grow of [0, 1e-4, 1e-3]) {
+      if (best && grow > 1e-4) break;
+      try {
+        const v0 = vol(solid), tool = mk(grow);
+        let next = hole ? solid.cut(tool) : solid.fuse(tool);
+        const dv = vol(next) - v0;
+        if (!Number.isFinite(dv) || Math.abs(Math.abs(dv) - sliver) > 0.05 * sliver + slack + 1e-3 || (dv < 0) !== hole) continue;
+        try { const q = next.simplify?.(); if (q) next = q; } catch { /* as it is */ }
+        if (!best || next.faces.length < best.faces.length) best = next;
+        if (best.faces.length < solid.faces.length - 2) break;
+      } catch { /* stays faceted there */ }
+    }
+    if (best) solid = best;
+    return !!best;
+  };
+  for (const c of (round.cones || []).slice(0, 60)) {
+    if (done.has(c)) continue;
+    const h = c.t1 - c.t0, f = 1 - Math.sin((2 * Math.PI) / c.n) / ((2 * Math.PI) / c.n);
+    const part = c.sweep ? c.sweep / (2 * Math.PI) : 1;
+    // (a cone found between two rings of corners brings the volume its facets leave out)
+    const sliver = c.vol != null ? c.vol : ((Math.PI * h) / 3) * (c.r0 * c.r0 + c.r0 * c.r1 + c.r1 * c.r1) * f * part;
+    const o = c.apex.map((x, i) => Math.round((x + c.d[i] * c.t0) * 1e5) / 1e5);
+    const ux = Math.abs(c.d[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = ux[0] * c.d[0] + ux[1] * c.d[1] + ux[2] * c.d[2];
+    let u = [ux[0] - c.d[0] * dd, ux[1] - c.d[1] * dd, ux[2] - c.d[2] * dd];
+    const ul = Math.hypot(...u); u = u.map(x => x / ul);
+    // a part of a ring starts at its first corner
+    if (c.sweep) u = c.u.map((x, i) => x * Math.cos(c.a0) + c.w[i] * Math.sin(c.a0));
+    // plane through the axis: x = u, y = the axis (normal = u × d)
+    const nrm = [u[1] * c.d[2] - u[2] * c.d[1], u[2] * c.d[0] - u[0] * c.d[2], u[0] * c.d[1] - u[1] * c.d[0]];
+    const mk = grow => {
+      const r0 = Math.round(c.r0 * 1e4) / 1e4 + (c.r0 > 1e-6 ? grow : 0), r1 = Math.round(c.r1 * 1e4) / 1e4 + grow, k = Math.cos(Math.PI / c.n) * 0.9;
+      // a hole is cut with the whole cone, a pin gets a shell (what lies inside stays untouched)
+      // (a part of a ring: only the sliver between the facets and the cone, for a hole too)
+      const kh = Math.cos(Math.PI / c.n) * 0.98;
+      const pts = c.sweep ? (c.hole ? [[r0 * kh, 0], [r0, 0], [r1, h], [r1 * kh, h]] : [[r0 * k, 0], [r0, 0], [r1, h], [r1 * k, h]]) : c.hole ? [[0, 0], [r0, 0], [r1, h], [0, h]] : [[r0 * k, 0], [r0, 0], [r1, h], [r1 * k, h]];
+      const pp = pts.filter((p, i) => i === 0 || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 1e-9);
+      let d = R.draw(pp[0]);
+      for (let i = 1; i < pp.length; i++) d = d.lineTo(pp[i]);
+      return d.close().sketchOnPlane(new R.Plane(o, u, nrm)).revolve(c.d, { origin: o, angle: c.sweep ? (c.sweep * 180) / Math.PI : 360 });
+    };
+    if (tryTools(mk, sliver, c.hole, 0.01 * c.r1 * h, 'cone', c)) cones++;
+  }
+  for (const s of (round.spheres || []).slice(0, 60)) {
+    if (done.has(s)) continue;
+    const c = s.c.map(x => Math.round(x * 1e5) / 1e5);
+    const full = grow => R.makeSphere(Math.round(s.r * 1e4) / 1e4 + grow).translate(c[0], c[1], c[2]);
+    // where the whole sphere does not fit the part (a dome on a plate, the rounded corner of a pocket): only the
+    // shell between the facets and the sphere, as far as the patch reaches
+    const patch = !!s.ax && s.alpha > 0.02 && s.alpha <= 3.1 && s.rin > 0.5 * s.r;
+    const shell = grow => {
+      const ux = Math.abs(s.ax[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = ux[0] * s.ax[0] + ux[1] * s.ax[1] + ux[2] * s.ax[2];
+      let u = [ux[0] - s.ax[0] * dd, ux[1] - s.ax[1] * dd, ux[2] - s.ax[2] * dd];
+      const ul = Math.hypot(...u); u = u.map(x => x / ul);
+      const nrm = [u[1] * s.ax[2] - u[2] * s.ax[1], u[2] * s.ax[0] - u[0] * s.ax[2], u[0] * s.ax[1] - u[1] * s.ax[0]];
+      const ro = Math.round(s.r * 1e4) / 1e4 + grow, ri = s.rin - Math.max(1e-3, 1e-4 * s.r), sa = Math.sin(s.alpha), ca = Math.cos(s.alpha), sh = Math.sin(s.alpha / 2), ch = Math.cos(s.alpha / 2);
+      // in the plane through the axis of the patch (x away from it, y along it)
+      return R.draw([0, ri]).lineTo([0, ro]).threePointsArcTo([ro * sa, ro * ca], [ro * sh, ro * ch]).lineTo([ri * sa, ri * ca]).threePointsArcTo([0, ri], [ri * sh, ri * ch]).close()
+        .sketchOnPlane(new R.Plane(c, u, nrm)).revolve(s.ax, { origin: c, angle: 360 });
+    };
+    const slack = 0.002 * s.r * s.r;
+    // (in one step with the others: the shell where the patch is less than half a sphere, else the whole sphere)
+    if (collect) { tryTools(patch && s.alpha < 1.7 ? shell : full, s.vol, s.hole, slack, 'sphere', s); continue; }
+    if (tryTools(full, s.vol, s.hole, slack, 'sphere') || (patch && tryTools(shell, s.vol, s.hole, slack, 'sphere'))) spheres++;
+  }
+  if (!collect) break;
+  {
+    const C = collect;
+    collect = null;
+    let next = solid;
+    for (const it of C.items) {
+      try {
+        const v0 = vol(next), n2 = one(it.hole ? next.cut(it.tool) : next.fuse(it.tool)), dv = vol(n2) - v0;
+        if (!Number.isFinite(dv) || typeof n2.fuse !== 'function' || Math.abs(Math.abs(dv) - it.sliver) > 0.05 * it.sliver + it.slack + 1e-3 || (dv < 0) !== it.hole) continue;
+        next = n2;
+        done.add(it.src);
+        if (it.kind === 'cone') cones++; else if (it.kind === 'sphere') spheres++; else { made++; if (it.kind === 'arc') arcs++; }
+      } catch { /* later, on its own */ }
+    }
+    if (done.size) { try { const q = next.simplify?.(); if (q) next = q; } catch { /* as it is */ } solid = next; }
+  }
+  }
+  if (made || cones || spheres) { try { const s = solid.simplify?.(); if (s) solid = s; } catch { /* as it is */ } }
+  return { text: await solid.blobSTEP().text(), cylinders: made, arcs, cones, spheres };
 }
 
 // ---------- STEP / IGES ----------

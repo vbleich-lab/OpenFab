@@ -1,7 +1,7 @@
 {
   "name": "werkfab",
   "productName": "WerkFab",
-  "version": "1.0.0-rc.9",
+  "version": "1.0.0-rc.10",
   "description": "WerkFab CAD/CAM – design and CNC machining, offline",
   "license": "GPL-3.0-or-later",
   "repository": {
@@ -25,8 +25,9 @@
     "test:lathe": "node tools/test-lathe.mjs",
     "test:drawing": "node tools/test-drawing.mjs",
     "test:design": "node tools/test-design.mjs && node tools/test-trace.mjs",
+    "test:sheetmesh": "node tools/test-sheetmesh.mjs",
     "test:i18n": "node tools/test-i18n.mjs",
-    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing && npm run test:design && npm run test:i18n && npm run test:update",
+    "test": "npm run test:trim && npm run test:sketch && npm run test:solver && npm run test:kernel && npm run test:cam && npm run test:hh && npm run test:iso && npm run test:lathe && npm run test:drawing && npm run test:design && npm run test:sheetmesh && npm run test:i18n && npm run test:update",
     "dist:win": "electron-builder --win --publish never",
     "dist:linux": "electron-builder --linux --publish never",
     "dist:mac": "electron-builder --mac --publish never",

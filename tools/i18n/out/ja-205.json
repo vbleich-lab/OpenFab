@@ -1,0 +1,10 @@
+{
+ "Laschenmaß": "フランジ寸法",
+ "Gerader Teil (nach der Biegung)": "直線部(曲げ後)",
+ "Außenmaß (ab Außenfläche der Platte)": "外寸(板の外面から)",
+ "Innenmaß (ab Innenfläche der Platte)": "内寸(板の内面から)",
+ "Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil. Auch eine Lasche an einer gebogenen Kante wird an einer echten Ecke auf Gehrung geschnitten (dort ohne Eckfreistellung).": "閉:隣り合う2つのエッジのフランジはコーナーの二等分線まで伸び、そこに隙間を残します。コーナーリリーフは曲げ領域が交差する位置(展開図および曲げ後の部品)に配置されます。曲線エッジ上のフランジも、実際のコーナーでは留め継ぎ(ミター)で切断されます(その部分にコーナーリリーフはありません)。",
+ "Presskraft": "プレス力",
+ "Presskraft: Richtwert für freies Biegen im Gesenk V = {0} mm mit Zugfestigkeit {1} N/mm² ({2}); kürzester Schenkel dafür etwa {3} mm. Größte Biegung: {4} kN.": "プレス力:V = {0} mmのダイでのエアベンディングの目安値(引張強さ {1} N/mm²、{2})。そのための最短の脚長は約{3} mmです。最大の曲げ:{4} kN。",
+ "Kante {0}: das Laschenmaß {1} mm ist kleiner als die Biegung ({2} mm)": "エッジ {0}:フランジ寸法 {1} mmが曲げ({2} mm)より小さくなっています"
+}

@@ -24,7 +24,9 @@ export function turnCase(cycles = false) {
       { id: 'q1', type: 'poly', closed: true, pts: [[-2.5, 5.2], [2.5, 5.2], [2.5, 9.2], [-2.5, 9.2]] }] },
     { id: 'skWrap', type: 'sketch', name: 'Mantelkontur', hidden: true, plane: { o: [0, 0, 0], x: [1, 0, 0], n: [0, -1, 0] }, entities: [
       { id: 'w1', type: 'poly', closed: false, pts: [[-8, 12], [8, 26]] },
-      { id: 'w2', type: 'poly', closed: false, pts: [[-10, 8], [10, 8]] }] });
+      { id: 'w2', type: 'poly', closed: false, pts: [[-10, 8], [10, 8]] }] },
+    { id: 'skWPock', type: 'sketch', name: 'Manteltasche', hidden: true, plane: { o: [0, 0, 0], x: [1, 0, 0], n: [0, 1, 0] }, entities: [
+      { id: 'wq1', type: 'poly', closed: true, pts: [[-9, -36], [9, -36], [9, -50], [-9, -50]] }] });
   const o = { setup: st.id, enabled: true };
   const part = p.cam.ops.pop();
   p.cam.ops.push(
@@ -35,6 +37,8 @@ export function turnCase(cycles = false) {
     { ...o, id: 'fc1', type: 'tcontour', tool: 'L10', name: 'Stirnkontur', sketch: 'skFace', entities: 'all', side: 'on', depth: 1.5, stepdown: 0.75 },
     { ...o, id: 'tp1', type: 'tpocket', tool: 'L10', name: 'Stirntasche', sketch: 'skPock', entities: 'all', depth: 2, stepdown: 1, ramp: 5 },
     { ...o, id: 'wr1', type: 'twrap', tool: 'L9', name: 'Mantelkontur', sketch: 'skWrap', entities: 'all', side: 'on', depth: 2, stepdown: 1 },
+    { ...o, id: 'wp1', type: 'twpocket', tool: 'L9', name: 'Manteltasche', sketch: 'skWPock', entities: 'all', depth: 2, stepdown: 1, rampType: 'plunge' },
+    { ...o, id: 'wp2', type: 'twpocket', tool: 'L9', name: 'Manteltasche Rampe', sketch: 'skWPock', entities: 'all', depth: 2, stepdown: 1, ramp: 4 },
     part);
   if (cycles) for (const op of p.cam.ops) if (['t2', 't3', 't5', 't10'].includes(op.id)) op.ctrlCycle = true;
   return { p, st, bodies: [{ id: 'shaft', geometry: geo.toNonIndexed() }] };

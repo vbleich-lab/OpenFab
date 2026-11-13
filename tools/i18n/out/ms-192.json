@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Poket pada lilitan",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Poket pada lilitan daripada kontur tertutup sebuah lakaran yang terletak selari dengan paksi pelarik (kontur dalam kekal sebagai pulau). Lakaran dibalut pada diameter; pemotong hujung berkuasa yang menghala ke paksi membuang bahan dari dalam ke luar (Z dan C bergerak bersama; Fanuc: interpolasi silinder G7.1). Pemotong menusuk secara jejarian.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Nilai toleransi diikuti datum (dipisahkan dengan ruang), cth. Ø0,05 A B. Pengubah dalam kurungan dilukis sebagai huruf dalam bulatan: Ø0,05(M) A(M) – (M) bahan maksimum, (L) bahan minimum, (P) diunjurkan, (F) keadaan bebas, (E) syarat sampul",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Larik: paksi Y hidup (satah X/Y; masukkan juga pengapit C mesin di sini)",
+ "Drehen: Y-Achse aus": "Larik: paksi Y mati",
+ "Y-Achse statt Polar-Interpolation": "Paksi Y menggantikan interpolasi kutub",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Mesin larik dengan paksi Y: permukaan kunci, kontur dan poket pada muka hujung dijalankan dengan bahagian tegar (C tetap) dalam X dan Y – lebih tepat daripada interpolasi kutub. Apa yang melebihi perjalanan Y kekal dengan interpolasi kutub.",
+ "Y-Verfahrweg (±)": "Perjalanan Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Perjalanan terbesar paksi Y dari tengah, dalam mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: laluan melebihi perjalanan Y (± {1} mm) – dikeluarkan dengan interpolasi kutub",
+ "Tasche Mantelfläche (C-Achse)": "Poket pada lilitan (paksi C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Lakaran poket mesti terletak selari dengan paksi pelarik (ia dibalut pada lilitan) – untuk muka hujung gunakan „Poket muka hujung“",
+ "Die Tasche liegt in Z nicht am Teil": "Poket tidak terletak pada bahagian dalam Z"
+}

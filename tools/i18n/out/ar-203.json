@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "الحافة {0} (دائرة R{1}، {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "الحافة {0} (قوس R{1}، {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} من الأوجه المخروطية/الكروية كأوجه حقيقية",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "“{0}” أصبح الآن جسماً أيضاً (يمكن التدوير والقص والتشغيل ثنائي الأبعاد){1}{2}{3}. الشبكة مخفية.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "الحافة {0}: القوس ضيق جداً لهذه الشفة",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "الحافة {0}: شفة على حافة منحنية – يُضغط طرفها بنسبة {1} % أثناء التشكيل (خطر التجعد)؛ وقطعة القص هناك تقريبية.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "الحافة {0}: شفة على حافة منحنية – يُشدّ طرفها بنسبة {1} % أثناء التشكيل (خطر التشقق)؛ وقطعة القص هناك تقريبية.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "الحافة {0}: لا تُقص الفتحات في شفة على حافة منحنية."
+}

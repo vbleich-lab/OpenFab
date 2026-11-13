@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Arête {0} (cercle R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Arête {0} (arc R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} faces coniques/sphériques en tant que vraies faces",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "« {0} » est maintenant aussi un corps (congé, découpe, usinage 2D possibles){1}{2}{3}. Le maillage est masqué.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Arête {0} : l’arc est trop serré pour cette patte",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Arête {0} : patte sur une arête courbe – son bord est comprimé de {1} % lors du formage (risque de plis) ; le flan y est une approximation.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Arête {0} : patte sur une arête courbe – son bord est étiré de {1} % lors du formage (risque de fissures) ; le flan y est une approximation.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Arête {0} : les découpes dans une patte sur une arête courbe ne sont pas réalisées."
+}

@@ -310,10 +310,20 @@ textarea.gcode { width: 100%; height: 340px; font: 11px/1.4 Consolas, monospace;
 .flange-row { display: grid; grid-template-columns: 18px 1fr 52px 22px 44px 12px; gap: 4px; align-items: center; margin: 3px 0; font-size: 12px; }
 .flange-row input[type=text] { padding: 3px 4px; border: 1px solid var(--line); border-radius: 3px; background: var(--input); width: 100%; }
 .flange-row small { color: var(--muted); }
+.flange-row.form-row { grid-template-columns: 1fr 78px 44px 22px 44px 22px; }
+.flange-row.form-row:has(> input[type=checkbox]) { grid-template-columns: 18px 1fr 52px 22px; }
+.flange-row.form-row select { padding: 2px; font-size: 11px; min-width: 0; }
 .flange-row.flange-sub { grid-template-columns: 1fr 52px 22px 44px 12px 24px; padding-left: 22px; }
 .flange-row.flange-sub > span { color: var(--muted); }
 .flange-row.flange-sub button { padding: 1px 4px; font-size: 11px; }
 .flange-row.flange-sub > button:only-child { grid-column: 1 / -1; justify-self: start; }
+.flange-row.flange-hole { grid-template-columns: 1fr 44px 44px 44px 44px 24px; padding-left: 22px; }
+.flange-row.flange-hole > span { color: var(--muted); display: flex; gap: 4px; align-items: center; }
+.flange-row.flange-hole select { padding: 2px; font-size: 11px; min-width: 0; }
+.flange-row.flange-hole button { padding: 1px 4px; font-size: 11px; }
+.flange-row.flange-hole .span2 { grid-column: span 2; min-width: 0; }
+.flange-holebtns { padding-left: 22px; margin: 2px 0 6px; }
+.flange-holebtns button { padding: 2px 6px; font-size: 11px; }
 
 /* drawing window */
 #drawingView { overflow: hidden; }
@@ -1268,3 +1278,24 @@ td.mt-barc { width: 28%; }
 .design-card span { display: block; padding: 4px 7px; font-size: 11.5px; }
 /* light designs keep a dark title bar: its texts and symbols stay light */
 :root[data-design="paper"], :root[data-design="slate"], :root[data-design="mint"], :root[data-design="contrastLight"] { --top-text: #f5f3ee; --top-hover: rgba(255, 255, 255, .12); }
+
+/* ---------- right-to-left languages (Arabic, Hebrew): the page is mirrored by dir="rtl"; what is not text of the
+   language keeps its direction ---------- */
+:root[dir="rtl"] :is(pre, code, textarea, kbd, .mono, #sketchCoords, input[type="text"], input[type="number"], input:not([type]), .nc-code, .keys kbd) { direction: ltr; }
+/* fields take their direction from what is typed: numbers stay left (their unit sits at the right), Arabic or Hebrew names run from the right */
+:root[dir="rtl"] :is(input[type="text"], input[type="number"], input:not([type])) { unicode-bidi: plaintext; text-align: start; }
+:root[dir="rtl"] :is(#viewportWrap, #cubeWrap, #navBar, canvas, svg) { direction: ltr; }
+:root[dir="rtl"] #navBar, :root[dir="rtl"] #simBar { direction: rtl; }
+:root[dir="rtl"] .menu-list { left: auto; right: 0; text-align: right; }
+:root[dir="rtl"] :is(.menu-list button, .tdrop-item, .ctx-item, .node) { text-align: right; }
+/* values with units read left to right ("30 mm", not "mm 30"): each cell takes its direction from its own text */
+:root[dir="rtl"] :is(td, th, .twl-td, .stats b, .stats span, #simInfo, .muted, .op-meta, .unit, .dp-v, .tl-time) { unicode-bidi: plaintext; }
+:root[dir="rtl"] :is(td, th, .twl-td) { text-align: right; }
+/* names in Latin letters keep their beginning when they are cut short; the design cards mirror their little preview */
+:root[dir="rtl"] .node .name { unicode-bidi: plaintext; text-align: start; }
+:root[dir="rtl"] .design-card i::after { left: auto; right: 8px; box-shadow: -52px 6px 0 -6px var(--accent); }
+:root[dir="rtl"] .design-card { text-align: right; }
+/* NC code in the post processor's preview reads from left to right */
+:root[dir="rtl"] .pe-preview { direction: ltr; text-align: left; }
+/* cutting data of a tool: "16000 rpm" keeps number before unit */
+:root[dir="rtl"] .twl-prow > div { unicode-bidi: plaintext; text-align: right; }

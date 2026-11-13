@@ -11,7 +11,7 @@ WerkFab is a parametric 3D CAD program with integrated CAM. Parts are designed w
 > [!CAUTION]
 > **Every NC program must be verified before it runs on a machine for the first time – in a dry run on the machine (single block, reduced rapid, in the air or with a safe Z offset) or in an external NC simulator.** The simulation inside WerkFab does not replace this check. WerkFab is free software and comes with no warranty of any kind; there is no liability for damage to machines, tools, workpieces or people. See [Safety](#safety-always-simulate-nc-programs-first).
 
-> **Status: Release Candidate 9 (v1.0.0-rc.9).** Feature complete for 1.0.
+> **Status: Release Candidate 10 (v1.0.0-rc.10).** Feature complete for 1.0.
 
 ![Designing a part on the timeline, then toolpaths and a simulation with stock removal](docs/media/demo.gif)
 
@@ -31,7 +31,7 @@ WerkFab is a parametric 3D CAD program with integrated CAM. Parts are designed w
 | **Hole recognition** | **Trace image** |
 | ![Holes of the model grouped by diameter and kind, with the operations and tools that will be created](docs/media/07-bohrungen.png) | ![A picture traced into lines, arcs and circles for a sketch, SVG or DXF](docs/media/08-nachzeichnen.png) |
 
-The interface is available in **26 languages**: English (US and UK), German, Chinese, French, Spanish, Italian, Portuguese (Brazil), Dutch, Polish, Turkish, Japanese, Korean, Russian, Czech, Danish, Finnish, Norwegian, Ukrainian, Croatian, Bosnian, Serbian, Georgian, Latvian, Malay and Galician.
+The interface is available in **28 languages**: English (US and UK), German, Chinese, French, Spanish, Italian, Portuguese (Brazil), Dutch, Polish, Turkish, Japanese, Korean, Russian, Czech, Danish, Finnish, Norwegian, Ukrainian, Croatian, Bosnian, Serbian, Georgian, Latvian, Malay, Galician, Arabic and Hebrew (the last two with a mirrored, right-to-left layout).
 
 ---
 
@@ -53,7 +53,7 @@ The interface is available in **26 languages**: English (US and UK), German, Chi
 - **Extrude with taper angle**; moments of inertia in the body properties
 - **Construction geometry**: planes (offset, at an angle, through 3 points, tangent), axes and points
 - **Surfaces**: extrude, revolve, loft, patch, offset, stitch, trim, extend, fill
-- **Sheet metal**: flanges, flange on flange (U hem, Z step, 180° hem), open or closed corners with corner relief (round or square), flat pattern with bend table
+- **Sheet metal**: flanges, flange on flange (U hem, Z step, 180° hem), open or closed corners with corner relief (round or square), bend lines, beads, collars, louvres, embossing, flat pattern with bend table, nesting with a cutting program per sheet
 - **Timeline** with a cache: a change recomputes only the features it affects, step by step with a progress display
 
 ### Assemblies
@@ -86,7 +86,7 @@ The interface is available in **26 languages**: English (US and UK), German, Chi
 - **Control cycles** instead of computed paths: drilling and pocket cycles, studs, bolt circles and grids, turning roughing cycle and threading cycle
 
 ### User interface
-- **Languages**: 26 – English (US and UK), German, Chinese, French, Spanish, Italian, Portuguese (Brazil), Dutch, Polish, Turkish, Japanese, Korean, Russian, Czech, Danish, Finnish, Norwegian, Ukrainian, Croatian, Bosnian, Serbian, Georgian, Latvian, Malay and Galician (Preferences → Units and value display → Language; “System” follows the language of the browser or operating system). Everything except German, English and Chinese is a machine translation that no native speaker has reviewed yet – corrections are welcome
+- **Languages**: 28 – English (US and UK), German, Chinese, French, Spanish, Italian, Portuguese (Brazil), Dutch, Polish, Turkish, Japanese, Korean, Russian, Czech, Danish, Finnish, Norwegian, Ukrainian, Croatian, Bosnian, Serbian, Georgian, Latvian, Malay, Galician, Arabic and Hebrew (Preferences → Units and value display → Language; “System” follows the language of the browser or operating system). Everything except German, English and Chinese is a machine translation that no native speaker has reviewed yet – corrections are welcome
 - **Look**: ten designs (light, dark, high contrast), accent colour of your choice, icon colour and size, density, corner shape, font, window opacity, interface size, and named profiles of all preferences
 - **Updates**: the program looks for a new version on GitHub at start. The installed Windows app and the Linux AppImage download and install it on request; the portable Windows folder, macOS and the browser version show a note with the download page. This look-up is the only connection WerkFab makes to the net by itself, and it can be switched off (Preferences → General → Updates).
 - Marking menu (right click), ViewCube, keyboard shortcuts (e.g. Q press/pull, F fillet, M move, I measure, X construction line)

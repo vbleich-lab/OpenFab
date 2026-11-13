@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Kieszeń na średnicy",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Kieszeń na obwodzie z zamkniętych konturów szkicu leżącego wzdłuż osi toczenia (kontury wewnętrzne pozostają jako wyspy). Szkic jest nawijany na średnicę; napędzana frezarka palcowa skierowana na oś usuwa materiał od środka na zewnątrz (Z i C poruszają się razem; Fanuc: interpolacja cylindryczna G7.1). Frez wchodzi promieniowo.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Wartość tolerancji, a po niej bazy (oddzielone spacjami), np. Ø0,05 A B. Dopiski w nawiasach są rysowane jako litera w kółku: Ø0,05(M) A(M) – (M) maksimum materiału, (L) minimum materiału, (P) strefa rzutowana, (F) stan swobodny, (E) warunek powłoki",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Toczenie: oś Y włączona (płaszczyzna X/Y; wpisz tutaj także zacisk C maszyny)",
+ "Drehen: Y-Achse aus": "Toczenie: oś Y wyłączona",
+ "Y-Achse statt Polar-Interpolation": "Oś Y zamiast interpolacji biegunowej",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Tokarka z osią Y: pola pod klucz, kontury i kieszenie na powierzchni czołowej są obrabiane przy nieruchomym przedmiocie (C zablokowana) w X i Y – dokładniej niż interpolacja biegunowa. Co wykracza poza skok osi Y, pozostaje przy interpolacji biegunowej.",
+ "Y-Verfahrweg (±)": "Skok osi Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Największy przesuw osi Y od środka, w mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: ścieżka wykracza poza skok osi Y (± {1} mm) – wygenerowano z interpolacją biegunową",
+ "Tasche Mantelfläche (C-Achse)": "Kieszeń na powierzchni walcowej (oś C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Szkic kieszeni musi leżeć wzdłuż osi toczenia (jest nawijany na obwód) – dla strony czołowej użyj „Kieszeń na powierzchni czołowej“",
+ "Die Tasche liegt in Z nicht am Teil": "Kieszeń nie leży na przedmiocie w osi Z"
+}

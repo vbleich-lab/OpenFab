@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Cavidade no perímetro",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Cavidade no perímetro a partir dos contornos pechados dun esbozo que está ao longo do eixe de torneado (os contornos interiores quedan como illas). O esbozo envólvese sobre o diámetro; unha fresa de vástago accionada, orientada cara ao eixe, desbasta de dentro cara a fóra (Z e C móvense xuntos; Fanuc: interpolación cilíndrica G7.1). A fresa penetra radialmente.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Valor da tolerancia, seguido das referencias (separadas por espazos), p. ex. Ø0,05 A B. Os complementos entre parénteses debúxanse como unha letra nun círculo: Ø0,05(M) A(M) – (M) material máximo, (L) material mínimo, (P) proxectado, (F) estado libre, (E) condición de envolvente",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Torneado: eixe Y activado (plano X/Y; introduza aquí tamén a suxeición C da máquina)",
+ "Drehen: Y-Achse aus": "Torneado: eixe Y desactivado",
+ "Y-Achse statt Polar-Interpolation": "Eixe Y en lugar de interpolación polar",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Torno con eixe Y: as caras de chave, os contornos e as cavidades na cara frontal execútanse coa peza parada (C fixo) en X e Y, con maior precisión que a interpolación polar. O que exceda o percorrido de Y mantense coa interpolación polar.",
+ "Y-Verfahrweg (±)": "Percorrido Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Maior percorrido do eixe Y desde o centro, en mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: a traxectoria supera o percorrido de Y (± {1} mm); emitida con interpolación polar",
+ "Tasche Mantelfläche (C-Achse)": "Cavidade no perímetro (eixe C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "O esbozo da cavidade debe estar ao longo do eixe de torneado (envólvese sobre o perímetro); para a cara frontal use „Cavidade na cara frontal“",
+ "Die Tasche liegt in Z nicht am Teil": "A cavidade non está sobre a peza en Z"
+}

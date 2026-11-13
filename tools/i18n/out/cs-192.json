@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Kapsa na plášti",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Kapsa na obvodu z uzavřených kontur skici, která leží podél osy otáčení (vnitřní kontury zůstanou jako ostrůvky). Skica se navine na průměr; poháněná stopková fréza mířící k ose vybírá zevnitř ven (Z a C se pohybují společně; Fanuc: válcová interpolace G7.1). Fréza zanořuje radiálně.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Hodnota tolerance a za ní reference (oddělené mezerou), např. Ø0,05 A B. Dodatky v závorkách se kreslí jako písmeno v kroužku: Ø0,05(M) A(M) – (M) maximum materiálu, (L) minimum materiálu, (P) projektovaná, (F) volný stav, (E) podmínka obalu",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Soustružení: osa Y zapnuta (rovina X/Y; zde zadejte také upnutí C stroje)",
+ "Drehen: Y-Achse aus": "Soustružení: osa Y vypnuta",
+ "Y-Achse statt Polar-Interpolation": "Osa Y místo polární interpolace",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Soustruh s osou Y: plochy pro klíč, kontury a kapsy na čelní ploše se obrábějí při stojícím dílci (C pevná) v X a Y – přesněji než polární interpolace. Co přesahuje dráhu Y, zůstává u polární interpolace.",
+ "Y-Verfahrweg (±)": "Dráha osy Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Největší dráha osy Y od středu, v mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: dráha přesahuje dráhu osy Y (± {1} mm) – vypsáno s polární interpolací",
+ "Tasche Mantelfläche (C-Achse)": "Kapsa na plášti (osa C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Skica kapsy musí ležet podél osy otáčení (navine se na obvod) – pro čelo použijte „Kapsa na čelní ploše“",
+ "Die Tasche liegt in Z nicht am Teil": "Kapsa v Z neleží na dílci"
+}

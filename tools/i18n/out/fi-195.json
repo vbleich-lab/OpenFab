@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Ramppi radan suuntaisesti",
+ "Gerade (radial)": "Suora (radiaalinen)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Tasku kehälle luonnoksen suljetuista ääriviivoista, jotka ovat pyörimisakselin suuntaisesti (sisäiset ääriviivat jäävät saarekkeiksi). Luonnos kiedotaan halkaisijalle; akselia kohti osoittava käyttöinen vartiojyrsin tyhjentää sisältä ulospäin (Z ja C liikkuvat yhdessä; Fanuc: lieriöinterpolointi G7.1). Jyrsin sukeltaa ramppia pitkin sisimmän renkaan suuntaisesti.",
+ "+ Neue Maschine": "+ Uusi kone",
+ "+ Neue Vorgabe": "+ Uusi esiasetus"
+}

@@ -109,6 +109,24 @@ ok('Eigene Maße als greifbare Gruppen (eine je Maß, mit breiten Greiflinien)',
   const part = makeDrawing(bodies, { ...base, userDims: [], axes: [ax] }).svg, full = makeDrawing(bodies, { ...base, userDims: [], axes: [{ ...ax, full: true }] }).svg;
   ok('Mittelkreuz in der Draufsicht aus der Achse eines vollen Zylinders (Teilzylinder: keines)', ctrL(part) === 2 && ctrL(full) === 4, `${ctrL(part)} / ${ctrL(full)} Mittellinien`);
 }
+// tolerance frame with material condition modifiers: Ø0,05(M) A(L) → the letters M and L in circles, the cells
+// without the brackets
+{
+  const svg = makeDrawing(bodies, { ...base, userDims: [{ view: 'top', kind: 'gdt', a: [60, -40], sym: 'pos', text: 'Ø0,05(M) A(L) B', ang: 30, off: 14 }] }).svg;
+  const plainF = makeDrawing(bodies, { ...base, userDims: [{ view: 'top', kind: 'gdt', a: [60, -40], sym: 'pos', text: 'Ø0,05 A B', ang: 30, off: 14 }] }).svg;
+  const tx = s => [...s.matchAll(/<text[^>]*class="([^"]*)"[^>]*>([^<]*)<\/text>/g)].map(m => m[1] + ':' + m[2]);
+  const circles = s => (s.split('<circle').length - 1);
+  const T = tx(svg);
+  ok('Toleranzrahmen mit Zusätzen: Wert und Bezug ohne Klammern, M und L im Kreis', T.includes('dtx:Ø0,05') && T.includes('dtx:A') && T.includes('dtx gm:M') && T.includes('dtx gm:L') && !T.some(t => t.startsWith('dtx') && t.includes('(')) && circles(svg) === circles(plainF) + 2, T.filter(t => /gm|0,05/.test(t)).join(' | ') + ' · Kreise ' + circles(svg) + ' / ' + circles(plainF) + ' · ' + T.filter(t => t.includes('(')).join(' | '));
+}
+// external thread in a section view: a bolt the plane cuts (or one behind it) keeps its thread lines and its name,
+// a bolt in front of the plane is cut away with them; the top view always shows it
+{
+  const bolt = { id: 't1', name: 'M10×1.5', c: [0, 40, 5], d: [1, 0, 0], r: 5, L: 20, P: 1.5, outside: true };
+  const sec = y => makeDrawing(bodies, { ...base, userDims: [], threads: [bolt], section: { bodies, polys: [], y } }).svg;
+  const names = svg => svg.split('>M10×1,5<').length - 1;
+  ok('Außengewinde im Schnitt: geschnittener Bolzen mit Bezeichnung, weggeschnittener ohne', names(sec(40)) === 2 && names(sec(60)) === 1, `${names(sec(40))} / ${names(sec(60))} Bezeichnungen`);
+}
 // nothing to draw (no body): an empty sheet without broken numbers
 {
   const empty = makeDrawing([], { ...base, userDims: [] }).svg, badE = empty.match(/NaN|undefined|Infinity/);

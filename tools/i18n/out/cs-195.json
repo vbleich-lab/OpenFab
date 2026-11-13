@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Rampa podél dráhy",
+ "Gerade (radial)": "Přímo (radiálně)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Kapsa na obvodu z uzavřených kontur skici, která leží podél osy otáčení (vnitřní kontury zůstanou jako ostrůvky). Skica se navine na průměr; poháněná stopková fréza směřující k ose vybírá zevnitř ven (Z a C se pohybují společně; Fanuc: válcová interpolace G7.1). Fréza zajíždí po rampě podél nejvnitřnějšího prstence.",
+ "+ Neue Maschine": "+ Nový stroj",
+ "+ Neue Vorgabe": "+ Nová předvolba"
+}

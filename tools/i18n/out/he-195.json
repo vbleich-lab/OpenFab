@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "רמפה לאורך המסלול",
+ "Gerade (radial)": "ישר (רדיאלי)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "כיס על ההיקף מתוך הקונטורים הסגורים של סקיצה המונחת לאורך ציר הסיבוב (קונטורים פנימיים נשארים כאיים). הסקיצה נכרכת על הקוטר; כרסום קצה שטוח מונע המכוון אל הציר מרוקן מבפנים החוצה (Z ו-C נעים יחד; ב-Fanuc: אינטרפולציה גלילית G7.1). הכרסום חודר ברמפה לאורך הטבעת הפנימית ביותר.",
+ "+ Neue Maschine": "+ מכונה חדשה",
+ "+ Neue Vorgabe": "+ הגדרה מוכנה חדשה"
+}

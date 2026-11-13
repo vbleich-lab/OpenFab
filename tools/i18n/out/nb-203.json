@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Kant {0} (sirkel R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Kant {0} (bue R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} kjegle-/kuleflater som ekte flater",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}“ er nå også en kropp (avrunding, utskjæring og 2D-bearbeiding er mulig){1}{2}{3}. Nettet er skjult.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Kant {0}: buen er for trang for denne flensen",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Kant {0}: flens på en buet kant – randen stukes med {1} % under formingen (fare for folder); utfoldingen er en tilnærming der.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Kant {0}: flens på en buet kant – randen strekkes med {1} % under formingen (fare for sprekker); utfoldingen er en tilnærming der.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Kant {0}: utskjæringer i en flens på en buet kant skjæres ikke."
+}

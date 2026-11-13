@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "რამპა ტრაექტორიის გასწვრივ",
+ "Gerade (radial)": "სწორი (რადიალური)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "ჯიბე გარსზე ესკიზის დახურული კონტურებიდან, რომელიც ბრუნვის ღერძის გასწვრივ მდებარეობს (შიდა კონტურები კუნძულებად რჩება). ესკიზი დიამეტრზე ეხვევა; ღერძისკენ მიმართული ამძრავიანი ბოლოფრეზა მასალას შიგნიდან გარეთ იღებს (Z და C ერთად გადაადგილდება; Fanuc: ცილინდრული ინტერპოლაცია G7.1). ფრეზა რამპით შედის უშიდეს რგოლის გასწვრივ.",
+ "+ Neue Maschine": "+ ახალი დაზგა",
+ "+ Neue Vorgabe": "+ ახალი წინასწარი პარამეტრი"
+}

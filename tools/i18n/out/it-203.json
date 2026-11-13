@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Spigolo {0} (cerchio R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Spigolo {0} (arco R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} facce coniche/sferiche come facce reali",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "«{0}» è ora anche un corpo (raccordo, taglio e lavorazione 2D possibili){1}{2}{3}. La mesh è nascosta.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Spigolo {0}: l'arco è troppo stretto per questa flangia",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Spigolo {0}: flangia su uno spigolo curvo – il suo bordo viene compresso del {1} % durante la formatura (rischio di pieghe); il ritaglio è qui un'approssimazione.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Spigolo {0}: flangia su uno spigolo curvo – il suo bordo viene stirato del {1} % durante la formatura (rischio di cricche); il ritaglio è qui un'approssimazione.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Spigolo {0}: i ritagli in una flangia su uno spigolo curvo non vengono eseguiti."
+}

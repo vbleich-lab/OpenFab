@@ -7,7 +7,7 @@ export const TURN_OPS = {
   tface: 'Plandrehen', trough: 'Längsschruppen', tfinish: 'Konturschlichten',
   tgroove: 'Einstechen', tthread: 'Gewindedrehen', tpart: 'Abstechen', tdrill: 'Bohren (Drehachse)', tbore: 'Innendrehen',
   tlive: 'Bohren angetrieben (C-Achse)', tslot: 'Nut angetrieben (C-Achse)', tflat: 'Schlüsselflächen (C-Achse)',
-  tcontour: 'Kontur Planfläche (C-Achse)', twrap: 'Kontur Mantelfläche (C-Achse)', tpocket: 'Tasche Planfläche (C-Achse)',
+  tcontour: 'Kontur Planfläche (C-Achse)', twrap: 'Kontur Mantelfläche (C-Achse)', tpocket: 'Tasche Planfläche (C-Achse)', twpocket: 'Tasche Mantelfläche (C-Achse)',
 };
 export const TURN_TOOL_TYPES = { turn: 'Drehmeißel (außen)', groove: 'Stechmeißel', tthread: 'Gewindedrehmeißel', drill: 'Bohrer', turnbore: 'Bohrstange (Drehen - Bohren)' };
 
@@ -152,7 +152,9 @@ class LPath {
   }
   // driven axial tool moving in the plane across the axis (polar interpolation X/C): x, y on the part
   polar(t, x, y, z, f, tag) {
-    this.m.push({ t, x, y, z, xr: Math.hypot(x, y), c: +((Math.atan2(y, x) * 180) / Math.PI).toFixed(4), live: 'ax', polar: true, ...(f ? { f } : {}), ...(tag ? { [tag]: true } : {}) });
+    // yc: the angle the part stands at when a machine with a Y axis does this pass with C fixed (flats: their own
+    // angle, contours and pockets on the face: 0)
+    this.m.push({ t, x, y, z, xr: Math.hypot(x, y), c: +((Math.atan2(y, x) * 180) / Math.PI).toFixed(4), yc: this.yc || 0, live: 'ax', polar: true, ...(f ? { f } : {}), ...(tag ? { [tag]: true } : {}) });
     this.p = { x: Math.hypot(x, y), z };
   }
 }
@@ -616,6 +618,68 @@ function genTurnOp(op, t, st, prof, ctx = {}) {
       { const e = P.m[P.m.length - 1]; P.live('r', clearX, e.c, clearZ, 'rad'); }
       break;
     }
+    case 'twpocket': {
+      // pocket on the diameter: the closed curves of a sketch along the axis, wrapped onto the circumference and
+      // cleared ring by ring from the inside out with a driven end mill pointing at the axis (Z and C together)
+      const R = Math.max(0.05, (+t.dia || 0) / 2), depth = +op.depth;
+      if (!(depth > 0)) throw new Error('Tiefe angeben');
+      const G = ctx.curves?.(op, R);
+      if (!G) throw new Error('Keine Skizze als Geometrie gewählt');
+      if (G.kind !== 'wrap') throw new Error('Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“');
+      const zs = G.curves.flatMap(c => c.pts.map(q => q[1])), zA = Math.max(...zs), zB = Math.min(...zs);
+      if (zB < st.modelBottom - 1e-6 || zA > st.top + R + 1e-6) throw new Error('Die Tasche liegt in Z nicht am Teil');
+      let surf = 0;
+      for (let z = zB - R; z <= zA + R + 1e-9; z += prof.dz) surf = Math.max(surf, prof.at(Math.max(st.modelBottom + prof.dz, Math.min(z, st.modelTop - prof.dz))));
+      if (!ctx.turned) surf = Math.max(surf, st.r);
+      const Rw = +op.wrapDia > 0 ? +op.wrapDia / 2 : surf;
+      if (depth > surf) throw new Error(`Tiefe ${depth} mm ist größer als der Radius ${+surf.toFixed(2)} mm`);
+      const ap = +op.stepdown > 0 ? +op.stepdown : Math.max(0.1, R), n = Math.max(1, Math.ceil(depth / ap - 1e-9)), rIn = surf + 1;
+      const ang = s => +(G.phi + ((s / Rw) * 180) / Math.PI).toFixed(4);
+      ctx.cyl = Rw;
+      let first = true, at = null; // at: [s, z] while the cutter is down
+      const up = () => { if (at) { const e = P.m[P.m.length - 1]; P.live('r', rIn, e.c, e.z, 'rad'); at = null; } };
+      // entering the material: down a ramp along the ring ("Rampenwinkel"), or straight with "Eintauchen: gerade"
+      const rampDeg = op.rampType === 'plunge' ? 0 : +op.ramp > 0 ? +op.ramp : 3, tanR = Math.tan((rampDeg * Math.PI) / 180);
+      const cut = (x, q, f) => { P.live('f', x, ang(q[0]), q[1], 'rad', f); P.m[P.m.length - 1].cyl = true; };
+      for (let k = 1; k <= n; k++) {
+        const x = surf - (depth * k) / n;
+        for (const c of G.curves) {
+          const pts = [...c.pts, c.pts[0]], [s0, z0] = pts[0];
+          if (at && Math.hypot(at[0] - s0, at[1] - z0) <= G.so + 0.01) { P.live('f', x, ang(s0), z0, 'rad', t.feed); P.m[P.m.length - 1].cyl = true; }
+          else {
+            up();
+            if (first) P.live('r', clearX, ang(s0), clearZ, 'rad');
+            P.live('r', first ? clearX : rIn, ang(s0), z0, 'rad');
+            if (first) P.live('r', rIn, ang(s0), z0, 'rad');
+            first = false;
+            if (tanR > 1e-6) {
+              // down to the level above (the surface for the first level), then along the ring while going deeper
+              const m = pts.length - 1, fr = t.plunge || t.feed;
+              let xc = surf - (depth * (k - 1)) / n, i = 0, guard = 0;
+              P.live('f', xc, ang(s0), z0, 'rad', fr);
+              while (xc > x + 1e-9 && guard++ < 20000) {
+                const a = pts[i % m], b = pts[(i % m) + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                i++;
+                if (L < 1e-9) continue;
+                const drop = L * tanR;
+                if (xc - drop >= x - 1e-9) { xc = Math.max(x, xc - drop); cut(xc, b, fr); }
+                else { const u = (xc - x) / drop; xc = x; cut(x, [a[0] + u * (b[0] - a[0]), a[1] + u * (b[1] - a[1])], fr); cut(x, b, t.feed); }
+              }
+              // once around at full depth: this also clears the wedge the ramp has left
+              for (let j = 1; j <= m; j++) cut(x, pts[(i + j) % m], t.feed);
+              at = pts[i % m];
+              continue;
+            }
+            P.live('f', x, ang(s0), z0, 'rad', t.plunge || t.feed);
+          }
+          for (const q of pts.slice(1)) { P.live('f', x, ang(q[0]), q[1], 'rad', t.feed); P.m[P.m.length - 1].cyl = true; }
+          at = pts[pts.length - 1];
+        }
+        up();
+      }
+      { const e = P.m[P.m.length - 1]; P.live('r', clearX, e.c, e.z, 'rad'); P.live('r', clearX, e.c, clearZ, 'rad'); }
+      break;
+    }
     case 'tslot': {
       // keyway along Z with a driven end mill pointing at the axis (C fixed per slot)
       const R = Math.max(0.05, (+t.dia || 0) / 2), angs = liveAngles(op), depth = +op.depth;
@@ -666,6 +730,7 @@ function genTurnOp(op, t, st, prof, ctx = {}) {
       P.rapid(clearX, zIn);
       for (const c of angs) {
         const a = (c * Math.PI) / 180, ux = Math.cos(a), uy = Math.sin(a);
+        P.yc = c;
         for (let kz = 1; kz <= nz; kz++) {
           const z = st.modelTop - (len * kz) / nz;
           for (let kr = 1; kr <= nr; kr++) {
@@ -695,7 +760,7 @@ export function liveAngles(op) {
   return Array.from({ length: n }, (_, i) => +((((a0 + (360 * i) / n) % 360) + 360) % 360).toFixed(4));
 }
 
-const TOOL_OK = { tface: ['turn'], trough: ['turn'], tfinish: ['turn'], tgroove: ['groove'], tthread: ['tthread'], tpart: ['groove'], tdrill: ['drill', 'center', 'spot'], tbore: ['turnbore'], tlive: ['drill', 'center', 'spot'], tslot: ['flat', 'ball'], tflat: ['flat'], tcontour: ['flat', 'ball', 'chamfer'], twrap: ['flat', 'ball', 'chamfer'], tpocket: ['flat'] };
+const TOOL_OK = { tface: ['turn'], trough: ['turn'], tfinish: ['turn'], tgroove: ['groove'], tthread: ['tthread'], tpart: ['groove'], tdrill: ['drill', 'center', 'spot'], tbore: ['turnbore'], tlive: ['drill', 'center', 'spot'], tslot: ['flat', 'ball'], tflat: ['flat'], tcontour: ['flat', 'ball', 'chamfer'], twrap: ['flat', 'ball', 'chamfer'], tpocket: ['flat'], twpocket: ['flat'] };
 
 export function generateTurnSetup(project, bodies, setup, machine, rapid, hooks = {}) {
   const results = new Map();
@@ -728,7 +793,7 @@ export function generateTurnSetup(project, bodies, setup, machine, rapid, hooks 
         len += d;
         time += (d / (b.t === 'r' ? rapid : b.f)) * 60;
       }
-      results.set(op.id, { moves, tool: t, length: len, time, heights: { top: stock.top, bottom: stock.bottom }, ...(op.type === 'tlive' ? { live: op.dir === 'radial' ? 'rad' : 'ax' } : op.type === 'tslot' ? { live: 'rad' } : op.type === 'tflat' || op.type === 'tcontour' || op.type === 'tpocket' ? { live: 'ax', polar: true } : op.type === 'twrap' ? { live: 'rad', cyl: tctx.cyl } : {}), ...(tctx.cycle || tctx.cycleWhy ? { turnCycle: tctx.cycle || null, turnCycleWhy: tctx.cycleWhy || null } : {}) });
+      results.set(op.id, { moves, tool: t, length: len, time, heights: { top: stock.top, bottom: stock.bottom }, ...(op.type === 'tlive' ? { live: op.dir === 'radial' ? 'rad' : 'ax' } : op.type === 'tslot' ? { live: 'rad' } : op.type === 'tflat' || op.type === 'tcontour' || op.type === 'tpocket' ? { live: 'ax', polar: true } : (op.type === 'twrap' || op.type === 'twpocket') ? { live: 'rad', cyl: tctx.cyl } : {}), ...(tctx.cycle || tctx.cycleWhy ? { turnCycle: tctx.cycle || null, turnCycleWhy: tctx.cycleWhy || null } : {}) });
     } catch (err) {
       results.set(op.id, { error: err.message, moves: [] });
     }
@@ -742,6 +807,8 @@ export class TurnSim {
     this.group = new THREE.Group();
     parent.add(this.group);
     this.mat = new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.6, metalness: 0.2, side: THREE.DoubleSide });
+    this.cmp = null;
+    this.cmpTol = 0.1;
     this.holeMat = new THREE.MeshStandardMaterial({ color: 0x3a2f1e, roughness: 0.9, metalness: 0.1 });
   }
   build(stock) {
@@ -751,19 +818,147 @@ export class TurnSim {
     this.holes = new Map();
     this.flats = new Map();
     this.marks = new Map();
+    // what driven radial cutters take away: the radius left per place around the part, rc[row * NT + column]
+    // (made with the first such cut); rows: the range of rows it has touched
+    this.NT = Math.max(180, Math.min(720, Math.ceil((2 * Math.PI * stock.r) / 0.25)));
+    this.rc = null;
+    this.rows = [Infinity, -1];
+    // what driven cutters along the axis take away, seen from the face: the height left per place,
+    // zc[ring * NT + column] with rings of the width dr from the axis outwards; zmin: the deepest of them
+    this.NR = Math.max(40, Math.min(300, Math.ceil(stock.r / 0.12)));
+    this.dr = stock.r / this.NR;
+    this.zc = null;
+    this.zmin = Infinity;
+    this.cmp = null;
     this.dirty = true;
     this.update();
   }
-  reset() { if (this.S) { this.S = new LatheStock(this.stock); this.holes = new Map(); this.flats = new Map(); this.marks = new Map(); this.dirty = true; this.update(); } }
+  reset() { if (this.S) { this.S = new LatheStock(this.stock); this.holes = new Map(); this.flats = new Map(); this.marks = new Map(); this.rc = null; this.rows = [Infinity, -1]; this.zc = null; this.zmin = Infinity; this.dirty = true; this.update(); } }
+  /**
+   * Comparison with the finished part ("Vergleich"): rad[row * NT + column] = radius of the part around the axis,
+   * top[ring * NT + column] = its height seen from the face (-Infinity: no part there), threads = [{ z0, z1,
+   * depth }] for threads that are only drawn on the model (cutting them is not "too deep"). null switches it off.
+   */
+  setCompare(part) {
+    this.cmp = null;
+    if (part && this.S && part.rad?.length === this.S.n * this.NT && part.top?.length === (this.NR + 1) * this.NT) {
+      // target band per place: next to a shoulder the place may lie on either side of it on this grid, so
+      // anything between the lower and the upper neighbour counts as "at size"
+      const band = (T, rows, NT) => {
+        const lo = new Float32Array(T.length), hi = new Float32Array(T.length);
+        for (let i = 0; i < rows; i++) for (let j = 0; j < NT; j++) {
+          let a = Infinity, b = -Infinity;
+          for (let di = -1; di <= 1; di++) { const ii = i + di; if (ii < 0 || ii >= rows) continue; for (let dj = -1; dj <= 1; dj++) { const t = T[ii * NT + ((j + dj + NT) % NT)]; if (t < a) a = t; if (t > b) b = t; } }
+          lo[i * NT + j] = a; hi[i * NT + j] = b;
+        }
+        return { lo, hi };
+      };
+      const R = band(part.rad, this.S.n, this.NT), Tp = band(part.top, this.NR + 1, this.NT), bot = this.stock.bottom, dz = this.S.dz;
+      for (const th of part.threads || []) {
+        const i0 = Math.max(0, Math.floor((th.z0 - bot) / dz) - 1), i1 = Math.min(this.S.n - 1, Math.ceil((th.z1 - bot) / dz) + 1);
+        for (let i = i0; i <= i1; i++) for (let j = 0; j < this.NT; j++) R.lo[i * this.NT + j] = Math.max(0, R.lo[i * this.NT + j] - th.depth);
+      }
+      this.cmp = { rLo: R.lo, rHi: R.hi, tLo: Tp.lo, tHi: Tp.hi };
+    }
+    this.dirty = true;
+    this.update();
+  }
+  /** Share of the compared places: at size / material left / too deep, and the deepest gouge (null: off). */
+  compareStats() {
+    if (!this.cmp || !this.stat) return null;
+    const { ok, left, gouge, worst } = this.stat, n = ok + left + gouge;
+    return n ? { ok: ok / n, left: left / n, gouge: gouge / n, worst } : null;
+  }
+  // driven cutter along the axis (flat end, radius R) moving from a to b across the face
+  faceCut(a, b, R, t0, t1) {
+    const NT = this.NT, NR = this.NR, dr = this.dr, dth = (2 * Math.PI) / NT, top = this.stock.top;
+    if (!this.zc) this.zc = new Float32Array((NR + 1) * NT).fill(Infinity);
+    const zc = this.zc, L = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z), steps = Math.max(1, Math.ceil((L * (t1 - t0)) / Math.max(0.15, R * 0.2)));
+    let changed = false;
+    for (let k = 0; k <= steps; k++) {
+      const t = t0 + ((t1 - t0) * k) / steps, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t, z = a.z + (b.z - a.z) * t;
+      if (!(z < top - 1e-6)) continue;
+      const d = Math.hypot(x, y), phi = Math.atan2(y, x);
+      const i0 = Math.max(0, Math.floor((d - R) / dr)), i1 = Math.min(NR, Math.ceil((d + R) / dr));
+      for (let ir = i0; ir <= i1; ir++) {
+        const r = ir * dr;
+        let j0, j1;
+        if (r + d <= R || r < 1e-9) { if (d > R) continue; j0 = 0; j1 = NT - 1; }
+        else if (d < 1e-9) continue;
+        else {
+          const cs = (r * r + d * d - R * R) / (2 * r * d);
+          if (cs > 1) continue;
+          const h = Math.acos(Math.max(-1, cs));
+          j0 = Math.ceil((phi - h) / dth); j1 = Math.floor((phi + h) / dth);
+        }
+        for (let j = j0; j <= j1; j++) {
+          const q = ir * NT + (((j % NT) + NT) % NT);
+          if (z < zc[q] - 1e-4) { zc[q] = z; changed = true; if (z < this.zmin) this.zmin = z; }
+        }
+      }
+    }
+    if (changed) this.dirty = true;
+  }
+  /** Height left at the place (x, y) seen from the face: the turned profile, less what driven cutters took. */
+  topAt(x, y) {
+    const { n, dz, ro, ri } = this.S, r = Math.hypot(x, y);
+    let t = -Infinity;
+    for (let i = n - 1; i >= 0; i--) if (r < ro[i] - 1e-6 && (r > ri[i] + 1e-6 || ri[i] < 1e-6) && ro[i] > ri[i] + 1e-6) { t = this.stock.bottom + i * dz; break; }
+    if (!this.zc) return t;
+    const ir = Math.max(0, Math.min(this.NR, Math.round(r / this.dr))), j = Math.round((Math.atan2(y, x) / (2 * Math.PI)) * this.NT);
+    return Math.min(t, this.zc[ir * this.NT + (((j % this.NT) + this.NT) % this.NT)]);
+  }
+  // driven cutter pointing at the axis (flat end, radius R) moving from a to b: at the angle phi beside its axis
+  // the end face lies at the radius xr / cos(phi)
+  carve(a, b, R, t0, t1) {
+    const { n, dz, ro } = this.S, bot = this.stock.bottom, NT = this.NT, dth = (2 * Math.PI) / NT, rad = Math.PI / 180;
+    if (!this.rc) this.rc = new Float32Array(NT * n).fill(Infinity);
+    const rc = this.rc, L = Math.hypot((b.c - a.c) * rad * Math.max(a.xr, b.xr), b.z - a.z, b.xr - a.xr);
+    const steps = Math.max(1, Math.ceil((L * (t1 - t0)) / Math.max(0.15, R * 0.2)));
+    let removed = 0;
+    for (let k = 0; k <= steps; k++) {
+      const t = t0 + ((t1 - t0) * k) / steps, c = (a.c + (b.c - a.c) * t) * rad, z = a.z + (b.z - a.z) * t, xr = Math.max(0.05, a.xr + (b.xr - a.xr) * t);
+      const i0 = Math.max(0, Math.ceil((z - R - bot) / dz)), i1 = Math.min(n - 1, Math.floor((z + R - bot) / dz));
+      const pm = Math.min(1.4, Math.atan(R / xr)), j0 = Math.floor((c - pm) / dth), j1 = Math.ceil((c + pm) / dth);
+      for (let i = i0; i <= i1; i++) {
+        if (!(ro[i] > xr)) continue;
+        const dzz = bot + i * dz - z, w2 = R * R - dzz * dzz;
+        if (w2 < 0) continue;
+        for (let j = j0; j <= j1; j++) {
+          const phi = j * dth - c, w = xr * Math.tan(phi);
+          if (Math.abs(phi) > 1.45 || w * w > w2) continue;
+          const r = xr / Math.cos(phi), q = i * NT + (((j % NT) + NT) % NT);
+          if (r < ro[i] && r < rc[q] - 1e-4) {
+            removed += Math.min(ro[i], rc[q]) - r;
+            rc[q] = r;
+            if (i < this.rows[0]) this.rows[0] = i;
+            if (i > this.rows[1]) this.rows[1] = i;
+          }
+        }
+      }
+    }
+    if (removed > 0) this.dirty = true;
+    return removed;
+  }
+  /** Radius left at the angle c (degrees) and the height z: the turned profile, less what driven cutters took. */
+  radiusAt(c, z) {
+    const { n, dz, ro } = this.S, i = Math.max(0, Math.min(n - 1, Math.round((z - this.stock.bottom) / dz)));
+    if (!this.rc) return ro[i];
+    const j = Math.round(((c * Math.PI) / 180 / (2 * Math.PI)) * this.NT);
+    return Math.min(ro[i], this.rc[i * this.NT + (((j % this.NT) + this.NT) % this.NT)]);
+  }
   cut(a, b, tool, t0, t1) {
     const res = { removed: 0 };
     if (b.live || a.live) {
       // driven tool: the hole is kept as its deepest tip position per place (the turned profile stays as it is)
       if (b.live && a.live && b.t !== 'r') {
         const rad = b.live === 'rad', v = k => a[k] + (b[k] - a[k]) * t1, R = Math.max(0.1, (+tool.dia || 1) / 2);
-        if (b.groove || b.cyl) {
-          // contour on the face or wrapped on the diameter: kept as a ribbon of the cutter's width
-          if (t1 >= 1 - 1e-9) { const key = `${a.x},${a.y},${a.z},${b.x},${b.y},${b.z}`; if (!this.marks.has(key)) { this.marks.set(key, { a, b, R, wrap: !!b.cyl }); this.dirty = true; } }
+        if (rad && !b.polar) {
+          // pocket, contour, keyway or hole on the diameter: the material is taken away
+          this.carve(a, b, R, t0, t1);
+        } else if (!b.polar || b.groove) {
+          // contour or pocket on the face, hole along the axis: the material is taken away
+          this.faceCut(a, b, R, t0, t1);
         } else if (b.polar) {
           // flat: the plane the cutter's side leaves, by its distance from the axis and its direction
           const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
@@ -773,17 +968,6 @@ export class TurnSim {
             const key = `flat|${Math.round((Math.atan2(ny, nx) * 1800) / Math.PI)}`, f = this.flats.get(key);
             if (!f || q - R < f.d - 1e-6 || b.z < f.z - 1e-6) { this.flats.set(key, { nx, ny, d: Math.min(f?.d ?? Infinity, q - R), z: Math.min(f?.z ?? Infinity, b.z) }); this.dirty = true; }
           }
-        } else if (rad) {
-          // radial hole or keyway: the range along Z it covers and its deepest radius
-          const z0 = Math.min(a.z, v('z')), z1 = Math.max(a.z, v('z')), tip = Math.min(a.xr, v('xr'));
-          const key = `rad|${b.c}`, list = this.holes.get(key) || [];
-          let h = list.find(q => q.R === R && z0 <= q.z1 + R && z1 >= q.z0 - R);
-          if (!h) { h = { rad: true, c: b.c, z0, z1, tip, R }; list.push(h); this.holes.set(key, list); this.dirty = true; }
-          else if (z0 < h.z0 - 1e-6 || z1 > h.z1 + 1e-6 || tip < h.tip - 1e-6) { h.z0 = Math.min(h.z0, z0); h.z1 = Math.max(h.z1, z1); h.tip = Math.min(h.tip, tip); this.dirty = true; }
-        } else {
-          const key = `ax|${b.c}|${b.xr}`, tip = v('z'), list = this.holes.get(key) || [], h = list[0];
-          if (!h) { this.holes.set(key, [{ rad: false, c: b.c, pos: b.xr, tip, R }]); this.dirty = true; }
-          else if (tip < h.tip - 1e-6) { h.tip = tip; this.dirty = true; }
         }
       }
       return res;
@@ -810,9 +994,110 @@ export class TurnSim {
     const pts = [new THREE.Vector2(Math.max(0.001, ri[0]), b)];
     for (let i = 0; i < n; i++) pts.push(new THREE.Vector2(Math.max(0.001, ro[i], ri[i]), b + i * dz));
     for (let i = n - 1; i >= 0; i--) pts.push(new THREE.Vector2(Math.max(0.001, ri[i]), b + i * dz));
-    const lathe = (list, mat) => { if (list.length < 3) return; const g = new THREE.LatheGeometry(list, 72); g.rotateX(Math.PI / 2); this.group.add(new THREE.Mesh(g, mat)); }; // lathe axis Y -> model Z
+    const lathe = (list, mat) => { if (list.length < 2) return; const g = new THREE.LatheGeometry(list, 72); g.rotateX(Math.PI / 2); this.group.add(new THREE.Mesh(g, mat)); }; // lathe axis Y -> model Z
     const flats = [...(this.flats?.values() || [])];
-    if (!flats.length) lathe(pts, this.mat);
+    const V = (r, z) => new THREE.Vector2(Math.max(0.001, r), z);
+    // comparison: green = at size, blue = material left (darker = more), red = too deep; counted in this.stat
+    const cmp = this.cmp, tol = this.cmpTol, stat = (this.stat = { ok: 0, left: 0, gouge: 0, worst: 0 });
+    const shade = (col, o, v, lo, hi, count) => {
+      if (v < lo - tol) { col[o] = 0.88; col[o + 1] = 0.2; col[o + 2] = 0.2; if (count) { stat.gouge++; stat.worst = Math.min(stat.worst, v - lo); } }
+      else if (v <= hi + tol) { col[o] = 0.25; col[o + 1] = 0.72; col[o + 2] = 0.32; if (count) stat.ok++; }
+      else { const t = Math.min(1, (v - hi) / 3); col[o] = 0.55 - 0.45 * t; col[o + 1] = 0.72 - 0.42 * t; col[o + 2] = 0.95; if (count) stat.left++; }
+    };
+    // a grid of rows × (NT + 1) points around the part: normals (the first and the last column are the same
+    // place: one normal for both, so no seam shows), colours, material
+    const finish = (g, rows, NT, mat, tag) => {
+      g.computeVertexNormals();
+      const nrm = g.getAttribute('normal');
+      for (let r = 0; r < rows; r++) {
+        const p0 = r * (NT + 1), p1 = p0 + NT, x = nrm.getX(p0) + nrm.getX(p1), y = nrm.getY(p0) + nrm.getY(p1), zz = nrm.getZ(p0) + nrm.getZ(p1), l = Math.hypot(x, y, zz) || 1;
+        nrm.setXYZ(p0, x / l, y / l, zz / l); nrm.setXYZ(p1, x / l, y / l, zz / l);
+      }
+      const gm = mat.clone();
+      if (cmp) { gm.color.set(0xffffff); gm.metalness = 0; }
+      gm.vertexColors = true;
+      gm.clippingPlanes = mat.clippingPlanes;
+      const mesh = new THREE.Mesh(g, gm);
+      mesh.userData[tag] = true;
+      this.group.add(mesh);
+    };
+    // cuts along the axis: everything above the row kf is drawn as seen from the face (a height field in rings
+    // around the axis), the turned shape below it as before
+    const kf = this.zc && this.zmin < b + (n - 1) * dz ? Math.max(0, Math.min(n - 2, Math.floor((this.zmin - b) / dz) - 1)) : null;
+    const face = mat => {
+      const NT = this.NT, dr = this.dr, zc = this.zc, rc = this.rc && this.rows[1] > kf ? this.rc : null, zf = b + kf * dz;
+      let rmax = 0;
+      for (let i = kf + 1; i < n; i++) rmax = Math.max(rmax, ro[i]);
+      const nr = Math.min(this.NR, Math.ceil(rmax / dr) + 1), rows = nr + 1;
+      const pos = new Float32Array(rows * (NT + 1) * 3), col = new Float32Array(rows * (NT + 1) * 3), low = new Uint8Array(rows * (NT + 1)), ind = [];
+      const solid = (i, r) => ro[i] > ri[i] + 1e-6 && r < ro[i] - 1e-6 && (r > ri[i] + 1e-6 || ri[i] < 1e-6);
+      for (let ir = 0; ir <= nr; ir++) {
+        const r = ir * dr;
+        let i1 = n - 1;
+        while (i1 > kf && !solid(i1, r)) i1--;
+        for (let j = 0; j <= NT; j++) {
+          const jj = j % NT;
+          let i = i1;
+          if (rc) while (i > kf && !(solid(i, r) && r < rc[i * NT + jj] - 1e-6)) i--;
+          const t = i > kf ? b + i * dz : -Infinity, cz = zc[ir * NT + jj], hit = cz < t - 1e-4, z = Math.max(zf, Math.min(t, cz)), th = (j * 2 * Math.PI) / NT, v = ir * (NT + 1) + j, o = v * 3;
+          pos[o] = r * Math.cos(th); pos[o + 1] = r * Math.sin(th); pos[o + 2] = z;
+          if (cmp && i > kf) shade(col, o, Math.min(t, cz), cmp.tLo[ir * NT + jj], cmp.tHi[ir * NT + jj], j < NT);
+          else col[o] = col[o + 1] = col[o + 2] = hit ? 0.72 : 1;
+          low[v] = i > kf ? 0 : 1;
+        }
+      }
+      for (let ir = 0; ir < nr; ir++) for (let j = 0; j < NT; j++) {
+        const o = ir * (NT + 1) + j, u = o + NT + 1;
+        if (low[o] && low[o + 1] && low[u] && low[u + 1]) continue; // nothing above the row kf here: the turned shape shows
+        ind.push(o, u, o + 1, o + 1, u, u + 1);
+      }
+      if (!ind.length) return;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      g.setIndex(ind);
+      finish(g, rows, NT, mat, 'face');
+    };
+    // (comparison: the whole outside is such a grid, coloured place by place)
+    const band = cmp ? [0, n - 1] : this.rc && this.rows[1] >= this.rows[0] ? [Math.max(0, this.rows[0] - 1), Math.min(n - 1, this.rows[1] + 1)] : null;
+    // rows lo … hi of the outside as a grid around the part, with what the driven cutters took away
+    const grid = (lo, hi, mat) => {
+      const NT = this.NT, rc = this.rc, rows = hi - lo + 1, pos = new Float32Array(rows * (NT + 1) * 3), col = new Float32Array(rows * (NT + 1) * 3), ind = [];
+      for (let r = 0; r < rows; r++) {
+        const i = lo + r, z = b + i * dz, base = Math.max(0.001, ro[i], ri[i]);
+        for (let j = 0; j <= NT; j++) {
+          const q = i * NT + (j % NT), cutR = rc ? rc[q] : Infinity, hit = cutR < base, rr = hit ? Math.max(0.001, ri[i], cutR) : base, th = (j * 2 * Math.PI) / NT, o = (r * (NT + 1) + j) * 3;
+          pos[o] = rr * Math.cos(th); pos[o + 1] = rr * Math.sin(th); pos[o + 2] = z;
+          // (counted where the part is, or was meant to be: not the stock left in the chuck below it)
+          if (cmp) shade(col, o, Math.min(ro[i], cutR), cmp.rLo[q], cmp.rHi[q], j < NT && cmp.rHi[q] > 0 && (kf == null || i <= kf));
+          else col[o] = col[o + 1] = col[o + 2] = hit ? 0.72 : 1;
+        }
+      }
+      for (let r = 0; r + 1 < rows; r++) for (let j = 0; j < NT; j++) { const o = r * (NT + 1) + j, u = o + NT + 1; ind.push(o, o + 1, u, o + 1, u + 1, u); }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      g.setIndex(ind);
+      finish(g, rows, NT, mat, 'carved');
+    };
+    // the outside of the rows i0 … i1 and the bore back down; the carved rows are left to the grid
+    const part = (i0, i1, mat, cap, open) => {
+      const head = cap ? [V(ri[0], b)] : [], inner = [];
+      for (let i = i1; i >= i0; i--) inner.push(V(ri[i], b + i * dz));
+      const O = i => V(Math.max(ro[i], ri[i]), b + i * dz);
+      const lo = band ? Math.max(i0, band[0]) : 1, hi = band ? Math.min(i1, band[1]) : 0;
+      const list = [...head];
+      // open: no lid across the material at the upper end (the height field of the face stands on it)
+      const close = (out, inn) => { if (open) { lathe(out, mat); lathe(inn, mat); } else lathe([...out, ...inn], mat); };
+      if (lo >= hi) { for (let i = i0; i <= i1; i++) list.push(O(i)); close(list, inner); return; }
+      for (let i = i0; i <= lo; i++) list.push(O(i));
+      lathe(list, mat);
+      const up = [];
+      for (let i = hi; i <= i1; i++) up.push(O(i));
+      close(up, inner);
+      grid(lo, hi, mat);
+    };
+    if (!flats.length) { if (kf == null) part(0, n - 1, this.mat, true); else { part(0, kf, this.mat, true, true); face(this.mat); } }
     else {
       // milled flats: the part above their lower end is cut off at the flat planes (clipping) and closed by caps
       const zf = Math.min(...flats.map(f => f.z)), k0 = Math.max(0, Math.min(n - 1, Math.round((zf - b) / dz)));
@@ -822,10 +1107,11 @@ export class TurnSim {
         for (let i = i1; i >= i0; i--) q.push(new THREE.Vector2(Math.max(0.001, ri[i]), b + i * dz));
         return q;
       };
-      lathe([new THREE.Vector2(Math.max(0.001, ri[0]), b), ...ring(0, k0)], this.mat);
+      if (kf == null) part(0, k0, this.mat, true); else part(0, Math.min(k0, kf), this.mat, true, kf <= k0);
       const cm = this.mat.clone();
       cm.clippingPlanes = flats.map(f => new THREE.Plane(new THREE.Vector3(-f.nx, -f.ny, 0), f.d).applyMatrix4(this.group.matrixWorld));
-      lathe(ring(k0, n - 1), cm);
+      if (kf == null) part(k0, n - 1, cm, false);
+      else { if (kf > k0) part(k0, kf, cm, false, true); face(cm); }
       for (const f of flats) {
         // cap: strip on the plane between the chord ends of the outside and the bore, per z cell
         const pos = [], idx = [];
@@ -850,55 +1136,6 @@ export class TurnSim {
         const capMat = this.mat.clone();
         capMat.clippingPlanes = cm.clippingPlanes.filter((_, j) => flats[j] !== f);
         this.group.add(new THREE.Mesh(cg, capMat));
-      }
-    }
-    const idx = z => Math.max(0, Math.min(n - 1, Math.round((z - b) / dz)));
-    // milled contours: dark ribbons just above the face / the diameter they were cut into
-    if (this.marks?.size) {
-      const pos = [], ind = [];
-      const quad = (p0, p1, p2, p3) => { const o = pos.length / 3; pos.push(...p0, ...p1, ...p2, ...p3); ind.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); };
-      const faceZ = r => { let i = n - 1; while (i > 0 && !(ro[i] > r && ri[i] < r)) i--; return b + i * dz + 0.04; };
-      for (const { a, b: e, R, wrap } of this.marks.values()) {
-        if (!wrap) {
-          const dx = e.x - a.x, dy = e.y - a.y, L = Math.hypot(dx, dy);
-          if (L < 1e-6) continue;
-          const nx2 = (-dy / L) * R, ny2 = (dx / L) * R, z0 = faceZ(Math.hypot((a.x + e.x) / 2, (a.y + e.y) / 2));
-          quad([a.x + nx2, a.y + ny2, z0], [a.x - nx2, a.y - ny2, z0], [e.x + nx2, e.y + ny2, z0], [e.x - nx2, e.y - ny2, z0]);
-        } else {
-          // on the cylinder: small steps around, the ribbon across the direction of travel
-          const dc = e.c - a.c, steps = Math.max(1, Math.ceil(Math.abs(dc) / 4));
-          const at = (c, z, off) => { const rr = ro[idx(z)] + 0.04, th = (c * Math.PI) / 180 + off[0] / rr; return [rr * Math.cos(th), rr * Math.sin(th), z + off[1]]; };
-          const rr0 = ro[idx(a.z)] + 0.04, ds = ((dc * Math.PI) / 180) * rr0, dzz = e.z - a.z, L = Math.hypot(ds, dzz);
-          if (L < 1e-6) continue;
-          const off = [(-dzz / L) * R, (ds / L) * R], neg = [-off[0], -off[1]];
-          for (let q = 0; q < steps; q++) {
-            const c0 = a.c + (dc * q) / steps, c1 = a.c + (dc * (q + 1)) / steps, z0 = a.z + (dzz * q) / steps, z1 = a.z + (dzz * (q + 1)) / steps;
-            quad(at(c0, z0, off), at(c0, z0, neg), at(c1, z1, off), at(c1, z1, neg));
-          }
-        }
-      }
-      if (ind.length) {
-        const mg = new THREE.BufferGeometry();
-        mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        mg.setIndex(ind);
-        mg.computeVertexNormals();
-        this.markMat ||= new THREE.MeshBasicMaterial({ color: 0x3a2f1e, side: THREE.DoubleSide });
-        this.group.add(new THREE.Mesh(mg, this.markMat));
-      }
-    }
-    // drilled holes and keyways: dark plugs from the tip to just above the surface they start in
-    for (const h of [...(this.holes?.values() || [])].flat()) {
-      let from;
-      if (h.rad) { from = 0; for (let i = idx(h.z0); i <= idx(h.z1); i++) from = Math.max(from, ro[i]); from += 0.04; }
-      else { let i = n - 1; while (i > 0 && !(ro[i] > h.pos && ri[i] < h.pos)) i--; from = b + i * dz + 0.04; }
-      const len = from - h.tip;
-      if (!(len > 0.05)) continue;
-      const add = cg => { cg.rotateZ((h.c * Math.PI) / 180); this.group.add(new THREE.Mesh(cg, this.holeMat)); };
-      // cylinder axis Y -> Z (axial) or -> X (radial), then turned to the hole's angle
-      if (!h.rad) add(new THREE.CylinderGeometry(h.R, h.R, len, 24).rotateX(Math.PI / 2).translate(h.pos, 0, h.tip + len / 2));
-      else {
-        for (const z of h.z1 - h.z0 > 0.01 ? [h.z0, h.z1] : [h.z0]) add(new THREE.CylinderGeometry(h.R, h.R, len, 24).rotateZ(-Math.PI / 2).translate(h.tip + len / 2, 0, z));
-        if (h.z1 - h.z0 > 0.01) add(new THREE.BoxGeometry(len, 2 * h.R, h.z1 - h.z0).translate(h.tip + len / 2, 0, (h.z0 + h.z1) / 2));
       }
     }
   }

@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Ребро {0} (окружность R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Ребро {0} (дуга R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} конических/сферических граней как настоящих граней",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "«{0}» теперь также тело (возможны скругление, вырез, 2D-обработка){1}{2}{3}. Сетка скрыта.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Ребро {0}: дуга слишком мала для этого фланца",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Ребро {0}: фланец на изогнутом ребре – его кромка при формовке сжимается на {1} % (риск образования складок); заготовка здесь приближённая.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Ребро {0}: фланец на изогнутом ребре – его кромка при формовке растягивается на {1} % (риск образования трещин); заготовка здесь приближённая.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Ребро {0}: вырезы во фланце на изогнутом ребре не вырезаются."
+}

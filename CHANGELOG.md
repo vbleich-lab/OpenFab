@@ -1,5 +1,82 @@
 # Änderungen
 
+## v1.0.0-rc.10 – 2026-11-14
+
+### Normteile
+- **Normteil einfügen**: statt einer einzelnen Schraube ein Katalog mit 18 Reihen – Zylinder-, Sechskant-, Senk- und Linsenkopfschrauben, Gewindestifte und Gewindestangen (ISO 4762, 4017, 10642, 7380, 4026, DIN 976), Muttern (ISO 4032, 4035, 10511), Scheiben und Federringe (ISO 7089, 7093, DIN 127), Zylinderstifte und Passfedern (ISO 2338, DIN 6885), Sicherungsringe für Wellen und Bohrungen (DIN 471, 472), Rillenkugellager (DIN 625) und O-Ringe (ISO 3601). Größe und Länge aus der Normreihe; das Teil kommt als eigener Körper mit der Normbezeichnung als Namen („ISO 4762 M6×20“) in die Stückliste.
+- Einsetzen am Ursprung oder durch Anklicken von Bohrungen – mehrere nacheinander; Schrauben sitzen in der Bohrung, Muttern und Scheiben darauf, Stifte und Lager mittig darin.
+- Gewinde sind als glatte Zylinder dargestellt; die Maße sind Richtmaße der Norm ohne Toleranzen.
+
+### Blech
+- **Schachtelplan als Schneidprogramm**: neben Skizze, Körper und DXF gibt „Schachteln“ je Tafel ein NC-Programm aus – für Laser, Plasma, Wasserstrahl oder Fräse. Die Bahn läuft um die halbe Schnittfuge (beim Fräsen den halben Fräser) neben dem Umriss im Abfall, Ausschnitte kommen vor dem Umriss ihres Teils, das nächstliegende Teil folgt, jede Kontur beginnt mit einem Anschnitt aus dem Abfall. Beim Fräsen in mehreren Zustellungen bis unter das Blech. Die Meldung nennt Schnittlänge, Einstiche und die ungefähre Zeit. Das Programm ist vor dem Einsatz an der Maschine oder in einem NC-Simulator zu prüfen.
+- **Laschen an Biegelinien**: läuft eine Lasche über eine Biegelinie hinweg, wird sie dort von selbst geteilt und freigestellt – im gebogenen Teil, in der Abwicklung und im DXF.
+- **Kiemen**: eine Linie in der Platte wird zum Lüftungsschlitz mit hochgezogener Haube (Tiefe und Höhe, nach oben oder unten, Öffnung links oder rechts der Linie). Der Schlitz liegt in der Abwicklung und zählt zur Schnittlänge.
+- **Prägungen**: ein geschlossenes Profil in der Platte wird um eine Höhe hoch- oder tiefgestellt statt ausgeschnitten; das Blech behält seine Dicke.
+- **Senkprägungen**: der Rand einer runden Bohrung wird kegelig eingezogen, damit ein Senkkopf bündig sitzt.
+- Neue Hinweise: Prägung zu hoch oder zu schmal für die Blechdicke, Senkprägung zu tief, Kieme zu nah am Rand.
+- **Biegung an einer Skizzenlinie**: eine gerade Linie der Skizze (auch eine Hilfslinie) quer durch die Platte wird zur Biegelinie. Die Skizze ist dort der Zuschnitt, die Linie die Mitte der Biegezone; das größte Stück bleibt liegen, alles jenseits der Linie schwenkt mit seinen Laschen, Ausschnitten und Formelementen mit. Mehrere Linien ergeben U-, Z- und Stufenprofile. Die Biegungen stehen als L1, L2 … in der Biegetabelle und in der Abwicklung.
+- **Sicken**: eine Linie in der Platte wird zur Versteifungsrippe – Breite und Höhe, nach oben oder unten, im Querschnitt und an den Enden rund; das Blech behält seine Dicke.
+- **Durchzüge**: der Rand einer runden Bohrung wird zu einem Kragen hochgezogen (etwa für ein Gewinde). Der Durchmesser der Skizze ist der fertige Innendurchmesser, im Zuschnitt liegt die kleinere Vorbohrung; die Aufweitung wird gemeldet.
+- Sicken und Durchzüge erscheinen als dünner Umriss in der Abwicklung und im DXF auf der Ebene UMFORMUNG. Neue Hinweise: Lasche kreuzt eine Biegelinie, Ausschnitt neben der Biegelinie, Sicke oder Durchzug zu nah am Rand.
+- **Gehrung zwischen gebogener und gerader Kante**: mit „Ecke: Geschlossen“ läuft auch eine Lasche an einer gebogenen Kante an einer echten Ecke bis zur Gehrung – im gebogenen Teil und in der Abwicklung (dort ohne Eckfreistellung).
+- **Laschenmaß**: die Laschenlänge gilt wahlweise für den geraden Teil (wie bisher), als Außenmaß ab Außenfläche der Platte oder als Innenmaß. Der gerade Teil wird aus Biegeradius, Blechdicke und Winkel zurückgerechnet.
+- **Presskraft in der Biegetabelle**: Richtwert je Biegung für freies Biegen (Gesenkweite nach Blechdicke, Zugfestigkeit nach Werkstoff), dazu der kürzeste Schenkel für dieses Gesenk und die größte Biegung.
+- **Ineinander schachteln**: die Zuschnitte werden in die Lücken und Buchten ihrer Nachbarn und in deren Ausschnitte gelegt (bis zu vier Lagen, ohne 90°-Drehen um 180° gewendet). Der Abstand wird nie unterschritten. Liegt der Plan in Reihen nicht schlechter, bleibt es bei den Reihen; der Haken „Ineinander schachteln“ im Dialog schaltet es ab.
+- **Laschen laufen um runde Ecken**: geht eine gebogene Kante ohne Knick in ihre Nachbarkante über und haben beide eine Lasche mit gleichem Biegewinkel, entfällt der Freischnitt – Wannen mit runden Ecken und Langloch-Formen bekommen eine durchgehende Wand, der Zuschnitt ist ein Stück.
+- **Ausschnitte in Laschen an gebogenen Kanten**: Bohrungen, Fenster und Konturen aus einer Skizze werden auch im runden Rand geschnitten und erscheinen in der Abwicklung (Lage entlang des Bogens).
+- **Laschen an gebogenen Kanten**: Bögen und Kreise in der Grundskizze werden als eine Kante angeboten („Kante 3 (Bogen R40, 62,8 mm)“, „Kante 1 (Kreis R30)“). Die Lasche läuft als echte Drehfläche um den Bogen – nach außen wie nach innen gewölbt, auch rundum (Deckel, Napf). Die Abwicklung zeigt den Ring mit gebogener Biegelinie, die Biegetabelle die Bogenlänge.
+- **Prüfung für gebogene Laschen**: meldet, um wie viel Prozent der Rand beim Umformen gestaucht (Faltengefahr) oder gestreckt (Rissgefahr) wird – ab 15 % als Warnung.
+- **Schachteln**: die Zuschnitte aller Blechteile (mit Stückzahl) werden auf Tafeln verteilt – Abstand, Drehen um 90°, mehrere Tafeln, Ausnutzung in Prozent. Ergebnis als Skizze, als flache Körper in Blechdicke (in der Fertigung mit 2D-Kontur ausschneiden) oder als DXF (Tafelrand auf Ebene TAFEL).
+- **Freie Konturen in Laschen**: „Kontur aus Skizze“ schneidet die geschlossenen Profile einer Skizze aus einer Lasche (X entlang der Kante, Y in die Lasche hinein, Nullpunkt verschiebbar) – im gebogenen Teil, in der Abwicklung, in Zeichnung und DXF; die Prüfungen (Abstand zur Biegung, Überstand) gelten auch dafür.
+- **Ausschnitte**: weitere geschlossene Profile in der Blech-Skizze (Fenster, Löcher) werden aus der Platte geschnitten – im gebogenen Teil, in der Abwicklung, im DXF und in der Skizze der Abwicklung. Die größte Kontur ist die Platte.
+- **Bohrungen und Fenster in Laschen**: je Lasche (auch in Laschen an Laschen) mit Lage entlang der Kante, Abstand von der Biegung und Größe – sie sitzen im gebogenen Teil an der richtigen Stelle und wandern in die Abwicklung, das DXF und die Zeichnung. Hinweis, wenn sie zu nah an der Biegung liegen oder über die Lasche hinausragen.
+- **Teillaschen**: je Lasche „Abstand Anfang / Ende“ – die Lasche sitzt nur auf einem Stück der Kante. Eine Ecke neben einer Teillasche bleibt offen.
+- **Blechregeln**: Vorgaben für Stahl, Edelstahl und Aluminium setzen Dicke, Biegeradius und K-Faktor gemeinsam.
+- **Prüfung beim Konstruieren**: Hinweise bei zu kleinem Biegeradius, zu kurzer Lasche, Ausschnitt zu nah an der Biegung, ungewöhnlichem K-Faktor und wenn sich die Abwicklung überlappt.
+- Abwicklung zeigt zusätzlich Fläche, Schnittlänge (für Laser/Wasserstrahl), Zahl der Ausschnitte und Masse.
+- **Abwicklung in der Zeichnung**: eigene verschiebbare Ansicht mit Umriss, Biegelinien (B1 …), Gesamtmaßen, Biegetabelle (in allen Sprachen) und der Lage jeder Biegelinie als Koordinatenmaß von der linken unteren Ecke des Zuschnitts.
+- DXF der Abwicklung: Biegelinien liegen auf der Ebene BIEGUNG, der Umriss auf Ebene 0.
+- Reiter BLECH: Abwicklung, DXF, Als Skizze und Zeichnung direkt in der Werkzeugleiste.
+
+### Netz
+- **Netz → Körper erkennt Kegel aus CAD-Exporten**: Fasen, Senkungen und Kegelstümpfe, die ein CAD-Programm zwischen zwei Eckenringen frei in Dreiecke teilt (ohne gleich breite Streifen), werden echte Kegelflächen – auch mit Zwischenringen und als Teil eines Rings. Eine gefaste Platte mit runden Ecken kommt mit 26 statt 206 Flächen an; eine Senkung wird nicht mehr für eine Kugel gehalten.
+- **Netz → Körper aufgeräumt und schneller**: jede ebene Fläche des Netzes kommt als eine Fläche in den Körper statt als viele Dreiecke, runde Flächen werden zuerst in einem schnellen Durchgang eingesetzt. Typische Teile sind 2,5- bis 6-mal schneller umgewandelt.
+- **Netz → Körper erkennt Kegelsegmente**: die Fase um eine runde Ecke (ein Viertelkegel) und andere Teile eines Kegelrings werden echte Kegelflächen, auch mehrere in einem Zug um das Teil.
+- **Netz → Körper erkennt Kugelausschnitte**: eine flache Kuppe auf einer dünnen Platte oder eine Kugelkalotte, bei der die ganze Kugel nicht ins Teil passt, wird eine echte Kugelfläche. Die Kugel wird durch die echten Eckpunkte der Facetten gelegt, nicht durch Schnittpunkte.
+- **Netz → Körper erkennt Kegel und Kugeln**: Senkungen, Kegelspitzen, Kegelstümpfe und kegelige Bohrungen werden echte Kegelflächen, Kugeln, Kugelkuppen und kugelige Mulden echte Kugelflächen. Die Meldung nennt die Anzahl.
+- **Nadeldreiecke werden vor dem Umwandeln geschlossen**: hauchdünne Dreiecke aus dem Verrechnen von Netzen ließen bisher Lücken, an denen das Erkennen runder Flächen still scheiterte.
+- **Netz → Körper erkennt auch Verrundungen, Hohlkehlen und Teilzylinder**: Facettenbögen um eine Achse (ab drei gleichmäßigen Streifen) werden echte Zylinderflächen – nach außen wie nach innen gewölbt.
+- **Boolesch für große Netze**: gerechnet wird nur dort, wo sich die beiden Netze begegnen können; der Rest wird vorher abgetrennt und danach wieder angesetzt. Ein Netz mit 130 000 Dreiecken und ein kleiner Eingriff brauchen etwa eine Sekunde (vorher abgelehnt). Nähte mit fast zusammenfallenden Punkten werden zuverlässiger geschlossen.
+- Ebenenschnitt mit Deckel: ein Umriss in einem anderen bleibt ein Loch (ein geschnittenes Rohr bekommt einen Ring statt einer Scheibe).
+- **Netz → Körper**: ein geschlossenes Netz wird ein Volumenkörper (Flächen in einer Ebene werden zusammengefasst) – danach sind Verrundung, Ausschneiden und 2D-Bearbeitung möglich.
+- **Runde Bohrungen und Zapfen werden echte Zylinder**: „Netz → Körper“ erkennt Facettenringe um eine Achse und ersetzt sie durch Zylinderflächen (Bohrungserkennung, Durchmessermaße und Mittellinien funktionieren danach). Der Durchmesser weicht dabei um 0,2 µm vom Netz ab.
+- **Boolesch für Netze**: zwei geschlossene Netze wirklich vereinigen, voneinander abziehen oder die Schnittmenge bilden; die Schnittkanten werden neu vernetzt, das Ergebnis bleibt geschlossen.
+- Spiegeln mit Original entfernt die Trennwand auf der Spiegelebene.
+- **Körper → Netz**: ein Volumenkörper wird als Dreiecksnetz übernommen.
+- **Schnitt als Skizze**: die Schnittkontur eines Netzes mit einer Ebene wird eine Skizze (auch direkt aus dem Ebenenschnitt).
+- Neue Netz-Befehle: **Spiegeln** (auf Wunsch mit Original – zwei Hälften werden ein geschlossenes Teil), **Vereinen** (zwei Netzkörper zu einem), **Verfeinern** (Kanten über einer Länge teilen, Form bleibt gleich).
+- **3MF und PLY einfügen**, **OBJ und 3MF speichern** (neben STL).
+
+### Sprachen
+- **Arabisch und Hebräisch** mit gespiegelter Oberfläche (von rechts nach links); Zahlen, Einheiten, NC-Code und Eingabefelder bleiben von links nach rechts. Zusammen 28 Sprachen. Maschinell übersetzt, noch nicht von Muttersprachlern geprüft.
+- Gespiegelte Oberfläche nachgebessert: NC-Code in der Vorschau des Postprozessor-Editors läuft von links nach rechts, das Kontextmenü öffnet zur Leserichtung, gekürzte Namen im Browser zeigen ihren Anfang. Schnittdaten in der Werkzeugbibliothek zeigen Zahl vor Einheit; die Beschriftung „Format ({text})“ im Postprozessor-Editor ist übersetzt.
+- Meldungen mit vorangestelltem ⚠ (Fehler einer Operation, Hinweise des Postprozessors) werden jetzt in allen Sprachen übersetzt.
+
+- **Lücke in allen Sprachen geschlossen**: rund 50 Wörter, die auf Deutsch und Englisch gleich lauten (Name, Operation, Material, Position, Standard, Browser …), waren nie übersetzt und sind es jetzt in allen 26 Fremdsprachen; die Ausrichtung des Setups im Browser („Oben“) wird ebenfalls übersetzt.
+- **Gespiegelte Oberfläche durchgesehen** (Konstruktion, Fertigung, Eigenschaften, Einstellungen, Werkzeugbibliothek, Simulation, Zeichnung): Werte mit Einheiten bleiben lesbar („30 mm“), Eingabefelder richten sich nach ihrem Inhalt.
+
+### Fertigung (Drehen)
+- **Tasche Mantelfläche (C-Achse)**: geschlossene Konturen einer Skizze, die längs zur Drehachse liegt, werden auf den Umfang gewickelt und von innen nach außen geräumt (Zylinder-Interpolation), Inseln bleiben stehen. Der Fräser taucht auf einer Rampe entlang des innersten Rings ein (Rampenwinkel einstellbar, Vorgabe 3°) oder wahlweise gerade.
+- **Simulation trägt angetriebene radiale Schnitte wirklich ab**: Tasche und Kontur auf der Mantelfläche, Passfedernuten und Querbohrungen erscheinen mit ihrer Tiefe im Rohteil (vorher nur als dunkle Fläche auf der Oberfläche); auch die Rampe ist zu sehen. Dasselbe gilt für Kontur und Tasche auf der Planfläche und für axiale Bohrungen: der Bereich über dem tiefsten dieser Schnitte wird von der Stirnseite her als Höhenfeld gezeichnet. Schlüsselflächen bleiben Schnittebenen.
+- **„Vergleich“ auch beim Drehen**: das simulierte Teil wird mit dem Modell verglichen – grün = auf Maß, blau = Restmaterial, rot = zu tief, mit Anteilen und größter Abweichung. Außengewinde, die nur die Gewindeoperation kennt, zählen nicht als „zu tief“. Die Bohrung (innen) wird nicht verglichen.
+- **Y-Achse statt Polar-Interpolation** (Postprozessor-Einstellung): Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil in X und Y; was über den Y-Verfahrweg hinausgeht, bleibt bei der Polar-Interpolation. Neue Vorlagen „Y-Achse ein/aus“ (dort die C-Klemmung der Maschine eintragen) – für Fanuc und LinuxCNC (G17 / G18) und Okuma (G138 / G136). Die Codes sind nicht an Maschinen erprobt: vor dem ersten Lauf mit dem Maschinenhandbuch vergleichen.
+
+### Zeichnung
+- **Toleranzzusätze im Toleranzrahmen**: (M), (L), (P), (F), (E) hinter Wert oder Bezug werden als Buchstabe im Kreis gezeichnet, z. B. Ø0,05(M) A(M).
+
+### Dokumentation
+- Bilder und Demo-Animation der README mit dem neuen Aussehen neu aufgenommen.
+
 ## v1.0.0-rc.9 – 2026-11-13
 
 ### Aussehen

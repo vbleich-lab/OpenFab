@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Mala {0} (riņķa līnija R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Mala {0} (loks R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} konusveida/lodveida skaldnes kā īstas skaldnes",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}“ tagad ir arī ķermenis (iespējams noapaļojums, izgriešana un 2D apstrāde){1}{2}{3}. Tīkls ir paslēpts.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Mala {0}: loks ir pārāk šaurs šim atlokam",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Mala {0}: atloks uz liektas malas – tā mala formēšanas laikā tiek saspiesta par {1} % (krokošanās risks); izklājums šeit ir tuvinājums.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Mala {0}: atloks uz liektas malas – tā mala formēšanas laikā tiek izstiepta par {1} % (plaisāšanas risks); izklājums šeit ir tuvinājums.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Mala {0}: izgriezumi atlokā uz liektas malas netiek izgriezti."
+}

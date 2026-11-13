@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Kabata uz apkārtmēra",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Kabata uz apkārtmēra no skices slēgtajām kontūrām, kas atrodas gar griešanās asi (iekšējās kontūras paliek kā salas). Skice tiek uztīta uz diametra; darbināma kāta freze, kas vērsta pret asi, izfrēzē no iekšpuses uz āru (Z un C pārvietojas kopā; Fanuc: cilindriskā interpolācija G7.1). Freze iegrimst radiāli.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Pielaides vērtība, aiz tās bāzes (atdalītas ar atstarpēm), piem., Ø0,05 A B. Papildinājumi iekavās tiek zīmēti kā burts aplī: Ø0,05(M) A(M) – (M) maksimālais materiāls, (L) minimālais materiāls, (P) projicēts, (F) brīvs stāvoklis, (E) apvalka nosacījums",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Virpošana: Y ass ieslēgta (plakne X/Y; šeit ievadiet arī iekārtas C fiksācijas komandu)",
+ "Drehen: Y-Achse aus": "Virpošana: Y ass izslēgta",
+ "Y-Achse statt Polar-Interpolation": "Y ass polārās interpolācijas vietā",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Virpa ar Y asi: uzgriežņu atslēgas plaknes, kontūras un kabatas uz gala virsmas tiek apstrādātas ar nekustīgu detaļu (C fiksēta) pa X un Y – precīzāk nekā ar polāro interpolāciju. Kas pārsniedz Y gājienu, paliek polārajai interpolācijai.",
+ "Y-Verfahrweg (±)": "Y gājiens (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Lielākais Y ass gājiens no centra, mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: trajektorija pārsniedz Y gājienu (± {1} mm) – izvadīts ar polāro interpolāciju",
+ "Tasche Mantelfläche (C-Achse)": "Kabata uz apkārtmēra (C ass)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Kabatas skicei jāatrodas gar griešanās asi (tā tiek uztīta uz apkārtmēru) – gala virsmai izmantojiet „Kabata uz gala virsmas“",
+ "Die Tasche liegt in Z nicht am Teil": "Kabata pa Z neatrodas uz detaļas"
+}

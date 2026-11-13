@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Рампа вздовж траєкторії",
+ "Gerade (radial)": "Пряма (радіальна)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Кишеня на колі з замкнених контурів ескіза, що лежить уздовж осі обертання (внутрішні контури залишаються острівцями). Ескіз навивається на діаметр; приводна кінцева фреза, спрямована до осі, вибирає матеріал зсередини назовні (Z і C рухаються разом; Fanuc: циліндрична інтерполяція G7.1). Фреза врізається по рампі вздовж найвнутрішнього кільця.",
+ "+ Neue Maschine": "+ Новий верстат",
+ "+ Neue Vorgabe": "+ Нове налаштування"
+}

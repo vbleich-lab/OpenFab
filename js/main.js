@@ -29,10 +29,11 @@ import { BASE_PLANES, sketchPlane, planeLabel, planeOffset, planeFromFace, basis
 import { resolveProject, paramScope, evalExpr } from './params.js';
 import { ICONS } from './icons.js';
 import { getSettings, saveSettings, resetSettings, DEFAULTS, MOUSE_PRESETS, ACCENTS, DESIGNS, UI_FONTS, LOOK_KEYS, getProfiles, saveProfile, deleteProfile } from './settings.js';
-import { getBlob, putBlob, loadBlobs, withBlobs, takeBlobs, igesToStep, stepToIges, onFullKernel, requestFullKernel, parseToolLibrary, convertCps } from './interop.js';
+import { getBlob, putBlob, loadBlobs, withBlobs, takeBlobs, igesToStep, stepToIges, meshToStep, onFullKernel, requestFullKernel, parseToolLibrary, convertCps } from './interop.js';
 import { makeDrawing, SHEETS, VIEWS as DRAW_VIEWS } from './drawing.js';
 import { bodyMatrix, hasAssembly, transformShape, JOINT_TYPES, JOINT_DOF, jointValues } from './assembly.js';
-import { flatPattern, polyEdges, bendAllowance } from './sheetmetal.js';
+import { STD_FAMILIES, STD_LENGTHS, stdFamily, stdPartName, stdPartSteps } from './stdparts.js';
+import { flatPattern, polyEdges, polyArcs, bendAllowance, sheetChecks, SHEET_RULES, nestParts, pressForce, SHEET_RM, holeCircle, collarPlan, cutProgram } from './sheetmetal.js';
 import { TurnSim, TURN_OPS, turnCutShape, LatheStock } from './turning.js';
 import { CylSim, CylStock, cylPartMap } from './cylstock.js';
 import { WindowManager } from './windows.js';
@@ -46,7 +47,8 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 import { SpaceMouse } from './spacemouse.js';
 import { RenderStudio, ENVIRONMENTS, RENDER_DEFAULTS } from './render.js';
 import { parseSTL, parseOBJ, weld as meshWeld, decodeMesh, encodeMesh, applyMatrix as meshApply, bounds as meshBounds, transform as meshTransform, flip as meshFlip, repair as meshRepair,
-  smooth as meshSmooth, decimate as meshDecimate, cutPlane as meshCut, split as meshSplit, toGeometry as meshToGeometry, stats as meshStatsRaw, openEdgeLines as meshOpenEdgesRaw } from './mesh.js';
+  smooth as meshSmooth, decimate as meshDecimate, cutPlane as meshCut, split as meshSplit, toGeometry as meshToGeometry, stats as meshStatsRaw, openEdgeLines as meshOpenEdgesRaw,
+  mirror as meshMirror, combine as meshCombine, subdivide as meshSubdivide, sectionLoops as meshSection, fromGeometry as meshFromGeometry, boolean as meshBoolean, findRound as meshRound, toOBJ, to3MF, parse3MF, parsePLY } from './mesh.js';
 // analysis results are cached per mesh object
 const meshMemo = (fn, wm = new WeakMap()) => m => { if (!wm.has(m)) wm.set(m, fn(m)); return wm.get(m); };
 const meshStats = meshMemo(meshStatsRaw), meshOpenEdges = meshMemo(meshOpenEdgesRaw);
@@ -2340,18 +2342,22 @@ function toolbarTabs() {
         tbtn('decal', 'Bild nachzeichnen', traceImageDialog, '', 'Bild nachzeichnen: aus einem Bild Konturen oder Mittellinien als neue Skizze, SVG oder DXF erzeugen'),
         tbtn('measure', 'Vorlage kalibrieren', () => calibrateCanvas(), '', 'Vorlage kalibrieren: zwei Punkte im Bild anklicken und ihren wirklichen Abstand eingeben'),
         tbtn('svgfile', 'SVG-Datei einfügen', insertSVG, '', 'SVG-Datei als Skizze einfügen'), tbtn('dxffile', 'DXF-Datei einfügen', insertDXF, '', 'DXF-Datei als Skizze einfügen'),
-        tbtn('mesh', 'Netz einfügen', () => $('#cadInput').click(), '', 'STL- oder OBJ-Datei als Netz einfügen'), tbtn('component', 'Komponente einfügen', insertComponent, '', 'Ein anderes gespeichertes Design als Komponente einfügen'),
-        tbtn('bolt', 'Schraube einfügen', insertBolt, '', 'Schraube oder Mutter nach ISO einfügen'), tbtn('dupjoint', 'Mit Gelenken duplizieren', duplicateWithJoints, '', 'Gewählten Körper samt Gelenken kopieren'),
+        tbtn('mesh', 'Netz einfügen', () => $('#cadInput').click(), '', 'STL-, OBJ-, 3MF- oder PLY-Datei als Netz einfügen'), tbtn('component', 'Komponente einfügen', insertComponent, '', 'Ein anderes gespeichertes Design als Komponente einfügen'),
+        tbtn('bolt', 'Normteil einfügen', insertBolt, '', 'Schrauben, Muttern, Scheiben, Stifte, Passfedern, Sicherungsringe, Lager und O-Ringe nach Norm einfügen'), tbtn('dupjoint', 'Mit Gelenken duplizieren', duplicateWithJoints, '', 'Gewählten Körper samt Gelenken kopieren'),
         tbtn('derive', 'Ableitung einfügen', insertDerive, '', 'Körper, Skizzen oder Parameter aus einem anderen Design übernehmen'),
         tbtn('import', 'STEP/IGES importieren', () => $('#cadInput').click(), '', 'STEP oder IGES einfügen'), tbtn('example', 'Beispiel', () => loadExample()), tbtn('revolve', 'Drehteil', () => loadExample(true), '', 'Beispiel: Welle für die Drehbearbeitung')),
     ];
     const MO = (icon, label, kind) => tbtn(icon, label, () => createMeshOp(kind), '', MESH_OPS[kind]);
     tabs['NETZ'] = [
-      tgroup('EINFÜGEN', tbtn('mesh', 'Netz einfügen', () => $('#cadInput').click(), '', 'STL- oder OBJ-Datei als Netz einfügen (ohne B-Rep)')),
-      tgroup('ÄNDERN', MO('mesh_repair', 'Reparieren', 'repair'), MO('mesh_reduce', 'Reduzieren', 'reduce'), MO('mesh_smooth', 'Glätten', 'smooth'), MO('mesh_cut', 'Ebenenschnitt', 'cut'),
-        MO('mesh_transform', 'Verschieben', 'transform'), MO('mesh_flip', 'Normalen umk.', 'flip'), MO('mesh_split', 'Trennen', 'split')),
+      tgroup('EINFÜGEN', tbtn('mesh', 'Netz einfügen', () => $('#cadInput').click(), '', 'STL-, OBJ-, 3MF- oder PLY-Datei als Netz einfügen (ohne B-Rep)'),
+        tbtn('mesh_frombody', 'Körper → Netz', () => bodyToMesh(), '', 'Einen Volumenkörper als Dreiecksnetz übernehmen')),
+      tgroup('ÄNDERN', MO('mesh_repair', 'Reparieren', 'repair'), MO('mesh_reduce', 'Reduzieren', 'reduce'), MO('mesh_refine', 'Verfeinern', 'refine'), MO('mesh_smooth', 'Glätten', 'smooth'), MO('mesh_cut', 'Ebenenschnitt', 'cut'),
+        MO('mesh_transform', 'Verschieben', 'transform'), MO('mesh_mirror', 'Spiegeln', 'mirror'), MO('mesh_combine', 'Vereinen', 'combine'), MO('mesh_boolean', 'Boolesch', 'boolean'), MO('mesh_flip', 'Normalen umk.', 'flip'), MO('mesh_split', 'Trennen', 'split')),
+      tgroup('UMWANDELN', tbtn('mesh_tobody', 'Netz → Körper', () => meshToBody(), '', 'Ein geschlossenes Netz in einen Volumenkörper umwandeln (jedes Dreieck wird eine Fläche)'),
+        tbtn('mesh_section', 'Schnitt als Skizze', () => meshSectionDialog(), '', 'Die Schnittkontur des Netzes mit einer Ebene als Skizze anlegen')),
       tgroup('PRÜFEN', tbtn('measure', 'Messen', toggleMeasure, state.pick?.mode === 'measure' ? 'active' : ''), tbtn('section', 'Schnitt', toggleSection, state.section ? 'active' : ''), tbtn('fit', 'Einpassen', fitView, '', 'Einpassen (F)')),
-      tgroup('EXPORT', tbtn('import', 'STL', () => { const ms = getMeshes().bodies.filter(x => !state.hiddenBodies.has(x.id)); if (!ms.length) return status('Kein Netz vorhanden.'); exportMeshSTL(ms); }, '', 'Sichtbare Netze als STL speichern')),
+      tgroup('EXPORT', ...[['stl', 'STL', 'Sichtbare Netze als STL speichern'], ['obj', 'OBJ', 'Sichtbare Netze als OBJ speichern'], ['3mf', '3MF', 'Sichtbare Netze als 3MF speichern (für 3D-Druck)']].map(([fmt, label, tip]) =>
+        tbtn('import', label, () => { const ms = getMeshes().bodies.filter(x => !state.hiddenBodies.has(x.id)); if (!ms.length) return status('Kein Netz vorhanden.'); exportMeshFile(ms, fmt); }, '', tip))),
     ];
     tabs['FLÄCHE'] = [
       KONSTRUKTION(),
@@ -2362,7 +2368,13 @@ function toolbarTabs() {
     ];
     tabs['BLECH'] = [
       tgroup('ERSTELLEN', SKETCH(), C('sheet', 'Blech', 'sheet')),
-      tgroup('PRÜFEN', tbtn('measure', 'Messen', toggleMeasure, state.pick?.mode === 'measure' ? 'active' : ''), tbtn('fit', 'Einpassen', fitView, '', 'Einpassen (F)')),
+      tgroup('ABWICKLUNG',
+        tbtn('flat', 'Abwicklung', () => { const f = activeSheet(); if (f) toggleFlatView(f); }, state.flatView ? 'active' : '', 'Abwicklung anzeigen / gefalteten Zustand zeigen'),
+        tbtn('flat_dxf', 'DXF', () => { const f = activeSheet(), r = f && sheetFlat(f); if (r) download(`${safeName()}_Abwicklung.dxf`, flatDXF(r.fp), 'application/dxf'); }, '', 'Abwicklung als DXF speichern (Biegelinien auf der Ebene BIEGUNG)'),
+        tbtn('sketch', 'Als Skizze', () => { const f = activeSheet(), r = f && sheetFlat(f); if (r) flatToSketch(f, r.fp, r.base.z0); }, '', 'Abwicklung als Skizze anlegen'),
+        tbtn('nest', 'Schachteln', () => nestDialog(), '', 'Zuschnitte aller Blechteile auf Tafeln verteilen – als Skizze, als Körper für die Fertigung oder als DXF'),
+        tbtn('sheet', 'Zeichnung', openDrawing, '', 'Zeichnungsableitung – dort „Abwicklung“ einschalten')),
+      tgroup('PRÜFEN', tbtn('measure', 'Messen', toggleMeasure, state.pick?.mode === 'measure' ? 'active' : ''), tbtn('section', 'Schnitt', toggleSection, state.section ? 'active' : ''), tbtn('fit', 'Einpassen', fitView, '', 'Einpassen (F)')),
     ];
     tabs['DIENSTPROGRAMME'] = [
       tgroup('ZEICHNUNG', tbtn('sheet', 'Zeichnung', openDrawing, '', 'Zeichnungsableitung (Ansichten, Bemaßung, Schriftfeld)')),
@@ -2391,7 +2403,7 @@ function toolbarTabs() {
   ];
   tabs['DREHEN'] = [
     SETUP(),
-    tgroup('DREHEN', A('face', 'Plandrehen', 'tface'), A('rough3d', 'Schruppen', 'trough'), A('contour', 'Schlichten', 'tfinish'), A('pocket', 'Einstechen', 'tgroove'), A('thread', 'Gewinde', 'tthread'), A('split', 'Abstechen', 'tpart'), A('drill', 'Bohren', 'tdrill'), A('bore', 'Innendrehen', 'tbore'), A('drill', 'Bohren angetrieben', 'tlive'), A('slot', 'Nut angetrieben', 'tslot'), A('face', 'Schlüsselflächen', 'tflat'), A('contour', 'Kontur Planfläche', 'tcontour'), A('contour', 'Kontur Mantel', 'twrap'), A('pocket', 'Tasche Planfläche', 'tpocket')),
+    tgroup('DREHEN', A('face', 'Plandrehen', 'tface'), A('rough3d', 'Schruppen', 'trough'), A('contour', 'Schlichten', 'tfinish'), A('pocket', 'Einstechen', 'tgroove'), A('thread', 'Gewinde', 'tthread'), A('split', 'Abstechen', 'tpart'), A('drill', 'Bohren', 'tdrill'), A('bore', 'Innendrehen', 'tbore'), A('drill', 'Bohren angetrieben', 'tlive'), A('slot', 'Nut angetrieben', 'tslot'), A('face', 'Schlüsselflächen', 'tflat'), A('contour', 'Kontur Planfläche', 'tcontour'), A('contour', 'Kontur Mantel', 'twrap'), A('pocket', 'Tasche Planfläche', 'tpocket'), A('pocket', 'Tasche Mantel', 'twpocket')),
     AKTIONEN(), VERWALTEN(),
   ];
   tabs['DIENSTPROGRAMME'] = [AKTIONEN(), VERWALTEN(), tgroup('3D-MAUS', tbtn('spacemouse', 'SpaceMouse kalibrieren', () => openSmCalibration(), '', 'Nullpunkt, Totzone, Empfindlichkeit und Richtung der 3D-Maus'))];
@@ -2749,7 +2761,7 @@ function renderTree() {
       for (const st of p.cam.setups) {
         const open = !treeOpen.has('closed:' + st.id);
         t.append(node({
-          svg: SVG.setup, name: `${st.name} · ${st.kind === 'turn' ? 'Drehen' : st.wcsMode === 'axes' ? 'WKS gewählt' : ORIENTATIONS[st.orientation].split(' ')[0]}`, depth: 1, open, okey: 'closed:' + st.id,
+          svg: SVG.setup, name: `${st.name} · ${tr(st.kind === 'turn' ? 'Drehen' : st.wcsMode === 'axes' ? 'WKS gewählt' : ORIENTATIONS[st.orientation].split(' ')[0])}`, depth: 1, open, okey: 'closed:' + st.id,
           selected: isSel('setup', st.id) || (state.sel?.kind !== 'setup' && activeSetupId() === st.id && state.sel?.kind !== 'op'),
           onclick: () => select('setup', st.id), oncontext: e => setupMenu(e, st),
           extra: (() => { const S = setupSummary(st); return S.time > 0 ? h('span', { class: 'op-meta', title: 'Geschätzte Bearbeitungszeit (Klick: Details)', onclick: ev => { ev.stopPropagation(); openMachiningTime(st.id); } }, '⏱ ' + fmtDur(S.time)) : null; })(),
@@ -3578,7 +3590,7 @@ function importToOrigin(f) {
 
 async function importCAD(file) {
   const ext = file.name.toLowerCase().split('.').pop();
-  if (ext === 'stl' || ext === 'obj') return importMesh(file);
+  if (['stl', 'obj', '3mf', 'ply'].includes(ext)) return importMesh(file);
   if (ext === 'f3d') {
     alert('Fusion-360-Dateien (.f3d) sind ein geschlossenes Autodesk-Format und können nicht gelesen werden.\n\nIn Fusion 360: Datei → Exportieren → STEP (.stp) wählen und diese Datei hier importieren.');
     return;
@@ -4090,28 +4102,58 @@ async function insertDerive() {
   } catch (err) { alert('Ableitung fehlgeschlagen: ' + (err.message || err)); } finally { if (busy) busy.hidden = true; }
 }
 
-// ----- Schraube einfügen: ISO screws and nuts built from sketches and extrusions -----
-const BOLT_SIZES = {
-  // d, ISO 4762 (dk, k, s socket, t), ISO 4017/4032 (s, k, m)
-  M3: [3, 5.5, 3, 2.5, 1.3, 5.5, 2, 2.4], M4: [4, 7, 4, 3, 2, 7, 2.8, 3.2], M5: [5, 8.5, 5, 4, 2.5, 8, 3.5, 4.7], M6: [6, 10, 6, 5, 3, 10, 4, 5.2],
-  M8: [8, 13, 8, 6, 4, 13, 5.3, 6.8], M10: [10, 16, 10, 8, 5, 16, 6.4, 8.4], M12: [12, 18, 12, 10, 6, 18, 7.5, 10.8], M16: [16, 24, 16, 14, 8, 24, 10, 14.8], M20: [20, 30, 20, 17, 10, 30, 12.5, 18],
-};
-const BOLT_TYPES = { iso4762: 'Zylinderschraube mit Innensechskant (ISO 4762)', iso4017: 'Sechskantschraube (ISO 4017)', iso4032: 'Sechskantmutter (ISO 4032)' };
+// ----- Normteile einfügen: screws, nuts, washers, pins, keys, rings, bearings (js/stdparts.js) -----
 let pendingBolt = null;
+let stdLast = { fam: 'iso4762', size: 'M6', len: 20, where: 'hole' };
+function stdPartDialog(hasBody) {
+  return new Promise(resolve => {
+    const v = { ...stdLast };
+    if (!hasBody) v.where = 'origin';
+    const back = h('div', { class: 'modal-back' }), body = h('div', { style: 'padding:12px 16px;display:grid;gap:6px' });
+    const done = r => { back.remove(); resolve(r); };
+    const groups = [...new Set(STD_FAMILIES.map(f => f.group))];
+    const draw = () => {
+      const fam = stdFamily(v.fam) || STD_FAMILIES[0], sizes = fam.sizes();
+      v.fam = fam.id;
+      if (!sizes.includes(String(v.size))) v.size = sizes.includes('M6') ? 'M6' : sizes[Math.min(3, sizes.length - 1)];
+      if (fam.len && !(+v.len > 0)) v.len = fam.len;
+      const li = h('input', { type: 'text', value: v.len, list: 'stdLens' });
+      li.addEventListener('change', () => { const n = +String(li.value).replace(',', '.'); if (Number.isFinite(n) && n > 0) v.len = n; else li.value = v.len; });
+      body.replaceChildren(
+        row('Art', sel(groups.map(g => [g, g]), fam.group, g => { v.fam = STD_FAMILIES.find(f => f.group === g).id; v.len = 0; draw(); })),
+        row('Normteil', sel(STD_FAMILIES.filter(f => f.group === fam.group).map(f => [f.id, f.name]), fam.id, id => { v.fam = id; v.len = 0; draw(); })),
+        row('Größe', sel(sizes.map(z => [z, z]), String(v.size), z => { v.size = z; draw(); })),
+        ...(fam.len ? [row(fam.lenTotal ? 'Länge (mit Kopf)' : fam.seat === 'in' && fam.id !== 'iso2338' && fam.id !== 'din976' && fam.id !== 'iso4026' ? 'Länge (ohne Kopf)' : 'Länge', h('div', { class: 'unit' }, li, h('span', null, 'mm'))),
+          h('datalist', { id: 'stdLens' }, ...STD_LENGTHS.map(q => h('option', { value: q })))] : []),
+        row('Position', sel([...(hasBody ? [['hole', 'Bohrungen im Modell anklicken']] : []), ['origin', 'Ursprung (Achse Z)']], v.where, w => (v.where = w))),
+        h('div', { class: 'stats' }, h('span', null, 'Richtmaße in mm'), h('b', null, fam.dims(String(v.size)))),
+        h('p', { class: 'hint' }, fam.seat === 'in' ? 'Bei „Bohrungen“ sitzt der Kopf auf der Seite der Bohrung, die näher am Klickpunkt liegt; der Schaft zeigt in die Bohrung. Mehrere Bohrungen nacheinander anklicken, dann „Fertig“.'
+          : fam.seat === 'on' ? 'Bei „Bohrungen“ liegt das Teil auf der Fläche an dem Ende der Bohrung, das näher am Klickpunkt liegt. Mehrere Bohrungen nacheinander anklicken, dann „Fertig“.'
+            : 'Bei „Bohrungen“ sitzt das Teil bündig in dem Ende der Bohrung, das näher am Klickpunkt liegt. Mehrere Bohrungen nacheinander anklicken, dann „Fertig“.'),
+        h('p', { class: 'hint' }, 'Nennmaße der Normen ohne Toleranzen; Gewinde sind als glatter Zylinder gezeichnet.'));
+    };
+    draw();
+    back.append(h('div', { class: 'modal', style: 'height:auto;width:min(480px,calc(100vw - 32px))' },
+      h('div', { class: 'modal-head' }, 'NORMTEIL EINFÜGEN', h('button', { onclick: () => done(null) }, '✕')), body,
+      h('div', { class: 'modal-foot' }, h('button', { onclick: () => done(null) }, 'Abbrechen'), h('button', { class: 'primary', onclick: () => { document.activeElement?.blur(); setTimeout(() => done(v), 0); } }, 'Einfügen'))));
+    back.addEventListener('keydown', e => { if (e.key === 'Escape') done(null); });
+    document.body.append(back);
+  });
+}
 async function insertBolt() {
   const hasBody = !getModel().box.isEmpty();
-  const v = await formDialog('Schraube einfügen', [
-    { key: 'type', label: 'Typ', value: 'iso4762', options: Object.entries(BOLT_TYPES) },
-    { key: 'size', label: 'Größe', value: 'M6', options: Object.keys(BOLT_SIZES).map(k => [k, k]) },
-    { key: 'len', label: 'Länge (Schaft)', value: 20, unit: 'mm' },
-    { key: 'where', label: 'Position', value: hasBody ? 'hole' : 'origin', options: [...(hasBody ? [['hole', 'Bohrung im Modell anklicken']] : []), ['origin', 'Ursprung (Achse Z)']] },
-    { key: 'hint', hint: 'Bei „Bohrung“ sitzt der Kopf auf der Seite der Bohrung, die näher am Klickpunkt liegt; der Schaft zeigt in die Bohrung.' }], 'Einfügen');
+  const v = await stdPartDialog(hasBody);
   if (!v) return;
-  if (v.where === 'origin') return buildBolt(v, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1));
-  pendingBolt = v;
+  stdLast = { ...v };
+  if (v.where === 'origin') return buildStdPart(v, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1));
+  pendingBolt = { ...v, n: 0 };
   state.pick = { mode: 'boltHole' };
-  showBanner(['Schraube: Bohrung (Zylinderfläche) im Modell anklicken.', h('button', { onclick: () => { state.pick = null; pendingBolt = null; showBanner(null); renderAll(); } }, 'Abbrechen')]);
+  stdBanner();
   renderAll();
+}
+function stdBanner() {
+  const end = () => { state.pick = null; pendingBolt = null; showBanner(null); renderAll(); };
+  showBanner([pendingBolt.n ? `Normteil: ${pendingBolt.n} eingefügt – weitere Bohrung anklicken oder beenden.` : 'Normteil: Bohrung (Zylinderfläche) im Modell anklicken.', h('button', { onclick: end }, pendingBolt.n ? 'Fertig' : 'Abbrechen')]);
 }
 function placeBolt(e, meshes) {
   const hit = vp.raycast(e, meshes)[0];
@@ -4124,38 +4166,48 @@ function placeBolt(e, meshes) {
   const nrm = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
   if (radial.dot(nrm) > 0) return status('Das ist keine Bohrung (Verrundung oder Zapfen) – bitte die Innenwand einer Bohrung anklicken.');
   const a = L.clone().addScaledVector(d, c.t0), b2 = L.clone().addScaledVector(d, c.t1);
-  // head on the end nearer to the click, shank pointing into the hole
+  // on the end nearer to the click; a shank points into the hole
   const top = a.distanceTo(hit.point) < b2.distanceTo(hit.point) ? a : b2, other = top === a ? b2 : a;
   const n = top.clone().sub(other).normalize();
   const v = pendingBolt;
-  pendingBolt = null;
-  state.pick = null;
-  showBanner(null);
-  buildBolt(v, top, n);
+  // a free part (bearing, ring) goes into the bore instead of standing on it
+  if (stdFamily(v.fam)?.seat === 'mid') n.negate();
+  if (buildStdPart(v, top, n)) { v.n++; state.pick = { mode: 'boltHole' }; stdBanner(); renderAll(); }
 }
-function buildBolt(v, top, n) {
-  const [d, dk, k, ss, t, s, kh, m] = BOLT_SIZES[v.size];
-  const L = Math.max(1, +v.len || 20);
-  const pl = planeFromFace(top, n), x = pl.x, plane = o => ({ o: o.toArray().map(q => +q.toFixed(4)), x, n: n.toArray().map(q => +q.toFixed(6)) });
-  const hex = (sAcross, extra = []) => [{ id: uid('e'), type: 'ngon', cx: 0, cy: 0, r: +(sAcross / Math.sqrt(3)).toFixed(4), n: 6, rot: 0 }, ...extra];
-  const circ = r => ({ id: uid('e'), type: 'circle', cx: 0, cy: 0, r: +r.toFixed(4) });
-  const label = v.type === 'iso4032' ? `Mutter ${v.size}` : `Schraube ${v.size}×${L}`;
+function buildStdPart(v, top, n) {
+  let part;
+  try { part = stdPartSteps(v.fam, v.size, v.len); } catch (err) { status(err.message); return false; }
+  const { steps, fam, L } = part, label = stdPartName(fam, v.size, L);
+  const pl = planeFromFace(top, n), x = pl.x, na = n.toArray().map(q => +q.toFixed(6));
+  // the plane of the turned outlines: x away from the axis, y along it
+  const side = [x[1] * na[2] - x[2] * na[1], x[2] * na[0] - x[0] * na[2], x[0] * na[1] - x[1] * na[0]].map(q => +q.toFixed(6));
+  const at = z => top.clone().addScaledVector(n, z).toArray().map(q => +q.toFixed(4));
+  const r4 = q => +(+q).toFixed(4);
   const feats = [];
-  const sketch = (name, o, ents) => { const id = uid('sk'); feats.push({ id, type: 'sketch', name, plane: plane(o), entities: ents, hidden: true }); return id; };
-  const extrude = (name, sk, dist, op, target) => { const id = uid('ex'); feats.push({ id, type: 'extrude', name, sketch: sk, profiles: 'all', extent: 'one', distance: dist, distance2: 5, op, ...(target ? { target } : {}) }); return id; };
-  if (v.type === 'iso4032') {
-    extrude(label, sketch(`${label} – Skizze`, top, hex(s, [circ(d / 2)])), m, 'new');
-  } else {
-    const shank = extrude(`${label} – Schaft`, sketch(`${label} – Schaft`, top, [circ(d / 2)]), -L, 'new');
-    const headH = v.type === 'iso4762' ? k : kh;
-    extrude(`${label} – Kopf`, sketch(`${label} – Kopf`, top, v.type === 'iso4762' ? [circ(dk / 2)] : hex(s)), headH, 'join', shank);
-    if (v.type === 'iso4762') extrude(`${label} – Innensechskant`, sketch(`${label} – Innensechskant`, top.clone().addScaledVector(n, headH), hex(ss)), -t, 'cut');
-  }
+  let first = null;
+  steps.forEach((st, i) => {
+    const name = i ? `${label} (${i + 1})` : label, sid = uid('sk'), fid = uid(st.k === 'prism' ? 'ex' : 'rv');
+    const link = st.op === 'new' ? {} : st.op === 'cut' ? { cutOnly: first } : { target: first };
+    if (st.k === 'prism') {
+      const ents = st.shape === 'hex' ? [{ id: uid('e'), type: 'ngon', cx: 0, cy: 0, r: r4(st.s / Math.sqrt(3)), n: 6, rot: 0 }]
+        : st.shape === 'rect' ? [{ id: uid('e'), type: 'rect', x: r4((st.cx || 0) - st.w / 2), y: r4(-st.h / 2), w: r4(st.w), h: r4(st.h), ...(st.rr ? { r: r4(st.rr) } : {}) }]
+          : [{ id: uid('e'), type: 'circle', cx: 0, cy: 0, r: r4(st.r) }];
+      if (st.hole) ents.push({ id: uid('e'), type: 'circle', cx: 0, cy: 0, r: r4(st.hole) });
+      feats.push({ id: sid, type: 'sketch', name: `${name} – Skizze`, plane: { o: at(st.z), x, n: na }, entities: ents, hidden: true },
+        { id: fid, type: 'extrude', name, sketch: sid, profiles: 'all', extent: 'one', distance: r4(st.dist), distance2: 5, op: st.op, ...link });
+    } else {
+      const ents = st.k === 'ring' ? [{ id: uid('e'), type: 'circle', cx: r4(st.r), cy: r4(st.z), r: r4(st.rad) }] : [{ id: uid('e'), type: 'poly', pts: st.pts.map(([r, z]) => [r4(r), r4(z)]), closed: true }];
+      feats.push({ id: sid, type: 'sketch', name: `${name} – Skizze`, plane: { o: at(0), x, n: side }, entities: ents, hidden: true },
+        { id: fid, type: 'revolve', name, sketch: sid, profiles: 'all', axis: 'y', angle: 360, op: st.op, ...link });
+    }
+    if (!first) first = fid;
+  });
   commit(p => p.features.push(...feats));
   const err = Object.keys(getModel().errors).find(id => feats.some(f => f.id === id));
   if (err) status(`${label}: ${getModel().errors[err]}`);
-  else status(`${label} eingefügt (${BOLT_TYPES[v.type]})`);
-  select('feature', feats[feats.length - 1].id);
+  else status(`${label} eingefügt`);
+  select('feature', first);
+  return !err;
 }
 
 // ----- Mit Gelenken duplizieren: copies of a body that keep its joints -----
@@ -4489,30 +4541,43 @@ function propsFreeform(b, f, ed) {
     opSelect(f, ed));
 }
 
+// base polygon, cut-outs and the feature with resolved values and resolved sketch cut-outs of a sheet metal part
+function sheetOf(f) {
+  const fs = resolved().features, rf = fs.find(x => x.id === f.id) || f;
+  return sheetBase(fs.find(x => x.id === rf.sketch), rf, id => fs.find(x => x.id === id && x.type === 'sketch'));
+}
+
 function propsSheet(b, f, ed) {
   const N = (label, key, opt = {}) => row(label, num(f[key], v => ed(x => (x[key] = v)), { unit: 'mm', ...opt }));
+  const rule = SHEET_RULES.find(r => r.thickness === +f.thickness && r.radius === +f.radius && r.kfactor === +f.kfactor);
   b.append(
-    row('Skizze', sel(sketchOptions(), f.sketch, v => ed(x => { x.sketch = v; x.flanges = []; }))),
+    row('Skizze', sel(sketchOptions(), f.sketch, v => ed(x => { x.sketch = v; x.flanges = []; x.lines = []; x.collars = []; }))),
+    row('Blechregel', sel([['', 'Eigene Werte'], ...SHEET_RULES.map(r => [r.id, r.name])], rule?.id || '', v => { const r = SHEET_RULES.find(q => q.id === v); if (r) ed(x => { x.thickness = r.thickness; x.radius = r.radius; x.kfactor = r.kfactor; }); })),
     N('Blechdicke', 'thickness', { min: 0.1 }), N('Biegeradius innen', 'radius', { min: 0 }), N('K-Faktor', 'kfactor', { unit: null, min: 0, max: 1 }),
+    row('Laschenmaß', sel([['straight', 'Gerader Teil (nach der Biegung)'], ['outer', 'Außenmaß (ab Außenfläche der Platte)'], ['inner', 'Innenmaß (ab Innenfläche der Platte)']], f.flangeDim || 'straight', v => ed(x => (x.flangeDim = v)))),
     sec('ECKEN'),
     row('Ecke', sel([['open', 'Offen (Laschen gekürzt)'], ['closed', 'Geschlossen (Gehrung)']], f.corner || 'open', v => ed(x => (x.corner = v)))),
     ...(f.corner === 'closed' ? [
       row('Spalt', num(f.cornerGap ?? 0.2, v => ed(x => (x.cornerGap = Math.max(0, v))), { unit: 'mm', min: 0 })),
       row('Eckfreistellung', sel([['round', 'Rund'], ['square', 'Quadratisch'], ['none', 'Keine']], f.cornerRelief || 'round', v => ed(x => (x.cornerRelief = v)))),
-      h('p', { class: 'hint' }, 'Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil.'),
+      h('p', { class: 'hint' }, 'Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil. Auch eine Lasche an einer gebogenen Kante wird an einer echten Ecke auf Gehrung geschnitten (dort ohne Eckfreistellung).'),
     ] : []),
     sec('LASCHEN'),
   );
   let base = null;
-  try { base = sheetBase(resolved().features.find(x => x.id === f.sketch)); } catch (err) { b.append(h('p', { class: 'err' }, err.message)); }
+  try { base = sheetOf(f); } catch (err) { b.append(h('p', { class: 'err' }, err.message)); }
   if (base) {
-    const edges = polyEdges(base.poly);
+    const edges = polyEdges(base.poly), arcs = polyArcs(base.poly), inArc = new Set();
+    for (const a of arcs.values()) for (let q = 1; q < a.m; q++) inArc.add((a.i0 + q) % edges.length);
     edges.forEach((e, k) => {
       const fl = (f.flanges || []).find(q => q.edge === k) || { edge: k, on: false, h: 15, angle: 90 };
+      // the chords of a curved edge are one edge (listed at its first chord)
+      if (inArc.has(k) && !fl.on) return;
+      const arc = arcs.get(k);
       const setFl = fn => ed(x => { x.flanges ||= []; let q = x.flanges.find(z => z.edge === k); if (!q) x.flanges.push(q = { edge: k, on: false, h: 15, angle: 90 }); fn(q); });
       const h1 = h('input', { type: 'text', value: fl.h, title: 'Laschenlänge (gerader Teil) mm', onchange: ev => setFl(q => (q.h = parseFloat(ev.target.value.replace(',', '.')) || q.h)) });
       const a1 = h('input', { type: 'text', value: fl.angle, title: 'Biegewinkel °', onchange: ev => setFl(q => (q.angle = parseFloat(ev.target.value.replace(',', '.')) || q.angle)) });
-      b.append(h('div', { class: 'flange-row' }, chk(fl.on, v => setFl(q => (q.on = v))), h('span', null, `Kante ${k + 1} (${f2(e.L)} mm)`), h1, h('small', null, 'mm'), a1, h('small', null, '°')));
+      b.append(h('div', { class: 'flange-row' }, chk(fl.on, v => setFl(q => (q.on = v))), h('span', null, arc ? (arc.full ? `Kante ${k + 1} (Kreis R${f2(arc.R)}, ${f2(arc.L)} mm)` : `Kante ${k + 1} (Bogen R${f2(arc.R)}, ${f2(arc.L)} mm)`) : `Kante ${k + 1} (${f2(e.L)} mm)`), h1, h('small', null, 'mm'), a1, h('small', null, '°')));
       if (!fl.on) return;
       // flange on flange: further bends on the free edge of this flange (+ = same way round, − = the other way)
       const numIn = (val, title, fn) => h('input', { type: 'text', value: val, title, onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) setFl(q => fn(q, v)); } });
@@ -4521,24 +4586,87 @@ function propsSheet(b, f, ed) {
         numIn(nx.h, 'Laschenlänge (gerader Teil) mm', (q, v) => (q.next[j].h = Math.max(0, v))), h('small', null, 'mm'),
         numIn(nx.angle, 'Biegewinkel ° (+ gleiche Richtung wie die erste Biegung, − Gegenrichtung)', (q, v) => (q.next[j].angle = Math.max(-180, Math.min(180, v)))), h('small', null, '°'),
         btn('✕', () => setFl(q => q.next.splice(j, 1))))));
+      // partial flange: distance from the start and from the end of the edge (0 = up to the corner / the relief)
+      const offIn = (key, title) => h('input', { type: 'text', value: +fl[key] || 0, title, onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); setFl(q => (q[key] = Number.isFinite(v) && v > 0 ? v : 0)); } });
+      b.append(h('div', { class: 'flange-row flange-sub' }, h('span', null, 'Abstand Anfang / Ende'), offIn('offA', 'Abstand der Lasche vom Kantenanfang in mm (0 = bis zur Ecke)'), h('small', null, 'mm'), offIn('offB', 'Abstand der Lasche vom Kantenende in mm (0 = bis zur Ecke)'), h('small', null, 'mm')));
       b.append(h('div', { class: 'flange-row flange-sub' }, btn('+ Lasche an Lasche', () => setFl(q => { q.next ||= []; q.next.push({ h: 10, angle: 90 }); }))));
+      // cut-outs in the flange (they travel into the flat pattern): position along the edge, distance from the bend, size
+      const nLv = 1 + (fl.next || []).length;
+      (fl.holes || []).forEach((hq, j) => {
+        const hin = (key, title, min = 0) => h('input', { type: 'text', value: +hq[key] || 0, title, onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); if (Number.isFinite(v) && v >= min) setFl(q => (q.holes[j][key] = v)); } });
+        if (hq.kind === 'sketch') {
+          b.append(h('div', { class: 'flange-row flange-hole' },
+            h('span', null, '✎', nLv > 1 ? sel(Array.from({ length: nLv }, (_, i) => [String(i), `Lasche ${i + 1}`]), String(+hq.lv || 0), v => setFl(q => (q.holes[j].lv = +v))) : ''),
+            hin('s', 'Nullpunkt der Skizze entlang der Kante (vom Kantenanfang) mm', -1e6), hin('d', 'Nullpunkt der Skizze ab Ende der Biegung (in die Lasche hinein) mm', -1e6),
+            h('div', { class: 'span2' }, sel([['', '– Skizze –'], ...sketchOptions().filter(([id]) => id !== f.sketch)], hq.sketch || '', v => setFl(q => (q.holes[j].sketch = v)))),
+            btn('✕', () => setFl(q => q.holes.splice(j, 1)))));
+          return;
+        }
+        b.append(h('div', { class: 'flange-row flange-hole' },
+          h('span', null, hq.kind === 'rect' ? '▭' : '○', nLv > 1 ? sel(Array.from({ length: nLv }, (_, i) => [String(i), `Lasche ${i + 1}`]), String(+hq.lv || 0), v => setFl(q => (q.holes[j].lv = +v))) : ''),
+          hin('s', 'Mitte entlang der Kante (vom Kantenanfang) mm'), hin('d', 'Mitte ab Ende der Biegung (in die Lasche hinein) mm'),
+          ...(hq.kind === 'rect' ? [hin('w', 'Breite entlang der Kante mm', 0.01), hin('h', 'Höhe entlang der Lasche mm', 0.01)] : [hin('dia', 'Durchmesser mm', 0.01), h('small', null, 'Ø')]),
+          btn('✕', () => setFl(q => q.holes.splice(j, 1)))));
+      });
+      const addHole = kind => setFl(q => { q.holes ||= []; q.holes.push(kind === 'rect' ? { lv: 0, kind, s: f2((arc ? arc.L : e.L) / 2), d: f2((+q.h || 15) / 2), w: 10, h: f2(Math.max(1, (+q.h || 15) / 3)) } : { lv: 0, kind, s: f2((arc ? arc.L : e.L) / 2), d: f2((+q.h || 15) / 2), dia: f2(Math.max(1, Math.min(6, (+q.h || 15) / 3))) }); });
+      b.append(h('div', { class: 'btns flange-holebtns' }, btn('+ Bohrung in Lasche', () => addHole('circle')), btn('+ Fenster in Lasche', () => addHole('rect')), btn('+ Kontur aus Skizze', () => setFl(q => { q.holes ||= []; q.holes.push({ lv: 0, kind: 'sketch', sketch: sketchOptions().filter(([id]) => id !== f.sketch).pop()?.[0] || '', s: 0, d: 0 }); }))));
     });
     b.append(h('p', { class: 'hint' }, 'Lasche an Lasche: Winkel + biegt in dieselbe Richtung weiter (U-Profil, Falz mit 180°), − in die Gegenrichtung (Z-Stufe, Hutprofil).'));
-    const fp = flatPattern(base.poly, f);
+    // bends on lines across the plate, beads along lines inside it
+    if (base.lines.length) {
+      b.append(sec('BIEGELINIEN, SICKEN, KIEMEN'));
+      base.lines.forEach((ln, i) => {
+        const q = (f.lines || []).find(z => z.id === ln.id) || { id: ln.id, kind: '' };
+        const setLn = fn => ed(x => { x.lines ||= []; let z = x.lines.find(y => y.id === ln.id); if (!z) x.lines.push(z = { id: ln.id, kind: '', angle: 90, w: 8, h: 2 }); fn(z); });
+        const inp = (key, title, def) => h('input', { type: 'text', value: q[key] ?? def, title, onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) setLn(z => (z[key] = v)); else ev.target.value = q[key] ?? def; } });
+        b.append(h('div', { class: 'flange-row form-row' }, h('span', null, `Linie ${i + 1} (${f2(Math.hypot(ln.b[0] - ln.a[0], ln.b[1] - ln.a[1]))} mm)`),
+          sel([['', '–'], ['bend', 'Biegung'], ['bead', 'Sicke'], ['louver', 'Kieme']], q.kind || '', v => setLn(z => (z.kind = v))),
+          ...(q.kind === 'bend' ? [inp('angle', 'Biegewinkel ° (+ hoch, − runter)', 90), h('small', null, '°')]
+            : q.kind === 'bead' ? [inp('w', 'Breite der Sicke mm', 8), h('small', null, 'mm'), inp('h', 'Höhe der Sicke mm (+ nach oben, − nach unten)', 2), h('small', null, 'mm')]
+              : q.kind === 'louver' ? [inp('w', 'Tiefe der Kieme mm (+ links der Linie, − rechts)', 8), h('small', null, 'mm'), inp('h', 'Höhe der Kieme am Schlitz mm (+ nach oben, − nach unten)', 2), h('small', null, 'mm')] : [])));
+      });
+      b.append(h('p', { class: 'hint' }, 'Gerade Linien der Skizze, die zu keinem Profil gehören (auch Hilfslinien). Biegung: die Linie ist die Mitte der Biegezone, die Skizze dort der Zuschnitt – das größte Stück der Platte bleibt liegen, alles jenseits der Linie schwenkt mit seinen Laschen mit. Die Linie gilt über die ganze Platte. Sicke: eine Rippe entlang der Linie, im Querschnitt und an den Enden rund; das Blech behält seine Dicke.'),
+        h('p', { class: 'hint' }, 'Kieme: die Linie ist ein Schlitz, das Blech daneben wird zu einer Haube aufgestellt, die an beiden Enden des Schlitzes in die Platte ausläuft (Lüftungsschlitz). Im Zuschnitt ist der Schlitz ein Schnitt.'));
+    }
+    // collars: round cut-outs of the plate pulled up to a rim
+    if (base.holes.length) {
+      b.append(sec('AUSSCHNITTE UND PRÄGUNGEN'));
+      let cp = new Map();
+      try { cp = collarPlan(base.holes, base.f); } catch { /* shown with the notes below */ }
+      base.holes.forEach((hp, j) => {
+        const id = base.holeIds[j], ci = holeCircle(hp);
+        const q = (f.collars || []).find(z => z.id === id) || { id, on: false, h: 4 }, kind = q.on === false ? '' : q.kind || 'collar';
+        const setC = fn => ed(x => { x.collars ||= []; let z = x.collars.find(y => y.id === id); if (!z) x.collars.push(z = { id, on: false, h: 4 }); fn(z); });
+        b.append(h('div', { class: 'flange-row form-row' }, h('span', null, !ci ? `Kontur ${j + 1}` : cp.has(j) ? `Bohrung ${j + 1} (Ø ${f2(2 * ci.R)} mm) – Vorbohrung Ø ${f2(2 * cp.get(j).flat)}` : `Bohrung ${j + 1} (Ø ${f2(2 * ci.R)} mm)`),
+          sel([['', 'Ausschnitt'], ...(ci ? [['collar', 'Durchzug']] : []), ['emboss', 'Prägung'], ...(ci ? [['dimple', 'Senkprägung']] : [])], kind, v => setC(z => { z.on = !!v; z.kind = v || z.kind; if (v === 'dimple' && Math.abs(+z.h) > 2 * (+f.thickness || 1)) z.h = -(+f.thickness || 1); })),
+          ...(kind ? [h('input', { type: 'text', value: q.h, title: 'Höhe über der Platte mm (+ nach oben, − nach unten)', onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) setC(z => (z.h = v)); else ev.target.value = q.h; } }), h('small', null, 'mm')] : [])));
+      });
+      b.append(h('p', { class: 'hint' }, 'Durchzug: der Rand einer runden Bohrung wird zu einem Kragen hochgezogen, etwa als Gewindedurchzug. Der Bohrungsdurchmesser der Skizze ist der fertige Innendurchmesser; im Zuschnitt wird die kleinere Vorbohrung geschnitten.'),
+        h('p', { class: 'hint' }, 'Prägung: die Kontur wird nicht ausgeschnitten, sondern um die Höhe aus der Platte gedrückt. Senkprägung: der Rand einer runden Bohrung wird zu einem 90°-Kegel gedrückt – für Senkschrauben in dünnem Blech (− nach unten: Schraube von oben).'));
+    }
+    const fp = flatPattern(base.poly, base.f, base.holes);
+    const smatId = bodyMeta(f.id).material || 'alu', smat = MATERIALS[smatId], srm = SHEET_RM[smatId] || 400;
+    b.append(h('p', { class: 'hint' }, 'Abstand Anfang / Ende macht aus der Lasche eine Teillasche. Weitere geschlossene Profile in der Skizze werden zu Ausschnitten in der Platte. Bohrungen und Fenster in einer Lasche: Mitte entlang der Kante (bei einer gebogenen Kante entlang des Bogens), Mitte ab Ende der Biegung, Größe – sie erscheinen auch in der Abwicklung. Geht eine gebogene Kante ohne Knick in ihre Nachbarkante über und haben beide eine Lasche mit gleichem Biegewinkel, laufen die Laschen ohne Freischnitt ineinander über. „Kontur aus Skizze“ schneidet die geschlossenen Profile einer Skizze aus der Lasche: ihr X läuft entlang der Kante, ihr Y in die Lasche hinein, der Nullpunkt liegt am Kantenanfang auf dem Ende der Biegung (verschiebbar).'));
+    for (const c of sheetChecks(base.poly, base.holes, base.f, fp)) b.append(h('p', { class: c.level === 'warn' ? 'warn' : 'hint' }, (c.level === 'warn' ? '⚠ ' : 'ⓘ ') + c.text));
     b.append(sec('ABWICKLUNG'),
       h('div', { class: 'stats' }, h('span', null, 'Zuschnitt'), h('b', null, `${f2(fp.size[0])} × ${f2(fp.size[1])} mm`),
+        h('span', null, 'Fläche'), h('b', null, `${f2(fp.area / 100)} cm²`),
+        h('span', null, 'Schnittlänge'), h('b', null, `${f2(fp.cutLength)} mm`),
+        h('span', null, 'Ausschnitte'), h('b', null, String(base.holes.length)),
+        h('span', null, 'Masse'), h('b', null, `${f2((fp.area * (+f.thickness || 0)) / 1000 * smat.density)} g (${smat.label})`),
         h('span', null, 'Biegezugabe 90°'), h('b', null, `${f2(bendAllowance(90, +f.radius, +f.thickness, +f.kfactor))} mm`)),
       h('div', { class: 'btns' },
         btn(state.flatView === f.id ? 'Gefalteten Zustand zeigen' : 'Abwicklung anzeigen', () => toggleFlatView(f), state.flatView === f.id ? 'on' : 'primary')),
       fp.table.length ? h('table', { class: 'mtable bend-table' },
-        h('tr', null, ...['Biegung', 'Kante', 'Winkel', 'Radius', 'Zugabe', 'Länge'].map(x => h('th', null, x))),
-        ...fp.table.map((b, i) => h('tr', null, h('td', null, `B${i + 1}`), h('td', null, b.level ? `${b.edge + 1}.${b.level + 1}` : String(b.edge + 1)),
+        h('tr', null, ...['Biegung', 'Kante', 'Winkel', 'Radius', 'Zugabe', 'Länge', 'Presskraft'].map(x => h('th', null, x))),
+        ...fp.table.map((b, i) => h('tr', null, h('td', null, `B${i + 1}`), h('td', null, b.line != null ? `L${b.line + 1}` : b.level ? `${b.edge + 1}.${b.level + 1}` : String(b.edge + 1)),
           h('td', null, b.level ? `${f2(Math.abs(b.angle))}° ${b.angle > 0 ? 'gleichsinnig' : 'gegensinnig'}` : `${f2(Math.abs(b.angle))}° ${b.angle > 0 ? 'hoch' : 'runter'}`),
-          h('td', null, `R${f2(b.radius)}`), h('td', null, f2(b.allowance)), h('td', null, f2(b.length))))) : null,
+          h('td', null, `R${f2(b.radius)}`), h('td', null, f2(b.allowance)), h('td', null, f2(b.length)), h('td', null, `${f2(pressForce(+f.thickness, b.length, srm).kN)} kN`)))) : null,
+      fp.table.length ? h('p', { class: 'hint' }, `Presskraft: Richtwert für freies Biegen im Gesenk V = ${f2(pressForce(+f.thickness, 1, srm).V)} mm mit Zugfestigkeit ${srm} N/mm² (${smat.label}); kürzester Schenkel dafür etwa ${f2(pressForce(+f.thickness, 1, srm).minFlange)} mm. Größte Biegung: ${f2(Math.max(...fp.table.map(q => pressForce(+f.thickness, q.length, srm).kN)))} kN.`) : null,
       h('div', { class: 'btns' },
         btn('Als Skizze', () => flatToSketch(f, fp, base.z0)),
-        btn('Als DXF', () => download(`${safeName()}_Abwicklung.dxf`, writeDXF([...fp.outline.map((pts, i) => ({ id: 'o' + i, type: 'poly', closed: true, pts })), ...fp.bends.map((pts, i) => ({ id: 'b' + i, type: 'poly', closed: false, pts }))]), 'application/dxf'))),
-      h('p', { class: 'hint' }, 'Gestrichelt im DXF/der Skizze: Biegelinien (Anfang und Ende jeder Biegezone).'));
+        btn('Als DXF', () => download(`${safeName()}_Abwicklung.dxf`, flatDXF(fp), 'application/dxf'))),
+      h('p', { class: 'hint' }, 'Gestrichelt im DXF/der Skizze: Biegelinien (Anfang und Ende jeder Biegezone). Im DXF liegen sie auf der Ebene BIEGUNG, der Umriss auf Ebene 0.'));
   }
   b.append(opSelect(f, ed));
 }
@@ -4554,7 +4682,7 @@ function drawFlatPattern() {
   const f = state.flatView && feature(state.flatView);
   if (!f || f.type !== 'sheet' || state.workspace !== 'design') { if (state.flatView && !f) state.flatView = null; return false; }
   let base, fp;
-  try { base = sheetBase(resolved().features.find(x => x.id === f.sketch)); fp = flatPattern(base.poly, f); } catch { return false; }
+  try { base = sheetOf(f); fp = flatPattern(base.poly, base.f, base.holes); } catch { return false; }
   const t = +f.thickness || 1, z0 = base.z0;
   // Clipper gives outer loops counter-clockwise and holes clockwise
   const outers = fp.outline.filter(p => !THREE.ShapeUtils.isClockWise(p.map(([x, y]) => new THREE.Vector2(x, y))));
@@ -4578,11 +4706,97 @@ function drawFlatPattern() {
     vp.paths.add(c);
     const el = h('div', { class: 'bend-tag' }, `B${i + 1}`);
     const lab = new CSS2DObject(el);
-    lab.position.set((b.centre[0][0] + b.centre[1][0]) / 2, (b.centre[0][1] + b.centre[1][1]) / 2, zTop);
+    const cm = b.centre.length > 2 ? b.centre[b.centre.length >> 1] : [(b.centre[0][0] + b.centre[1][0]) / 2, (b.centre[0][1] + b.centre[1][1]) / 2];
+    lab.position.set(cm[0], cm[1], zTop);
     vp.paths.add(lab);
   });
-  for (const ln of fp.bends) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ln.map(([x, y]) => new THREE.Vector3(x, y, zTop))), thin); l.renderOrder = 21; vp.paths.add(l); }
+  for (const ln of [...fp.bends, ...(fp.forms || []), ...(fp.slits || [])]) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ln.map(([x, y]) => new THREE.Vector3(x, y, zTop))), thin); l.renderOrder = 21; vp.paths.add(l); }
   return true;
+}
+
+// the sheet metal part the commands of the BLECH tab work on: the selected one, else the last one
+function activeSheet() {
+  const s = state.sel?.kind === 'feature' ? state.project.features.find(x => x.id === state.sel.id) : null;
+  const f = s?.type === 'sheet' ? s : [...state.project.features].reverse().find(x => x.type === 'sheet' && !x.suppressed);
+  if (!f) status('Zuerst ein Blech anlegen (Skizze mit geschlossenem Profil → Blech).');
+  return f || null;
+}
+function sheetFlat(f) {
+  try { const base = sheetOf(f); return { base, fp: flatPattern(base.poly, base.f, base.holes) }; }
+  catch (err) { status(err.message || String(err)); return null; }
+}
+// outline on layer 0, bend lines (start and end of every bend zone) on the layer BIEGUNG
+const flatDXF = fp => writeDXF([...fp.outline.map((pts, i) => ({ id: 'o' + i, type: 'poly', closed: true, pts })), ...fp.bends.map((pts, i) => ({ id: 'b' + i, type: 'poly', closed: false, pts, layer: 'BIEGUNG' })), ...(fp.forms || []).map((pts, i) => ({ id: 'f' + i, type: 'poly', closed: false, pts, layer: 'UMFORMUNG' })), ...(fp.slits || []).map((pts, i) => ({ id: 's' + i, type: 'poly', closed: false, pts }))]);
+
+// Nesting: the blanks of the sheet metal parts on sheets, as a sketch (optionally extruded to bodies of the sheet
+// thickness, so the 2D operations of manufacturing can cut them out) or as a DXF
+async function nestDialog() {
+  const sheets = state.project.features.filter(x => x.type === 'sheet' && !x.suppressed);
+  if (!sheets.length) return status('Zuerst ein Blech anlegen (Skizze mit geschlossenem Profil → Blech).');
+  const last = state.nestLast || {};
+  const v = await formDialog('Schachteln', [
+    ...sheets.map(s => ({ key: 'q_' + s.id, label: `Stückzahl „${s.name}“`, value: last['q_' + s.id] ?? 1 })),
+    { key: 'W', label: 'Tafel Länge', value: last.W ?? 1000, unit: 'mm' },
+    { key: 'H', label: 'Tafel Breite', value: last.H ?? 500, unit: 'mm' },
+    { key: 'gap', label: 'Abstand (Teile und Rand)', value: last.gap ?? 5, unit: 'mm' },
+    { key: 'rot', label: 'Teile um 90° drehen erlaubt', check: true, value: last.rot ?? true },
+    { key: 'tight', label: 'Ineinander schachteln (Lücken und Ausschnitte nutzen)', check: true, value: last.tight ?? true },
+    { key: 'out', label: 'Ergebnis', options: [['body', 'Skizze + Körper (für die Fertigung)'], ['sketch', 'Nur Skizze'], ['dxf', 'DXF-Datei'], ['nc', 'Schneidprogramm (Laser, Plasma, Wasserstrahl, Fräse)']], value: last.out ?? 'body',
+      hint: '„Ineinander schachteln“ legt die Zuschnitte in die Lücken und Buchten ihrer Nachbarn und in deren Ausschnitte (ohne 90°-Drehen nur um 180° gewendet); der Abstand wird nie unterschritten. Ohne den Haken liegen sie nach ihrem umschließenden Rechteck in Reihen. Mit „Skizze + Körper“ entstehen flache Körper in Blechdicke, die sich in der Fertigung mit 2D-Kontur ausschneiden lassen.' },
+  ], 'Schachteln');
+  if (!v) return;
+  state.nestLast = v;
+  const parts = [], thick = [];
+  for (const s of sheets) {
+    const q = Math.round(+v['q_' + s.id] || 0);
+    if (q < 1) continue;
+    const r = sheetFlat(s);
+    if (!r) continue;
+    parts.push({ id: s.id, outline: r.fp.outline, qty: q, bends: r.fp.bends });
+    thick.push(+r.base.f.thickness || 0);
+  }
+  if (!parts.length) return status('Keine Teile zum Schachteln – Stückzahl eintragen.');
+  const W = Math.max(1, +v.W || 1000), H = Math.max(1, +v.H || 500), gap = Math.max(0, +v.gap || 0);
+  const n = nestParts(parts, W, H, gap, !!v.rot, v.tight !== false);
+  if (!n.placed.length) return alert('Kein Teil passt auf die Tafel – Tafel größer wählen.');
+  const off = i => i * (W + 50), r4 = x => +x.toFixed(4);
+  const loops = n.placed.flatMap(p => p.loops.map(l => l.map(([x, y]) => [r4(x + off(p.sheet)), r4(y)])));
+  const frames = Array.from({ length: n.sheets }, (_, i) => [[off(i), 0], [off(i) + W, 0], [off(i) + W, H], [off(i), H]]);
+  const mixed = v.out !== 'dxf' && new Set(thick).size > 1;
+  const say = () => status(`${n.placed.length} Zuschnitte auf ${n.sheets} Tafel(n) ${f2(W)} × ${f2(H)} mm, Ausnutzung ${Math.round(n.used * 100)} %${n.left.length ? ` – ${n.left.length} Teil(e) passen nicht auf die Tafel` : ''}${mixed ? ' – Achtung: Teile mit verschiedenen Blechdicken auf einer Tafel' : ''}.`);
+  if (v.out === 'nc') {
+    const lc = state.cutLast || {};
+    const c = await formDialog('Schneidprogramm', [
+      { key: 'mode', label: 'Verfahren', value: lc.mode ?? 'laser', options: [['laser', 'Laser'], ['plasma', 'Plasma'], ['waterjet', 'Wasserstrahl'], ['mill', 'Fräsen']] },
+      { key: 'kerf', label: 'Schnittfuge / Fräser-Ø', value: lc.kerf ?? 0.2, unit: 'mm' },
+      { key: 'feed', label: 'Vorschub', value: lc.feed ?? 1500, unit: 'mm/min' },
+      { key: 'lead', label: 'Anschnitt', value: lc.lead ?? 3, unit: 'mm' },
+      { key: 'pierce', label: 'Einstechzeit', value: lc.pierce ?? 0.5, unit: 's' },
+      { key: 'power', label: 'Leistung (S-Wert, Laser)', value: lc.power ?? 1000 },
+      { key: 'rpm', label: 'Drehzahl (Fräsen)', value: lc.rpm ?? 12000, unit: '1/min' },
+      { key: 'step', label: 'Zustellung je Durchgang (Fräsen)', value: lc.step ?? 1, unit: 'mm' },
+      { key: 'hint', hint: 'Je Tafel eine Datei. Die Bahn läuft um die halbe Schnittfuge (beim Fräsen den halben Fräser) neben dem Umriss im Abfall; Ausschnitte kommen vor dem Umriss ihres Teils, jede Kontur beginnt mit einem Anschnitt aus dem Abfall. Einschalten mit M3 (Laser: M3 S…), Ausschalten mit M5, Einstechzeit als G4. Nullpunkt ist die linke untere Ecke der Tafel, beim Fräsen Z0 die Blechoberseite. Das Programm vor dem Einsatz an der Maschine oder in einem NC-Simulator prüfen.' }], 'Erzeugen');
+    if (!c) return;
+    state.cutLast = c;
+    let len = 0, pier = 0, min = 0;
+    for (let i = 0; i < n.sheets; i++) {
+      const prog = cutProgram(n.placed.filter(p => p.sheet === i).flatMap(p => p.loops), { ...c, thickness: Math.max(...thick) || 1, name: `${safeName()} Schachtelplan Tafel ${i + 1} von ${n.sheets}, ${f2(W)} x ${f2(H)} mm` });
+      download(`${safeName()}_Tafel${i + 1}.nc`, prog.text, 'text/plain');
+      len += prog.length; pier += prog.pierces; min += prog.minutes;
+    }
+    say();
+    return status(`Schneidprogramm: ${n.sheets} Datei(en), ${f2(len / 1000)} m Schnitt, ${pier} Einstiche, etwa ${f2(min)} min`);
+  }
+  if (v.out === 'dxf') {
+    download(`${safeName()}_Schachtelplan.dxf`, writeDXF([...loops.map((pts, i) => ({ id: 'o' + i, type: 'poly', closed: true, pts })), ...frames.map((pts, i) => ({ id: 't' + i, type: 'poly', closed: true, pts, layer: 'TAFEL' }))]), 'application/dxf');
+    return say();
+  }
+  const z = -Math.max(20, ...thick) - 20, id = uid('sk'), t = Math.max(...thick) || 1;
+  insertFeature({ id, type: 'sketch', name: nextName(state.project.features, 'Schachtelplan'), plane: { o: [0, 0, z], x: [1, 0, 0], n: [0, 0, 1] },
+    entities: [...loops.map(pts => ({ id: uid('e'), type: 'poly', closed: true, pts })), ...frames.map(pts => ({ id: uid('e'), type: 'poly', closed: true, pts, cons: true }))] });
+  if (v.out === 'body') insertFeature({ id: uid('ex'), type: 'extrude', name: nextName(state.project.features, 'Zuschnitte'), sketch: id, profiles: 'all', extent: 'one', distance: t, distance2: 5, op: 'new' });
+  fitView();
+  say();
 }
 
 function flatToSketch(f, fp, z0) {
@@ -5121,7 +5335,7 @@ const TOOLS_FOR = {
   thread: t => t.type === 'thread',
   trace: t => t.type !== 'drill' && t.type !== 'thread',
   tface: t => t.type === 'turn' && t.kind !== 'turnbore', trough: t => t.type === 'turn' && t.kind !== 'turnbore', tfinish: t => t.type === 'turn' && t.kind !== 'turnbore',
-  tdrill: t => t.type === 'drill', tbore: t => t.kind === 'turnbore', tlive: t => t.type === 'drill', tslot: t => t.type === 'flat' || t.type === 'ball', tflat: t => t.type === 'flat', tpocket: t => t.type === 'flat', tcontour: t => ['flat', 'ball', 'chamfer'].includes(t.type), twrap: t => ['flat', 'ball', 'chamfer'].includes(t.type),
+  tdrill: t => t.type === 'drill', tbore: t => t.kind === 'turnbore', tlive: t => t.type === 'drill', tslot: t => t.type === 'flat' || t.type === 'ball', tflat: t => t.type === 'flat', tpocket: t => t.type === 'flat', twpocket: t => t.type === 'flat', tcontour: t => ['flat', 'ball', 'chamfer'].includes(t.type), twrap: t => ['flat', 'ball', 'chamfer'].includes(t.type),
   tgroove: t => t.type === 'groove', tpart: t => t.type === 'groove', tthread: t => t.type === 'tthread',
   probe: t => t.type === 'probe',
   rotary: t => t.type === 'ball' || t.type === 'flat', rotaryRough: t => t.type === 'ball' || t.type === 'flat', rotaryWrap: t => t.type === 'ball' || t.type === 'flat',
@@ -5702,6 +5916,16 @@ function propsOp(b, op) {
         row('Bahnabstand', num(op.stepover != null ? Math.round(op.stepover * 100) : null, v => ed(x => (x.stepover = v == null ? null : Math.max(0.05, Math.min(0.95, v / 100)))), { unit: '% vom Ø', allowEmpty: true, ph: '45', min: 5 })),
         N('Aufmaß', 'stockToLeave'), N('Rampenwinkel', 'ramp', { unit: '°', allowEmpty: true, ph: '3' }),
         h('p', { class: 'hint' }, 'Tasche in der Planfläche aus den geschlossenen Konturen einer Skizze (innere Konturen bleiben als Inseln stehen), mit einem angetriebenen Schaftfräser entlang Z. Geräumt wird von innen nach außen; der Fräser taucht auf einer Rampe entlang der innersten Bahn ein und bleibt innerhalb einer Ebene unten. X und C fahren gemeinsam (Fanuc: Polar-Interpolation G12.1). Tiefe ab Planfläche.'));
+      break;
+    case 'twpocket':
+      put('passes',
+        row('Skizze', sel([['', '– wählen –'], ...sketchOptions()], op.sketch || '', v => ed(x => { x.sketch = v; x.entities = 'all'; }))),
+        N('Tiefe', 'depth', { min: 0.01 }), N('Zustellung (radial)', 'stepdown', { allowEmpty: true, ph: 'Fräserradius' }),
+        row('Bahnabstand', num(op.stepover != null ? Math.round(op.stepover * 100) : null, v => ed(x => (x.stepover = v == null ? null : Math.max(0.05, Math.min(0.95, v / 100)))), { unit: '% vom Ø', allowEmpty: true, ph: '45', min: 5 })),
+        N('Aufmaß', 'stockToLeave'), N('Abwickel-Ø', 'wrapDia', { allowEmpty: true, ph: 'Außendurchmesser' }),
+        row('Eintauchen', sel([['ramp', 'Rampe entlang der Bahn'], ['plunge', 'Gerade (radial)']], op.rampType === 'plunge' ? 'plunge' : 'ramp', v => ed(x => (x.rampType = v)))),
+        op.rampType === 'plunge' ? null : N('Rampenwinkel', 'ramp', { unit: '°', allowEmpty: true, ph: '3' }),
+        h('p', { class: 'hint' }, 'Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.'));
       break;
     case 'tcontour':
     case 'twrap': {
@@ -6697,7 +6921,7 @@ function renderMachineLib() {
     ...list.map(m => h('div', { class: 'lib-item ' + (m.id === machineSel ? 'on' : ''), onclick: () => { machineSel = m.id; renderMachineLib(); } },
       h('span', { class: 'ti' }, m.builtin ? '🔒' : '🏭'), h('span', null, m.name))),
     h('div', { class: 'btns', style: 'padding:8px' },
-      btn('+ Neu', () => { const id = uid('m'); machineSel = id; commit(pp => (pp.machines ||= []).push(newMachine(id))); }, 'primary'),
+      btn('+ Neue Maschine', () => { const id = uid('m'); machineSel = id; commit(pp => (pp.machines ||= []).push(newMachine(id))); }, 'primary'),
       btn('Duplizieren', () => { const id = uid('m'); machineSel = id; commit(pp => (pp.machines ||= []).push(copyMachine(cur, id, cur.name + ' (Kopie)'))); }),
       ro ? null : btn('Löschen', () => { if (!confirm(`„${cur.name}“ löschen?`)) return; commit(pp => { pp.machines = pp.machines.filter(m => m.id !== cur.id); pp.cam.setups.forEach(st => { if (st.machine === cur.id) st.machine = null; }); }); }, 'danger'),
       btn('Import', () => $('#machineFileInput').click()),
@@ -7224,7 +7448,7 @@ function editToolDialog(lib, toolId, startTab = 'tool') {
           h('div', { class: 'tled-p' + (psel === 'default' ? ' on' : ''), onclick: () => { psel = 'default'; draw(false); } }, 'Vorgabe-Voreinstellung'),
           ...t.presets.map(p => h('div', { class: 'tled-p' + (psel === p.id ? ' on' : ''), onclick: () => { psel = p.id; draw(false); } }, p.name || 'Vorgabe')),
           ro ? null : h('div', { class: 'btns' },
-            btn('+ Neu', () => { const id = uid('p'); t.presets.push({ id, name: `Vorgabe ${t.presets.length + 2}`, rpm: t.rpm, feed: t.feed, plunge: t.plunge, stepdown: t.stepdown, stepover: t.stepover, coolant: t.coolant }); psel = id; draw(false); }),
+            btn('+ Neue Vorgabe', () => { const id = uid('p'); t.presets.push({ id, name: `Vorgabe ${t.presets.length + 2}`, rpm: t.rpm, feed: t.feed, plunge: t.plunge, stepdown: t.stepdown, stepover: t.stepover, coolant: t.coolant }); psel = id; draw(false); }),
             psel !== 'default' ? btn('Löschen', () => { t.presets = t.presets.filter(p => p.id !== psel); psel = 'default'; draw(false); }, 'danger') : null)),
         card('Schnittdaten',
           psel === 'default' ? null : R('Name', txt(pr.name || '', v => set('name', v))),
@@ -8129,7 +8353,7 @@ function addOp(type, opt = {}) {
     commit(pp => pp.cam.tools.push({ id: uid('T'), number: n, name: '3D-Taster Ø6', type: 'probe', dia: 6, rpm: 0, feed: 300, plunge: 300, stepdown: 1, stepover: 0.5 }));
     status(`3D-Taster als T${n} in der Werkzeugbibliothek angelegt`);
   }
-  const turnTool = { tface: 'turn', trough: 'turn', tfinish: 'turn', tgroove: 'groove', tpart: 'groove', tthread: 'tthread', tdrill: 'drill', tbore: 'turnbore', tlive: 'drill', tslot: 'flat', tflat: 'flat', tcontour: 'flat', twrap: 'flat', tpocket: 'flat' }[type];
+  const turnTool = { tface: 'turn', trough: 'turn', tfinish: 'turn', tgroove: 'groove', tpart: 'groove', tthread: 'tthread', tdrill: 'drill', tbore: 'turnbore', tlive: 'drill', tslot: 'flat', tflat: 'flat', tcontour: 'flat', twrap: 'flat', tpocket: 'flat', twpocket: 'flat' }[type];
   const byKind = k => p.cam.tools.find(t => t.type === k) || (k === 'turnbore' ? null : byType(k));
   if (turnTool && !byKind(turnTool)) return status(`Kein ${TOOL_TYPES[turnTool]} in der Werkzeugbibliothek – bitte dort anlegen.`);
   const tool = opt.tool || (turnTool ? byKind(turnTool) : { probe: byType('probe'), rotary: byType('ball'), rotaryRough: byType('flat') || byType('ball'), rotaryWrap: byType('flat') || byType('ball'), drill: byType('drill') || byType('flat'), chamfer: byType('chamfer'), parallel3d: byType('ball') || byType('flat'), contour3d: byType('flat'), thread: byType('thread'), trace: byType('chamfer') || byType('flat'), vcarve: byType('chamfer'), project3d: byType('chamfer') || byType('ball') || byType('flat'),
@@ -8161,7 +8385,7 @@ function addOp(type, opt = {}) {
     // 3D strategies have many links: go over the remaining material instead of up to the retract height
     ...(OPS_3D.includes(type) ? { retractPolicy: 'stock' } : {}),
     ...(type === 'plunge3d' ? { stepoverMm: f2(tool.dia * 0.5), rowStep: f2(tool.dia * 0.7), stockToLeave: 0.5, pullBack: 0.3, retractPolicy: 'full' } : {}),
-    ...(type === 'tcontour' || type === 'twrap' || type === 'tpocket' ? { depth: 1, side: 'on', stepdown: null, wrapDia: null, ...(type === 'tpocket' ? { stepover: null, ramp: 3 } : {}), sketch: [...rp.features].reverse().find(sk => { if (sk.type !== 'sketch') return false; try { const nz = Math.abs(basis(sk).n.clone().normalize().z); return type !== 'twrap' ? nz > 0.999 : nz < 0.001; } catch { return false; } })?.id || '' } : {}),
+    ...(type === 'tcontour' || type === 'twrap' || type === 'tpocket' || type === 'twpocket' ? { depth: 1, side: 'on', stepdown: null, wrapDia: null, ...(type === 'tpocket' || type === 'twpocket' ? { stepover: null, ramp: 3 } : {}), sketch: [...rp.features].reverse().find(sk => { if (sk.type !== 'sketch') return false; try { const nz = Math.abs(basis(sk).n.clone().normalize().z); return type !== 'twrap' && type !== 'twpocket' ? nz > 0.999 : nz < 0.001; } catch { return false; } })?.id || '' } : {}),
     ...(type === 'tslot' ? { depth: 2, count: 1, startAngle: 0, angles: '', zStart: null, zEnd: null, stepdown: null } : {}),
     ...(type === 'tflat' ? { count: 2, startAngle: 0, angles: '', width: null, length: 10, stepdown: null, stepover: null } : {}),
     ...(type === 'tlive' ? { dir: 'axial', depth: 5, count: 4, startAngle: 0, angles: '', pitchDia: null, z: null, ...(liveHolesFromModel(tool.dia)?.set || {}) } : {}),
@@ -8818,6 +9042,12 @@ function renderDrawing(rebuild = false) {
     let mass = '';
     try { mass = bodies.length ? `${String(f2(bodies.reduce((a, b) => a + bodyProps(b).volume, 0) / 1000 * mat.density)).replace('.', ',')} g` : ''; } catch { /* skip */ }
     const section = d.section ? drawingSection(bodies, d) : null;
+    // flat pattern of the (last) sheet metal part as a view of its own
+    let flat = null;
+    if (d.flat) {
+      const sf = [...state.project.features].reverse().find(x => x.type === 'sheet' && !x.suppressed);
+      try { const base = sheetOf(sf), fp = flatPattern(base.poly, base.f, base.holes); flat = { outline: fp.outline, table: fp.table, size: fp.size, thickness: +sf.thickness }; } catch { /* no sheet metal part */ }
+    }
     const sectionX = d.sectionX ? drawingSection(bodies, d, 'x') : null;
     // parts list: one line per body name (same name = same part, counted)
     let parts = null;
@@ -8832,7 +9062,7 @@ function renderDrawing(rebuild = false) {
       }
       parts = [...by.values()];
     }
-    drawingCache = { key, sectionY: section?.y, sectionXv: sectionX?.x, sectionStepX: section?.stepX, sectionY2: section?.y2, ...makeDrawing(bodies, { ...d, section, sectionX, details: drawingDetails(d), parts, axes: d.centerLines === false ? [] : drawingAxes(bodies), threads: getModel().threads || [], userDims: d.userDims || [], detail: null, title: { name: p.name, material: mat.label, mass, ...d.title } }) };
+    drawingCache = { key, sectionY: section?.y, sectionXv: sectionX?.x, sectionStepX: section?.stepX, sectionY2: section?.y2, ...makeDrawing(bodies, { ...d, flat, section, sectionX, details: drawingDetails(d), parts, axes: d.centerLines === false ? [] : drawingAxes(bodies), threads: getModel().threads || [], userDims: d.userDims || [], detail: null, title: { name: p.name, material: mat.label, mass, ...d.title } }) };
   }
   const placed = placedDrawingSvg(drawingCache.svg, d.offsets);
   root.replaceChildren();
@@ -8853,6 +9083,7 @@ function renderDrawing(rebuild = false) {
     d.sectionX ? row('Schnittlage X', num(d.sectionXv ?? drawingCache.sectionXv ?? null, v => ed(x => (x.sectionXv = v)), { unit: 'mm', allowEmpty: true, ph: 'automatisch' })) : null,
     (d.section && !drawingCache.sections?.front && d.views?.front !== false) || (d.sectionX && !drawingCache.sections?.left && d.views?.left !== false) ? h('p', { class: 'warn' }, 'Die Schnittlage liegt außerhalb des Teils – der Schnitt wird nicht gezeichnet.') : null,
     d.offsets && Object.keys(d.offsets).length ? h('div', { class: 'btns' }, btn('Ansichten zurücksetzen', () => ed(x => delete x.offsets))) : null,
+    state.project.features.some(x => x.type === 'sheet') ? row('Abwicklung (Blech)', chk(!!d.flat, v => ed(x => (x.flat = v)))) : null,
     row('Bemaßung', chk(d.dims !== false, v => ed(x => (x.dims = v)))),
     row('Mittellinien', chk(d.centerLines !== false, v => ed(x => (x.centerLines = v)))),
     sec('EIGENE MASSE'),
@@ -8868,7 +9099,7 @@ function renderDrawing(rebuild = false) {
       h('span', null, `${{ front: 'Vorne', top: 'Oben', left: 'Links' }[dm.view] || (drawingCache.details?.find(t => t.key === dm.view) ? 'Detail ' + drawingCache.details.find(t => t.key === dm.view).letter : dm.view)}: ${dm.kind === 'note' ? 'Hinweis' : dm.kind === 'surf' ? 'Oberfläche' : dm.kind === 'gdt' ? 'Toleranz' : dm.kind === 'datum' ? 'Bezug' : dm.kind === 'ang' ? 'Winkel ' + f2((() => { let w = Math.atan2(dm.b[1] - dm.v[1], dm.b[0] - dm.v[0]) - Math.atan2(dm.a[1] - dm.v[1], dm.a[0] - dm.v[0]); while (w > Math.PI) w -= 2 * Math.PI; while (w < -Math.PI) w += 2 * Math.PI; return (Math.abs(w) * 180) / Math.PI; })()) + '°' : dm.kind === 'dia' ? 'Ø' + f2(2 * dm.r) : dm.kind === 'rad' ? 'R' + f2(dm.r) : f2(dm.kind === 'h' ? Math.abs(dm.a[0] - dm.b[0]) : dm.kind === 'v' ? Math.abs(dm.a[1] - dm.b[1]) : Math.hypot(dm.a[0] - dm.b[0], dm.a[1] - dm.b[1])) + ' mm'}`),
       dm.kind === 'gdt' ? Object.assign(sel([['pos', 'Position'], ['flat', 'Ebenheit'], ['straight', 'Geradheit'], ['round', 'Rundheit'], ['cyl', 'Zylinderform'], ['par', 'Parallelität'], ['perp', 'Rechtwinkligkeit'], ['angle', 'Neigung'], ['conc', 'Koaxialität'], ['sym', 'Symmetrie'], ['run', 'Rundlauf']], dm.sym || 'pos', v => ed(x => (x.userDims[i].sym = v))), { title: 'Toleranzart', style: 'width:92px' }) : null,
       dm.kind === 'surf' ? Object.assign(sel([['m', 'spanend'], ['any', 'beliebig'], ['none', 'ohne Abtrag']], dm.sym || 'm', v => ed(x => (x.userDims[i].sym = v))), { title: 'Fertigungsverfahren', style: 'width:92px' }) : null,
-      Object.assign(txt(['note', 'surf', 'gdt', 'datum'].includes(dm.kind) ? dm.text || '' : dm.txt || '', v => ed(x => { if (['note', 'surf', 'gdt', 'datum'].includes(dm.kind)) x.userDims[i].text = v; else x.userDims[i].txt = v; })), { placeholder: { surf: 'Ra 3,2', note: 'Text', gdt: '0,05 A', datum: 'A' }[dm.kind] || '±0,1 / H7', title: { surf: 'Rauheitsangabe', note: 'Text des Hinweises', gdt: 'Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B', datum: 'Bezugsbuchstabe' }[dm.kind] || 'Zusatz hinter der Maßzahl (Toleranz, Passung, Anzahl)', style: 'width:64px' }),
+      Object.assign(txt(['note', 'surf', 'gdt', 'datum'].includes(dm.kind) ? dm.text || '' : dm.txt || '', v => ed(x => { if (['note', 'surf', 'gdt', 'datum'].includes(dm.kind)) x.userDims[i].text = v; else x.userDims[i].txt = v; })), { placeholder: { surf: 'Ra 3,2', note: 'Text', gdt: '0,05 A', datum: 'A' }[dm.kind] || '±0,1 / H7', title: { surf: 'Rauheitsangabe', note: 'Text des Hinweises', gdt: 'Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung', datum: 'Bezugsbuchstabe' }[dm.kind] || 'Zusatz hinter der Maßzahl (Toleranz, Passung, Anzahl)', style: 'width:64px' }),
       dm.kind === 'surf' || dm.kind === 'datum' ? num(dm.ang ?? 0, v => ed(x => (x.userDims[i].ang = v ?? 0)), { unit: '°' }) :
       dm.kind === 'note' || dm.kind === 'gdt' ? num(dm.ang ?? 45, v => ed(x => (x.userDims[i].ang = v ?? 45)), { unit: '°' }) :
       dm.kind === 'dia' || dm.kind === 'rad'
@@ -9279,7 +9510,7 @@ function openSetupSheet() {
     ...[...used.values()].sort((a, b) => a.number - b.number).map(t => [`T${t.number}`, tr(t.name), tr(TOOL_TYPES[t.type] || t.type), de(t.dia), de(t.cornerR || ''), de(t.fluteLen || ''), t.flutes ?? '', t.rpm ?? '', t.feed ?? '', t.plunge ?? '', de(+((toolTime.get(t.id) || 0) / 60).toFixed(1)), (toolOps.get(t.id) || []).map(x => tr(x)).join(' / ')].map(csvCell).join(sep))].join('\r\n');
   const csvHref = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\ufeff' + csv);
   const tools = [...used.values()].sort((a, b) => a.number - b.number).map(t => `<tr><td>T${t.number}</td><td>${esc(tr(t.name))}</td><td>${esc(tr(TOOL_TYPES[t.type]))}</td><td>${t.dia}</td><td>${t.rpm}</td><td>${t.feed}</td><td>${t.plunge}</td></tr>`).join('');
-  const locale = { de: 'de-DE', en: 'en-GB', zh: 'zh-CN', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR', nl: 'nl-NL', pl: 'pl-PL', tr: 'tr-TR', ja: 'ja-JP', ko: 'ko-KR', gb: 'en-GB', cs: 'cs-CZ', da: 'da-DK', fi: 'fi-FI', nb: 'nb-NO', uk: 'uk-UA', hr: 'hr-HR', bs: 'bs-BA', sr: 'sr-RS', ka: 'ka-GE', lv: 'lv-LV', ms: 'ms-MY', gl: 'gl-ES', ru: 'ru-RU' }[uiLang] || 'de-DE';
+  const locale = { de: 'de-DE', en: 'en-GB', zh: 'zh-CN', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR', nl: 'nl-NL', pl: 'pl-PL', tr: 'tr-TR', ja: 'ja-JP', ko: 'ko-KR', gb: 'en-GB', cs: 'cs-CZ', da: 'da-DK', fi: 'fi-FI', nb: 'nb-NO', uk: 'uk-UA', hr: 'hr-HR', bs: 'bs-BA', sr: 'sr-RS', ka: 'ka-GE', lv: 'lv-LV', ms: 'ms-MY', gl: 'gl-ES', ru: 'ru-RU', ar: 'ar', he: 'he-IL' }[uiLang] || 'de-DE';
   const meta = [tr(`Erstellt ${new Date().toLocaleString(locale)}`), tr(`Steuerung: ${findPost(p, p.post.flavor).name}`), tr(`Gesamtzeit ca. ${fmtTime(total)}`), ...(stops ? [tr(`${stops} Programmhalt(e) – die Maschine wartet dort auf den Bediener`)] : [])].map(esc).join(' · ');
   const html = `<!doctype html><html lang="${uiLang}"><head><meta charset="utf-8"><title>${esc(tr(`Einrichteblatt – ${p.name}`))}</title>
     <style>body{font:13px/1.4 "Segoe UI",system-ui,sans-serif;color:#111;margin:24px;max-width:900px}h1{margin:0 0 4px}h2{margin:24px 0 8px;border-bottom:2px solid #0696d7;padding-bottom:4px}
@@ -9524,7 +9755,7 @@ function seek(target) {
   advance(Math.max(0, target));
   if (sim.idx >= sim.segs.length) { sim.idx = sim.segs.length - 1; sim.prog = 1; }
   simStock().update();
-  if (stockSim.part && !sim.turn && !sim.rot) updateCompareInfo();
+  if ((stockSim.part && !sim.turn && !sim.rot) || (sim.turn && turnSim.cmp)) updateCompareInfo();
   placeTool();
 }
 
@@ -9537,7 +9768,7 @@ vp.onFrame = dt => {
   if (sim.playing) {
     advance(dt * +$('#simSpeed').value);
     simStock().update();
-    if (stockSim.part && !sim.turn && !sim.rot && performance.now() - (sim.cmpAt || 0) > 250) { sim.cmpAt = performance.now(); updateCompareInfo(); }
+    if (((stockSim.part && !sim.turn && !sim.rot) || (sim.turn && turnSim.cmp)) && performance.now() - (sim.cmpAt || 0) > 250) { sim.cmpAt = performance.now(); updateCompareInfo(); }
     placeTool();
   }
 };
@@ -9628,15 +9859,60 @@ function simComparePart() {
   }
   return hm.h;
 }
+// turning: the part as its radius around the axis (row by row of the stock) and as its height seen from the face
+function turnComparePart() {
+  const g = sim.gen, S = turnSim.S;
+  if (!g?.stock || !S) return null;
+  const setup = state.project.cam.setups.find(x => x.id === activeSetupId());
+  const bvhs = setupBodies(getModel().bodies.filter(b => b.geometry), setup || {}).map(b => new MeshBVH(b.geometry.clone().applyMatrix4(g.T)));
+  if (!bvhs.length) return null;
+  const NT = turnSim.NT, NR = turnSim.NR, dr = turnSim.dr, bot = g.stock.bottom, rBig = g.stock.r + 20, zBig = g.stock.top + 20;
+  const rad = new Float32Array(S.n * NT), top = new Float32Array((NR + 1) * NT).fill(-Infinity), ray = new THREE.Ray(new THREE.Vector3(), new THREE.Vector3());
+  const first = () => { let d = Infinity; for (const b of bvhs) { const hit = b.raycastFirst(ray, THREE.DoubleSide); if (hit && hit.distance < d) d = hit.distance; } return d; };
+  for (let j = 0; j < NT; j++) {
+    const th = (j * 2 * Math.PI) / NT, cx = Math.cos(th), sy = Math.sin(th);
+    ray.direction.set(-cx, -sy, 0);
+    for (let i = 0; i < S.n; i++) { ray.origin.set(cx * rBig, sy * rBig, bot + i * S.dz); const d = first(); rad[i * NT + j] = d < rBig ? rBig - d : 0; }
+  }
+  ray.direction.set(0, 0, -1);
+  for (let ir = 0; ir <= NR; ir++) for (let j = 0; j < NT; j++) {
+    const th = (j * 2 * Math.PI) / NT;
+    ray.origin.set(ir * dr * Math.cos(th), ir * dr * Math.sin(th), zBig);
+    const d = first();
+    if (Number.isFinite(d)) top[ir * NT + j] = zBig - d;
+  }
+  // threads are only drawn on the model (full pin): turning them is not "too deep"
+  const threads = [];
+  for (const t of getModel().threads || []) {
+    if (!t.outside) continue;
+    const c = new THREE.Vector3(...t.c).applyMatrix4(g.T), d = new THREE.Vector3(...t.d).transformDirection(g.T);
+    if (Math.abs(d.z) < 0.999 || Math.hypot(c.x, c.y) > 0.05) continue; // only threads on the turning axis
+    const za = c.z, zb = c.z + d.z * t.L;
+    threads.push({ z0: Math.min(za, zb) - 2 * t.P, z1: Math.max(za, zb) + t.P, depth: 0.6134 * t.P + 0.05 });
+  }
+  // … and so is a thread that only the thread turning operation knows (the model is a plain pin there)
+  const sid = activeSetupId(), toolOf = id => state.project.cam.tools.find(t => t.id === id);
+  for (const o of state.project.cam.ops) {
+    if (o.type !== 'tthread' || o.setup !== sid || o.enabled === false || toolOf(o.tool)?.internal) continue;
+    const P = +o.pitch || 1.5, za = +o.zStart, zb = +o.zEnd;
+    if (Number.isFinite(za) && Number.isFinite(zb)) threads.push({ z0: Math.min(za, zb) - 2 * P, z1: Math.max(za, zb) + 2 * P, depth: 0.6134 * P + 0.05 });
+  }
+  return { rad, top, threads };
+}
 function applySimCompare() {
   const on = $('#simCompare').checked;
-  stockSim.setCompare(on ? simComparePart() : null);
-  if (on && !stockSim.part) status('Vergleich nur beim Fräsen und mit einem Modell möglich.');
+  if (sim.turn) {
+    turnSim.setCompare(on && !sim.rot ? turnComparePart() : null);
+    if (on && !turnSim.cmp) status('Vergleich nur beim Fräsen und mit einem Modell möglich.');
+  } else {
+    stockSim.setCompare(on ? simComparePart() : null);
+    if (on && !stockSim.part) status('Vergleich nur beim Fräsen und mit einem Modell möglich.');
+  }
   updateCompareInfo();
 }
 function updateCompareInfo() {
   const el = $('#simCompareInfo');
-  const st = $('#simCompare').checked ? stockSim.compareStats() : null;
+  const st = $('#simCompare').checked ? (sim.turn ? turnSim.compareStats() : stockSim.compareStats()) : null;
   if (!st) { el?.remove(); return; }
   const box = el || $('#simBar').appendChild(h('span', { id: 'simCompareInfo' }));
   const pct = v => `${Math.round(v * 100)} %`;
@@ -10985,7 +11261,8 @@ $('#dataBtn').onclick = () => toggleData();
 $('#saveBtn').onclick = () => saveVersionCmd();
 
 // ---------- meshes (NETZ workspace) – edited as triangles, never converted to B-rep ----------
-const MESH_OPS = { transform: 'Netz verschieben/drehen', cut: 'Ebenenschnitt', reduce: 'Reduzieren', smooth: 'Glätten', repair: 'Reparieren', flip: 'Normalen umkehren', split: 'Körper trennen' };
+const MESH_OPS = { transform: 'Netz verschieben/drehen', cut: 'Ebenenschnitt', reduce: 'Reduzieren', smooth: 'Glätten', repair: 'Reparieren', flip: 'Normalen umkehren', split: 'Körper trennen',
+  mirror: 'Netz spiegeln', combine: 'Netze vereinen', refine: 'Netz verfeinern', boolean: 'Netze verrechnen (Boolesch)' };
 const MESH_UNITS = { mm: 1, cm: 10, m: 1000, in: 25.4 };
 vp.meshes = new THREE.Group();
 vp.scene.add(vp.meshes);
@@ -11035,6 +11312,18 @@ function getMeshes() {
         else if (f.kind === 'repair') m = meshRepair(m, { tol: f.tol, holes: f.holes !== false, orientation: f.orient !== false });
         else if (f.kind === 'smooth') m = meshSmooth(m, +f.iterations || 3, +f.strength || 0.5);
         else if (f.kind === 'reduce') m = meshDecimate(m, (+f.percent || 50) / 100);
+        else if (f.kind === 'mirror') m = meshMirror(m, f.axis || 'x', +f.offset || 0, !!f.keep);
+        else if (f.kind === 'refine') m = meshSubdivide(m, Math.max(0, +f.maxEdge || 0), +f.levels || 1);
+        else if (f.kind === 'combine' || f.kind === 'boolean') {
+          const o = bodies.get(f.other);
+          if (!o || o.id === t.id) throw new Error('Zweiten Netzkörper wählen');
+          if (f.kind === 'combine') m = meshCombine([m, o.mesh]);
+          else {
+            if (!meshStatsRaw(m).closed || !meshStatsRaw(o.mesh).closed) throw new Error('Beide Netze müssen geschlossen sein – zuerst „Reparieren“');
+            m = meshBoolean(m, o.mesh, f.op || 'union');
+          }
+          if (f.keepOther !== true) bodies.delete(o.id);
+        }
         else if (f.kind === 'cut') {
           const r = meshCut(m, f.axis || 'z', +f.offset || 0, f.keep || 'pos', f.cap !== false);
           if (Array.isArray(r)) {
@@ -11070,7 +11359,7 @@ async function importMesh(file) {
   try {
     busy && (busy.hidden = false, $('#loadingText').textContent = 'Netz wird gelesen …');
     const ext = file.name.toLowerCase().split('.').pop();
-    const tri = ext === 'obj' ? parseOBJ(await file.text()) : parseSTL(await file.arrayBuffer());
+    const tri = ext === 'obj' ? parseOBJ(await file.text()) : ext === '3mf' ? await parse3MF(await file.arrayBuffer()) : ext === 'ply' ? parsePLY(await file.arrayBuffer()) : parseSTL(await file.arrayBuffer());
     const m = meshWeld(tri, 1e-4);
     const blob = await putBlob(encodeMesh(m));
     const id = uid('nm');
@@ -11088,11 +11377,14 @@ function createMeshOp(kind, target) {
   if (state.sketchId) return;
   const ms = getMeshes().bodies;
   const t = target || (state.sel?.kind === 'mesh' ? state.sel.id : null) || ms[ms.length - 1]?.id;
-  if (!t) return status('Zuerst ein Netz einfügen (STL oder OBJ).');
+  if (!t) return status('Zuerst ein Netz einfügen (STL, OBJ, 3MF, PLY) oder einen Körper umwandeln.');
+  if ((kind === 'combine' || kind === 'boolean') && ms.length < 2) return status('Zum Vereinen braucht es zwei Netzkörper.');
   const id = uid('mo');
   const box = ms.find(x => x.id === t)?.geometry.boundingBox;
+  const bsz = box ? box.getSize(new THREE.Vector3()) : null;
   const defs = { transform: { dx: 0, dy: 0, dz: 0, rx: 0, ry: 0, rz: 0, scale: 1 }, cut: { axis: 'z', offset: box ? f2((box.min.z + box.max.z) / 2) : 0, keep: 'neg', cap: true },
-    reduce: { percent: 50 }, smooth: { iterations: 3, strength: 0.5 }, repair: { tol: 0.001, holes: true, orient: true }, flip: {}, split: {} }[kind];
+    reduce: { percent: 50 }, smooth: { iterations: 3, strength: 0.5 }, repair: { tol: 0.001, holes: true, orient: true }, flip: {}, split: {},
+    mirror: { axis: 'x', offset: box ? f2(box.min.x) : 0, keep: true }, refine: { maxEdge: bsz ? f2(Math.max(bsz.x, bsz.y, bsz.z) / 20) : 5, levels: 3 }, combine: { other: [...ms].reverse().find(x => x.id !== t)?.id || '' }, boolean: { other: [...ms].reverse().find(x => x.id !== t)?.id || '', op: 'union' } }[kind];
   pendingNew = { id, depth: undoDepth() };
   insertFeature({ id, type: 'meshop', kind, target: t, name: nextName(state.project.features, MESH_OPS[kind]), ...defs });
   state.sel = { kind: 'feature', id };
@@ -11152,6 +11444,18 @@ function propsMeshOp(b, f, ed) {
   if (f.kind === 'repair') b.append(N('Verschweißtoleranz', 'tol', { min: 0 }), row('Löcher schließen', chk(f.holes !== false, v => ed(x => (x.holes = v)))), row('Ausrichtung korrigieren', chk(f.orient !== false, v => ed(x => (x.orient = v)))),
     h('p', { class: 'hint' }, 'Verbindet doppelte Punkte, entfernt entartete und doppelte Dreiecke, dreht falsch herum liegende Dreiecke und schließt Löcher.'));
   if (f.kind === 'split') b.append(h('p', { class: 'hint' }, 'Nicht verbundene Teile des Netzes werden zu eigenen Netzkörpern.'));
+  if (f.kind === 'mirror') b.append(row('Ebene senkrecht zu', sel([['x', 'X'], ['y', 'Y'], ['z', 'Z']], f.axis, v => ed(x => (x.axis = v)))), N('Lage', 'offset'),
+    row('Original behalten', chk(!!f.keep, v => ed(x => (x.keep = v)))),
+    h('p', { class: 'hint' }, 'Mit „Original behalten“ werden Original und Spiegelbild ein Netz; Punkte auf der Spiegelebene werden verbunden – aus einer offenen Hälfte wird so ein geschlossenes Teil.'));
+  if (f.kind === 'refine') b.append(row('Größte Kantenlänge', num(f.maxEdge, v => ed(x => (x.maxEdge = Math.max(0, v))), { unit: 'mm', min: 0 })), row('Durchgänge', num(f.levels, v => ed(x => (x.levels = Math.max(1, Math.min(8, Math.round(v))))), { unit: null, min: 1, int: true })),
+    h('p', { class: 'hint' }, 'Teilt Kanten, die länger sind, in der Mitte (je Durchgang einmal) – die Form bleibt gleich. 0 teilt jede Kante: jedes Dreieck wird zu vier. Sinnvoll vor dem Glätten grober Netze.'));
+  if (f.kind === 'combine') b.append(row('Mit Netzkörper', sel([['', '– wählen –'], ...meshTargets(f).filter(([id]) => id !== f.target && id !== f.other), ...(f.other ? [[f.other, state.project.features.find(x => x.id === f.other.split('~')[0])?.name || f.other]] : [])], f.other || '', v => ed(x => (x.other = v)))),
+    h('p', { class: 'hint' }, 'Beide Netze werden ein Netzkörper. Sie werden nicht verschmolzen: sich durchdringende Teile bleiben, wie sie sind.'));
+  if (f.kind === 'boolean') b.append(row('Mit Netzkörper', sel([['', '– wählen –'], ...meshTargets(f).filter(([id]) => id !== f.target && id !== f.other), ...(f.other ? [[f.other, state.project.features.find(x => x.id === f.other.split('~')[0])?.name || f.other]] : [])], f.other || '', v => ed(x => (x.other = v)))),
+    row('Operation', sel([['union', 'Vereinigen (verschmelzen)'], ['cut', 'Abziehen (erstes minus zweites)'], ['intersect', 'Schnittmenge']], f.op || 'union', v => ed(x => (x.op = v)))),
+    row('Zweites Netz behalten', chk(!!f.keepOther, v => ed(x => (x.keepOther = v)))),
+    h('p', { class: 'hint' }, 'Verrechnet zwei geschlossene Netze wirklich miteinander: innen liegende Flächen verschwinden, die Schnittkanten werden neu vernetzt. Gerechnet wird nur dort, wo sich die beiden Netze begegnen können – ein großes Netz mit einem kleinen Eingriff geht deshalb schnell. Überlappen zwei große Netze ganz, vorher „Reduzieren“.'));
+  if (f.kind === 'cut') b.append(h('div', { class: 'btns' }, btn('Schnittkontur als Skizze', () => { const r = getMeshes().bodies.find(x => x.id === f.target || x.id.startsWith(f.target + '~' + f.id)); if (r) meshSectionSketch(r, f.axis || 'z', (+f.offset || 0) + (f.keep === 'pos' || f.keep === 'both' ? 1e-5 : -1e-5)); })));
   if (f.kind === 'flip') b.append(h('p', { class: 'hint' }, 'Dreht die Richtung aller Dreiecke um (innen ↔ außen).'));
   const res = getMeshes().bodies.filter(x => x.id === f.target || x.id.startsWith(f.target + '~' + f.id));
   if (res.length) b.append(sec('ERGEBNIS'), ...res.map(r => meshStatsBlock(r.mesh)));
@@ -11161,8 +11465,11 @@ function propsMeshBody(b, mb) {
   setTitle('NETZKÖRPER');
   b.append(row('Name', txt(mb.name, v => commit(p => { p.bodyMeta ||= {}; (p.bodyMeta[mb.id] ||= {}).name = v; }, 'meta'))), meshStatsBlock(mb.mesh),
     h('div', { class: 'btns' },
-      ...['repair', 'reduce', 'smooth', 'cut', 'transform', 'flip', 'split'].map(k => btn(MESH_OPS[k], () => createMeshOp(k, mb.id), k === 'repair' ? 'primary' : '')),
-      btn('Als STL exportieren', () => exportMeshSTL([mb]))));
+      ...['repair', 'reduce', 'refine', 'smooth', 'cut', 'transform', 'mirror', 'combine', 'boolean', 'flip', 'split'].map(k => btn(MESH_OPS[k], () => createMeshOp(k, mb.id), k === 'repair' ? 'primary' : ''))),
+    sec('UMWANDELN'),
+    h('div', { class: 'btns' }, btn('Netz → Körper', () => meshToBody(mb)), btn('Schnitt als Skizze', () => meshSectionDialog(mb))),
+    sec('EXPORT'),
+    h('div', { class: 'btns' }, btn('STL', () => exportMeshFile([mb], 'stl')), btn('OBJ', () => exportMeshFile([mb], 'obj')), btn('3MF', () => exportMeshFile([mb], '3mf'))));
   if (!meshStats(mb.mesh).closed) b.append(h('p', { class: 'hint' }, 'Offene Kanten werden rot angezeigt. „Reparieren“ schließt Löcher.'));
 }
 
@@ -11170,6 +11477,84 @@ function exportMeshSTL(list) {
   const grp = new THREE.Group();
   list.forEach(x => grp.add(new THREE.Mesh(x.geometry)));
   download(`${list.length === 1 ? list[0].name : safeName()}.stl`, new STLExporter().parse(grp, { binary: true }), 'model/stl');
+}
+
+function exportMeshFile(list, fmt) {
+  if (fmt === 'stl') return exportMeshSTL(list);
+  const name = list.length === 1 ? list[0].name : safeName(), items = list.map(x => ({ name: x.name, mesh: x.mesh }));
+  if (fmt === 'obj') download(`${name}.obj`, toOBJ(items), 'model/obj');
+  else download(`${name}.3mf`, to3MF(items), 'model/3mf');
+}
+
+// the mesh body a command works on: the given one, the selected one, else the last one
+function pickMesh(mb) {
+  const ms = getMeshes().bodies;
+  const r = mb || ms.find(x => state.sel?.kind === 'mesh' && x.id === state.sel.id) || ms[ms.length - 1];
+  if (!r) status('Zuerst ein Netz einfügen (STL, OBJ, 3MF, PLY) oder einen Körper umwandeln.');
+  return r || null;
+}
+
+// solid body → mesh body (the triangles the body is shown with); the body itself stays
+async function bodyToMesh() {
+  const bodies = getModel().bodies.filter(b => b.geometry && !b.surface);
+  if (!bodies.length) return status('Kein Volumenkörper vorhanden.');
+  let body = state.sel?.kind === 'body' ? bodies.find(b => b.id === state.sel.id) : bodies.length === 1 ? bodies[0] : null;
+  if (!body) {
+    const v = await formDialog('Körper → Netz', [{ key: 'body', label: 'Körper', options: bodies.map(b => [b.id, bodyName(b)]), value: bodies[bodies.length - 1].id, hint: 'Der Körper wird mit den Dreiecken der Anzeige als Netz übernommen. Er selbst bleibt erhalten; spätere Änderungen am Körper ändern das Netz nicht.' }], 'Umwandeln');
+    if (!v) return;
+    body = bodies.find(b => b.id === v.body);
+  }
+  if (!body) return;
+  const m = meshFromGeometry(body.geometry), blob = await putBlob(encodeMesh(m)), id = uid('nm'), name = bodyName(body);
+  commit(p => p.features.push({ id, type: 'meshimport', name: `${name} (Netz)`, file: `Körper „${name}“`, blob, unit: 'mm', yUp: false, center: false, floor: false, dx: 0, dy: 0, dz: 0 }));
+  state.hiddenBodies.add(body.id);
+  select('feature', id);
+  status(`„${name}“ als Netz übernommen – ${(m.idx.length / 3).toLocaleString('de-DE')} Dreiecke. Der Körper ist ausgeblendet.`);
+}
+
+// closed mesh → solid body (through the kernel: one face per triangle, faces in a plane merged)
+async function meshToBody(target) {
+  const mb = pickMesh(target);
+  if (!mb) return;
+  const st = meshStats(mb.mesh);
+  if (!st.closed) return alert('Das Netz ist nicht geschlossen. Zuerst „Reparieren“ ausführen – ein Körper braucht eine geschlossene Hülle.');
+  if (st.tris > 20000 && !confirm(`Das Netz hat ${st.tris.toLocaleString('de-DE')} Dreiecke. Jedes wird eine Fläche des Körpers – das dauert lange und macht den Körper träge. Vorher „Reduzieren“ ist meist besser.\n\nTrotzdem umwandeln?`)) return;
+  const busy = $('#loading');
+  try {
+    busy && (busy.hidden = false, $('#loadingText').textContent = 'Netz wird in einen Körper umgewandelt …');
+    await new Promise(r => setTimeout(r, 30));
+    const rnd = meshRound(mb.mesh), conv = await meshToStep(mb.mesh, rnd.cylinders, rnd), blob = await putBlob(conv.text), id = uid('im');
+    commit(p => p.features.push({ id, type: 'import', name: `${mb.name} (Körper)`, file: `Netz „${mb.name}“`, format: 'step', blob, op: 'new', scale: 1, yUp: false, rz: 0, dx: 0, dy: 0, dz: 0 }));
+    const err = getModel().errors[id];
+    if (err) throw new Error(err);
+    state.hiddenBodies.add(mb.id);
+    select('feature', id);
+    status(`„${mb.name}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich)${conv.cylinders - conv.arcs ? ` – ${conv.cylinders - conv.arcs} runde Bohrungen/Zapfen als echte Zylinder` : ''}${conv.arcs ? ` – ${conv.arcs} Verrundungen/Teilzylinder als echte Rundungen` : ''}${conv.cones + conv.spheres ? ` – ${conv.cones + conv.spheres} Kegel-/Kugelflächen als echte Flächen` : ''}. Das Netz ist ausgeblendet.`);
+  } catch (err) {
+    alert('Umwandeln fehlgeschlagen: ' + (err.message || err));
+  } finally { if (busy) busy.hidden = true; }
+}
+
+// cross-section of a mesh with a plane as a sketch on that plane
+function meshSectionSketch(mb, axis, offset, tol = 0.01) {
+  const loops = meshSection(mb.mesh, axis, offset, Math.max(1e-4, +tol || 0.01));
+  if (!loops.length) return status('Die Ebene schneidet das Netz nicht.');
+  const plane = { z: { o: [0, 0, offset], x: [1, 0, 0], n: [0, 0, 1] }, x: { o: [offset, 0, 0], x: [0, 1, 0], n: [1, 0, 0] }, y: { o: [0, offset, 0], x: [0, 0, 1], n: [0, 1, 0] } }[axis];
+  const id = uid('sk');
+  insertFeature({ id, type: 'sketch', name: nextName(state.project.features, 'Netzschnitt'), plane, entities: loops.map(l => ({ id: uid('e'), type: 'poly', closed: l.closed, pts: l.pts.map(([u, v]) => [+u.toFixed(4), +v.toFixed(4)]) })) });
+  const open = loops.filter(l => !l.closed).length, pts = loops.reduce((a, l) => a + l.pts.length, 0);
+  status(`Netzschnitt als Skizze: ${loops.length} Kontur(en), ${pts} Punkte${open ? ` – ${open} davon offen (Netz nicht geschlossen)` : ''}.`);
+}
+async function meshSectionDialog(target) {
+  const mb = pickMesh(target);
+  if (!mb) return;
+  const bb = mb.geometry.boundingBox;
+  const v = await formDialog('Schnitt als Skizze', [
+    { key: 'axis', label: 'Ebene senkrecht zu', options: [['z', 'Z'], ['x', 'X'], ['y', 'Y']], value: 'z' },
+    { key: 'offset', label: 'Lage', value: f2((bb.min.z + bb.max.z) / 2), unit: 'mm' },
+    { key: 'tol', label: 'Vereinfachen (Toleranz)', value: 0.01, unit: 'mm', hint: `Das Netz reicht in Z von ${f2(bb.min.z)} bis ${f2(bb.max.z)} mm, in X von ${f2(bb.min.x)} bis ${f2(bb.max.x)} mm, in Y von ${f2(bb.min.y)} bis ${f2(bb.max.y)} mm. Punkte, die weniger als die Toleranz von einer Geraden abweichen, entfallen.` },
+  ], 'Skizze anlegen');
+  if (v) meshSectionSketch(mb, v.axis, +v.offset || 0, +v.tol);
 }
 
 function drawMeshes() {
@@ -12545,6 +12930,17 @@ function openPostDialog(saved = null) {
   // steps waiting for the full kernel (delete face, fillet with radius points) are computed as soon as it is there
   onFullKernel(() => { clearTimelineCache(); model.key = null; renderAll(); });
 })();
+
+
+
+
+
+
+
+
+
+
+
 
 
 

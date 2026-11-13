@@ -1,0 +1,10 @@
+{
+ "Laschenmaß": "Laipan mitta",
+ "Gerader Teil (nach der Biegung)": "Suora osa (taivutuksen jälkeen)",
+ "Außenmaß (ab Außenfläche der Platte)": "Ulkomitta (levyn ulkopinnasta)",
+ "Innenmaß (ab Innenfläche der Platte)": "Sisämitta (levyn sisäpinnasta)",
+ "Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil. Auch eine Lasche an einer gebogenen Kante wird an einer echten Ecke auf Gehrung geschnitten (dort ohne Eckfreistellung).": "Suljettu: kahden vierekkäisen reunan laipat ulottuvat kulman kulmanpuolittajaan ja jättävät siihen raon. Kulmavapautus sijaitsee siinä, missä taivutusvyöhykkeet leikkaavat – aukilevityksessä ja taivutetussa osassa. Myös kaarevan reunan laippa leikataan todellisessa kulmassa jiiriin (siinä ilman kulmavapautusta).",
+ "Presskraft": "Puristusvoima",
+ "Presskraft: Richtwert für freies Biegen im Gesenk V = {0} mm mit Zugfestigkeit {1} N/mm² ({2}); kürzester Schenkel dafür etwa {3} mm. Größte Biegung: {4} kN.": "Puristusvoima: ohjearvo vapaalle taivutukselle V-urassa V = {0} mm, vetolujuus {1} N/mm² ({2}); lyhin siihen sopiva kylki noin {3} mm. Suurin taivutus: {4} kN.",
+ "Kante {0}: das Laschenmaß {1} mm ist kleiner als die Biegung ({2} mm)": "Reuna {0}: laipan mitta {1} mm on pienempi kuin taivutus ({2} mm)"
+}

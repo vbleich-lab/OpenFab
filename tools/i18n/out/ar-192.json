@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "جيب على القطر الخارجي",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "جيب على المحيط الخارجي من الكفافات المغلقة لرسم تخطيطي يمتد على طول محور الدوران (تبقى الكفافات الداخلية كجزر). يُلَفّ الرسم التخطيطي على القطر؛ وتقوم سكين تفريز طرفية محرَّكة موجَّهة نحو المحور بالتخشين من الداخل إلى الخارج (يتحرك Z وC معًا؛ في Fanuc: الاستيفاء الأسطواني G7.1). تغوص السكين شعاعيًا.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "قيمة السماحية متبوعة بالمراجع (مفصولة بمسافات)، مثل Ø0,05 A B. تُرسم الإضافات بين الأقواس كحرف داخل دائرة: Ø0,05(M) A(M) – (M) أقصى مادة، (L) أدنى مادة، (P) مُسقَط، (F) الحالة الحرة، (E) شرط الغلاف",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "الخراطة: تشغيل المحور Y (المستوى X/Y؛ أدخل هنا أيضًا أمر تثبيت C الخاص بالآلة)",
+ "Drehen: Y-Achse aus": "الخراطة: إيقاف المحور Y",
+ "Y-Achse statt Polar-Interpolation": "المحور Y بدلًا من الاستيفاء القطبي",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "مخرطة ذات محور Y: تُنفَّذ الأسطح المفتاحية والكفافات والجيوب على الوجه الأمامي والقطعة ثابتة (C مثبَّت) في X وY – بدقة أعلى من الاستيفاء القطبي. أما ما يتجاوز مشوار Y فيبقى بالاستيفاء القطبي.",
+ "Y-Verfahrweg (±)": "مشوار Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "أكبر مشوار للمحور Y من المركز، بالمليمتر",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: المسار يتجاوز مشوار Y (± {1} مم) – تم الإخراج بالاستيفاء القطبي",
+ "Tasche Mantelfläche (C-Achse)": "جيب على السطح الأسطواني (المحور C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "يجب أن يمتد الرسم التخطيطي للجيب على طول محور الدوران (يُلَفّ على المحيط) – للوجه الأمامي استخدم «جيب على الوجه الأمامي»",
+ "Die Tasche liegt in Z nicht am Teil": "الجيب لا يقع على القطعة في اتجاه Z"
+}

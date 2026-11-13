@@ -1,0 +1,10 @@
+{
+ "Laschenmaß": "Atloka izmērs",
+ "Gerader Teil (nach der Biegung)": "Taisnā daļa (pēc locījuma)",
+ "Außenmaß (ab Außenfläche der Platte)": "Ārējais izmērs (no plātnes ārējās virsmas)",
+ "Innenmaß (ab Innenfläche der Platte)": "Iekšējais izmērs (no plātnes iekšējās virsmas)",
+ "Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil. Auch eine Lasche an einer gebogenen Kante wird an einer echten Ecke auf Gehrung geschnitten (dort ohne Eckfreistellung).": "Slēgts: atloki uz divām blakus esošām malām iet līdz stūra bisektrisei un atstāj tur spraugu. Stūra atbrīvojums atrodas tur, kur krustojas liekuma zonas – izklājumā un saliektajā detaļā. Arī atloks uz izliektas malas īstā stūrī tiek griezts slīpi (tur bez stūra atbrīvojuma).",
+ "Presskraft": "Preses spēks",
+ "Presskraft: Richtwert für freies Biegen im Gesenk V = {0} mm mit Zugfestigkeit {1} N/mm² ({2}); kürzester Schenkel dafür etwa {3} mm. Größte Biegung: {4} kN.": "Preses spēks: orientējoša vērtība brīvai liekšanai matricā V = {0} mm ar stiepes izturību {1} N/mm² ({2}); īsākais plecs tam aptuveni {3} mm. Lielākais locījums: {4} kN.",
+ "Kante {0}: das Laschenmaß {1} mm ist kleiner als die Biegung ({2} mm)": "Mala {0}: atloka izmērs {1} mm ir mazāks par locījumu ({2} mm)"
+}

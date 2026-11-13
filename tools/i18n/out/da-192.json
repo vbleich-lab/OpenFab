@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Lomme på overflade",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Lomme på omkredsen ud fra de lukkede konturer i en skitse, som ligger langs drejeaksen (indre konturer står tilbage som øer). Skitsen vikles om diameteren; en drevet skaftfræser, der peger mod aksen, skrubber fra inderst til yderst (Z og C kører sammen; Fanuc: cylinderinterpolation G7.1). Fræseren dykker radialt ind.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Toleranceværdi efterfulgt af referencerne (adskilt af mellemrum), f.eks. Ø0,05 A B. Tillæg i parentes tegnes som bogstav i en cirkel: Ø0,05(M) A(M) – (M) maksimum materiale, (L) minimum materiale, (P) projiceret, (F) fri tilstand, (E) omhyldningsbetingelse",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Drejning: Y-akse til (plan X/Y; angiv også maskinens C-klemme her)",
+ "Drehen: Y-Achse aus": "Drejning: Y-akse fra",
+ "Y-Achse statt Polar-Interpolation": "Y-akse i stedet for polarinterpolation",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Drejebænk med Y-akse: nøgleflader, konturer og lommer på planfladen køres med stillestående emne (C fast) i X og Y – mere nøjagtigt end polarinterpolation. Det, der overskrider Y-vandringen, forbliver ved polarinterpolation.",
+ "Y-Verfahrweg (±)": "Y-vandring (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Største vandring af Y-aksen fra midten, i mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: Banen overskrider Y-vandringen (± {1} mm) – udlæst med polarinterpolation",
+ "Tasche Mantelfläche (C-Achse)": "Lomme på overflade (C-akse)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Lommens skitse skal ligge langs drejeaksen (den vikles om omkredsen) – til endefladen brug „Lomme planflade“",
+ "Die Tasche liegt in Z nicht am Teil": "Lommen ligger ikke på emnet i Z"
+}

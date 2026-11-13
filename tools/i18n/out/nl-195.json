@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Helling langs het pad",
+ "Gerade (radial)": "Recht (radiaal)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Kamer op de omtrek uit de gesloten contouren van een schets die in de lengterichting van de draaias ligt (binnencontouren blijven als eilanden staan). De schets wordt om de diameter gewikkeld; een aangedreven vingerfrees die naar de as wijst, ruimt van binnen naar buiten uit (Z en C bewegen samen; Fanuc: cilinderinterpolatie G7.1). De frees duikt in op een helling langs de binnenste ring.",
+ "+ Neue Maschine": "+ Nieuwe machine",
+ "+ Neue Vorgabe": "+ Nieuwe voorinstelling"
+}

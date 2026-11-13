@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Rampa wzdłuż ścieżki",
+ "Gerade (radial)": "Prosta (promieniowa)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Kieszeń na obwodzie z zamkniętych konturów szkicu leżącego wzdłuż osi toczenia (kontury wewnętrzne pozostają jako wyspy). Szkic jest nawijany na średnicę; napędzana frezarka palcowa skierowana do osi usuwa materiał od środka na zewnątrz (Z i C poruszają się razem; Fanuc: interpolacja walcowa G7.1). Frez wchodzi po rampie wzdłuż najbardziej wewnętrznego pierścienia.",
+ "+ Neue Maschine": "+ Nowa maszyna",
+ "+ Neue Vorgabe": "+ Nowe ustawienie wstępne"
+}

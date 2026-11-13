@@ -492,7 +492,7 @@ function liveCurves(op, project, toolR) {
     .map(o => ({ pts: o.pts.map(map), closed: !!o.closed }));
   if (!curves.length) throw new Error('Keine Kurven in der Skizze');
   const side = op.side || 'on', off = toolR + (+op.stockToLeave || 0);
-  if (op.type === 'tpocket') {
+  if (op.type === 'tpocket' || op.type === 'twpocket') {
     // pocket: offset rings of the closed curves (islands by even-odd), from the inside out
     const closed = curves.filter(c => c.closed && c.pts.length >= 3);
     if (!closed.length) throw new Error('Die Tasche braucht geschlossene Konturen');
@@ -500,7 +500,7 @@ function liveCurves(op, project, toolR) {
     const rings = pocketRings(unionEvenOdd(closed.map(c => toC(c.pts))), off, so);
     if (!rings.length) throw new Error('Werkzeug zu groß für die Tasche');
     curves = rings.slice().reverse().flat().filter(l => l.length >= 3).map(pts => ({ pts, closed: true }));
-    return { kind: face ? 'face' : 'wrap', curves, so, z: face ? b.o.z : null, phi: null, dist: null };
+    return { kind: face ? 'face' : 'wrap', curves, so, z: face ? b.o.z : null, phi: along ? (Math.atan2(n.y, n.x) * 180) / Math.PI : null, dist: along ? Math.hypot(foot.x, foot.y) : null };
   }
   if (side !== 'on') {
     const closed = curves.filter(c => c.closed && c.pts.length >= 3);

@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Rampe le long de la trajectoire",
+ "Gerade (radial)": "Droite (radiale)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Poche sur la circonférence à partir des contours fermés d'une esquisse placée dans le sens de l'axe de tournage (les contours intérieurs subsistent comme îlots). L'esquisse est enroulée sur le diamètre ; une fraise 2 tailles motorisée dirigée vers l'axe ébauche de l'intérieur vers l'extérieur (Z et C se déplacent ensemble ; Fanuc : interpolation cylindrique G7.1). La fraise plonge en rampe le long de l'anneau le plus intérieur.",
+ "+ Neue Maschine": "+ Nouvelle machine",
+ "+ Neue Vorgabe": "+ Nouveau préréglage"
+}

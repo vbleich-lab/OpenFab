@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Кишеня на діаметрі",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Кишеня на колі за замкненими контурами ескіза, що лежить уздовж осі обертання (внутрішні контури залишаються острівцями). Ескіз навертається на діаметр; привідна кінцева фреза, спрямована до осі, вибирає матеріал зсередини назовні (Z і C рухаються разом; Fanuc: циліндрична інтерполяція G7.1). Фреза врізається радіально.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Значення допуску, далі бази (через пробіл), напр. Ø0,05 A B. Доповнення в дужках креслляться літерою в колі: Ø0,05(M) A(M) – (M) максимум матеріалу, (L) мінімум матеріалу, (P) проєктований допуск, (F) вільний стан, (E) умова оболонки",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Токарна обробка: вісь Y увімк. (площина X/Y; тут також вкажіть затиск C верстата)",
+ "Drehen: Y-Achse aus": "Токарна обробка: вісь Y вимк.",
+ "Y-Achse statt Polar-Interpolation": "Вісь Y замість полярної інтерполяції",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Токарний верстат з віссю Y: лиски під ключ, контури та кишені на торці виконуються при нерухомій деталі (C зафіксовано) по X і Y – точніше за полярну інтерполяцію. Те, що виходить за хід Y, залишається на полярній інтерполяції.",
+ "Y-Verfahrweg (±)": "Хід по Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Найбільший хід осі Y від центра, у мм",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: траєкторія виходить за хід по Y (± {1} мм) – виведено з полярною інтерполяцією",
+ "Tasche Mantelfläche (C-Achse)": "Кишеня на циліндричній поверхні (вісь C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Ескіз кишені має лежати уздовж осі обертання (він навертається на коло) – для торця використовуйте «Кишеня на торці»",
+ "Die Tasche liegt in Z nicht am Teil": "Кишеня за Z не потрапляє на деталь"
+}

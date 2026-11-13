@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Reuna {0} (ympyrä R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Reuna {0} (kaari R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} kartio-/pallopintaa todellisina pintoina",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}“ on nyt myös kappale (pyöristys, leikkaus ja 2D-työstö mahdollisia){1}{2}{3}. Verkko on piilotettu.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Reuna {0}: kaari on liian tiukka tälle laipalle",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Reuna {0}: laippa kaarevalla reunalla – sen reuna puristuu muovauksessa {1} % (ryppyjen vaara); avattu muoto on siinä kohdassa likimääräinen.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Reuna {0}: laippa kaarevalla reunalla – sen reuna venyy muovauksessa {1} % (halkeamien vaara); avattu muoto on siinä kohdassa likimääräinen.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Reuna {0}: kaarevalla reunalla olevan laipan aukkoja ei leikata."
+}

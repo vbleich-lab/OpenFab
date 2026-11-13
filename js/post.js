@@ -45,6 +45,7 @@ export const SECTIONS = [
   ['liveOn', 'Drehen: C-Achse und angetriebenes Werkzeug ein'], ['liveOff', 'Drehen: angetriebenes Werkzeug und C-Achse aus'],
   ['polarOn', 'Drehen: Polar-Interpolation ein (X Durchmesser, C in mm; leer = X/C in Grad)'], ['polarOff', 'Drehen: Polar-Interpolation aus'],
   ['cylOn', 'Drehen: Zylinder-Interpolation ein ({cylr} = Radius; leer = Z/C ohne)'], ['cylOff', 'Drehen: Zylinder-Interpolation aus'],
+  ['yOn', 'Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)'], ['yOff', 'Drehen: Y-Achse aus'],
   ['probeZ', 'Antasten: Z-Fläche'], ['probeBore', 'Antasten: Bohrung'], ['probeBoss', 'Antasten: Zapfen'], ['probeRectOut', 'Antasten: Rechteck außen'], ['probeRectIn', 'Antasten: Rechtecktasche innen'],
 ];
 export const CYCLE_KEYS = { drill: 'cycleDrill', dwell: 'cycleDwell', peck: 'cyclePeck', chip: 'cycleChip', tap: 'cycleTap', tapLeft: 'cycleTapLeft', ream: 'cycleReam', bore: 'cycleBore' };
@@ -211,6 +212,8 @@ BUILTIN_POSTS.push(
     liveOn: 'M5\nM45\nG28 H0\nG97 S{rpm} M13', liveOff: 'M5\nM46',
     // flats: polar interpolation G12.1 (X as diameter, C in mm, no G0 while it is active)
     polarOn: 'G0 C0\nG12.1', polarOff: 'G13.1',
+    // machines with a Y axis: the same passes with the part standing still (C fixed) and the cutter moving in X and Y
+    yOn: 'G17', yOff: 'G18',
     // contours wrapped on the diameter: cylindrical interpolation (feed along the developed surface)
     cylOn: 'G19 W0 H0\nG7.1 C{cylr}', cylOff: 'G7.1 C0\nG18',
     footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nG28 U0 W0\nM30\n%',
@@ -223,6 +226,8 @@ BUILTIN_POSTS.push(
     threadMove: 'G33{Z} K{pitch}',
     // driven tools: second spindle ($1), the main spindle is positioned as C axis
     liveOn: 'M5 $0\nS{rpm} M3 $1', liveOff: 'M5 $1',
+    // Y axis (post property): passes across the axis in the X/Y plane with C standing still
+    yOn: 'G17', yOff: 'G18',
     footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nM30',
   },
   {
@@ -241,6 +246,9 @@ BUILTIN_POSTS.push(
     cycleTurnThread: 'G0 X{tsx} Z{tsz}\nG71 X{tx} Z{tz} B0 D{td} H{th} F{pitch}',
     // driven tools: C axis joined (M110) and unclamped (M146), M-tool spindle SB= with M13
     liveOn: 'M5\nM110\nM146\nG94\nSB={rpm} M13', liveOff: 'M12\nM109',
+    // Y axis (post property): Y-axis mode on / off, passes in the X/Y plane with C standing still. The C clamp
+    // (M147 / M146) is left to the user's template: C is positioned after this line.
+    yOn: 'G138\nG17', yOff: 'G18\nG136',
     footer: '\nG0 X{safex} Z{safez}\n{coolantoff}\nM5\nM2',
   },
 );
@@ -674,6 +682,8 @@ export const POST_PROPS = [
   { key: 'useM140', group: 'retract', label: 'M140 verwenden', type: 'bool', def: false, only: HH, help: 'M140 MB MAX: in Werkzeugachse maximal zurückziehen' },
   { key: 'tcX', group: 'retract', label: 'Werkzeugwechsel X (Ø)', type: 'num', def: 0, only: ['lathe'], help: 'Drehen: Durchmesser, auf dem der Revolver schaltet (Okuma, LinuxCNC). 0 = Rohteil-Ø + 200 mm' },
   { key: 'tcZ', group: 'retract', label: 'Werkzeugwechsel Z', type: 'num', def: 0, only: ['lathe'], help: 'Drehen: Z vor der Planfläche, auf dem der Revolver schaltet. 0 = Sicherheitsabstand + 100 mm' },
+  { key: 'latheY', group: 'prefs', label: 'Y-Achse statt Polar-Interpolation', type: 'bool', def: false, only: ['lathe'], help: 'Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.' },
+  { key: 'latheYTravel', group: 'prefs', label: 'Y-Verfahrweg (±)', type: 'num', def: 40, only: ['lathe'], help: 'Größter Weg der Y-Achse aus der Mitte, in mm' },
   { key: 'homeXY', group: 'retract', label: 'XY-Referenz am Ende', type: 'bool', def: false, help: 'Am Programmende in X/Y auf Maschinen-Null fahren (M91 / G28)' },
   { key: 'preferTilt', group: 'multiaxis', label: 'Schwenkrichtung bevorzugen', type: [['neg', 'Negativ'], ['pos', 'Positiv'], ['either', 'Beliebig']], def: 'neg', only: HH },
   { key: 'tcpm', group: 'multiaxis', label: 'FUNCTION TCPM verwenden', type: 'bool', def: false, only: HH, help: 'Werkzeugspitzen-Nachführung einschalten' },
@@ -1147,12 +1157,19 @@ export function runPost(def, project, gen, opts = {}) {
       }
       let px = null, py = null, pz = null, comp = null, cpDrift = 0;
       W.lastCC = null; // circle centre CC: modal on the control, written again only when it changes (and per operation)
-      const polarTpl = lathe && r.polar && def.polarOn && def.polarOff;
-      if (lathe && r.polar && !polarTpl) warnings.push(`${op.name}: Postprozessor ohne Polar-Interpolation – Flächen als kurze X/C-Schritte (C in Grad) ausgegeben; der Vorschub gilt dann je nach Steuerung nicht entlang der Bahn. Besser die Vorlage „Polar-Interpolation ein/aus“ eintragen`);
+      // Y axis: every pass across the axis in the frame of its index angle (x towards the turret, y across)
+      const yLoc = m => { const a = ((m.yc || 0) * Math.PI) / 180, co = Math.cos(a), si = Math.sin(a); return [m.x * co + m.y * si, -m.x * si + m.y * co]; };
+      const yWant = lathe && r.polar && P.latheY === true && def.yOn && def.yOff;
+      const yFits = yWant && moves.every(m => !m.polar || Math.abs(yLoc(m)[1]) <= (+P.latheYTravel > 0 ? +P.latheYTravel : 40) + 1e-6);
+      if (yWant && !yFits) warnings.push(`${op.name}: Die Bahn geht über den Y-Verfahrweg (± ${+P.latheYTravel > 0 ? +P.latheYTravel : 40} mm) hinaus – mit Polar-Interpolation ausgegeben`);
+      const yMode = !!(yWant && yFits);
+      let yOn = false, yC = null;
+      const polarTpl = !yMode && lathe && r.polar && def.polarOn && def.polarOff;
+      if (lathe && r.polar && !polarTpl && !yMode) warnings.push(`${op.name}: Postprozessor ohne Polar-Interpolation – Flächen als kurze X/C-Schritte (C in Grad) ausgegeben; der Vorschub gilt dann je nach Steuerung nicht entlang der Bahn. Besser die Vorlage „Polar-Interpolation ein/aus“ eintragen`);
       let polarOn = false, cylOn = false;
       const cylTpl = lathe && r.cyl > 0 && def.cylOn && def.cylOff;
       if (lathe && r.cyl > 0 && !cylTpl) warnings.push(`${op.name}: Postprozessor ohne Zylinder-Interpolation – Z und C fahren gemeinsam, der Vorschub gilt dann je nach Steuerung nicht entlang der Bahn. Besser die Vorlage „Zylinder-Interpolation ein/aus“ eintragen`);
-      const list = lathe && r.polar && !polarTpl ? polarSteps(moves) : def.helixCW && def.helixCCW ? mergeHelix(moves) : moves;
+      const list = lathe && r.polar && !polarTpl && !yMode ? polarSteps(moves) : def.helixCW && def.helixCCW ? mergeHelix(moves) : moves;
       const useAppr = hh && !lathe && !rot && P.apprDep !== false && def.approach && def.depart;
       const R0t = (+t.dia || 0) / 2;
       // a lead (run of moves with the same lead tag) as APPR/DEP words, or null when the control's functions do not fit
@@ -1197,6 +1214,8 @@ export function runPost(def, project, gen, opts = {}) {
         // cylindrical interpolation only around the feed moves on the diameter (no rapids while it is active)
         const cy = !!(cylTpl && m.cyl && m.t !== 'r');
         if (cy !== cylOn) { W.expand(W.tag(cy ? def.cylOn : def.cylOff, cy ? 'cylOn' : 'cylOff'), { ...tv, cylr: r.cyl }); W.resetModal(); cylOn = cy; }
+        const ym = !!(yMode && m.polar);
+        if (ym !== yOn) { W.expand(W.tag(ym ? def.yOn : def.yOff, ym ? 'yOn' : 'yOff'), tv); W.resetModal(); yOn = ym; yC = null; }
         const pol = !!(polarTpl && m.polar);
         if (pol !== polarOn) { W.expand(W.tag(pol ? def.polarOn : def.polarOff, pol ? 'polarOn' : 'polarOff'), tv); W.resetModal(); polarOn = pol; }
         const mark0 = W.out.length;
@@ -1207,7 +1226,14 @@ export function runPost(def, project, gen, opts = {}) {
         if (lathe && m.c != null) mv.c = m.c;
         // polar interpolation: Cartesian position on the part, X as diameter and C in mm; rapids as fast feed moves
         if (pol) { mv.x = 2 * m.x; mv.c = m.y; if (m.t === 'r') mv.f = Math.min(maxF, 5000); }
-        const withC = tpl => (mv.c == null || /\{C!?\}/.test(tpl || '') ? tpl : W.tag(String(tpl || '').replace('{Z}', '{Z}{C}'), tpl === def.rapid ? 'rapid' : 'linear'));
+        // Y axis: X as diameter and Y in the frame of the index angle, C only when the angle changes
+        if (ym) { const [xl, yl] = yLoc(m); mv.x = 2 * xl; mv.y = yl; mv.c = m.yc || 0; }
+        const withC = tpl => {
+          let s = String(tpl || '');
+          if (ym && !/\{Y!?\}/.test(s)) s = s.replace('{X}', '{X}{Y}');
+          if (mv.c != null && !/\{C!?\}/.test(s)) s = s.replace('{Z}', '{Z}{C}');
+          return s === String(tpl || '') ? tpl : W.tag(s, tpl === def.rapid ? 'rapid' : 'linear');
+        };
         if (m.t === 't') { W.expand(def.threadMove, { ...tv, pitch: m.pitch }, { ...mv, f: null }); W.rapidBefore = false; px = m.x; py = m.y; pz = m.z; continue; }
         if (m.t === 'a') {
           Object.assign(mv, { arc: true, cx: m.cx - o.x, cy: m.cy - o.y, i: m.cx - px, j: m.cy - py });
@@ -1244,6 +1270,7 @@ export function runPost(def, project, gen, opts = {}) {
       }
       if (comp && !hh && fam !== 'grbl' && !lathe) W.expand('G40');
       if (polarOn) { W.expand(W.tag(def.polarOff, 'polarOff'), tv); W.resetModal(); }
+      if (yOn) { W.expand(W.tag(def.yOff, 'yOff'), tv); W.resetModal(); }
       if (cylOn) { W.expand(W.tag(def.cylOff, 'cylOff'), { ...tv, cylr: r.cyl }); W.resetModal(); }
     }
     W.qfeed = null;

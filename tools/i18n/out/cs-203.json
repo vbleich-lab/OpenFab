@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Hrana {0} (kružnice R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Hrana {0} (oblouk R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} kuželových/kulových ploch jako skutečné plochy",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}“ je nyní také těleso (zaoblení, vyříznutí a 2D obrábění jsou možné){1}{2}{3}. Síť je skryta.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Hrana {0}: oblouk je pro tuto přírubu příliš malý",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Hrana {0}: příruba na zakřivené hraně – její okraj se při tváření stlačí o {1} % (nebezpečí vzniku záhybů); rozvinutý tvar je zde pouze přibližný.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Hrana {0}: příruba na zakřivené hraně – její okraj se při tváření natáhne o {1} % (nebezpečí vzniku trhlin); rozvinutý tvar je zde pouze přibližný.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Hrana {0}: výřezy v přírubě na zakřivené hraně se nevytvářejí."
+}

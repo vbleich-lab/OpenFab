@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Rampa gar trajektoriju",
+ "Gerade (radial)": "Taisni (radiāli)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Kabata uz apkārtmēra no skices slēgtajām kontūrām, kas atrodas gar griešanās asi (iekšējās kontūras paliek kā saliņas). Skice tiek uztīta uz diametra; dzenama kātfrēze, kas vērsta pret asi, izņem materiālu no iekšpuses uz āru (Z un C pārvietojas kopā; Fanuc: cilindriskā interpolācija G7.1). Frēze ieurbjas pa rampu gar visiekšējo gredzenu.",
+ "+ Neue Maschine": "+ Jauna iekārta",
+ "+ Neue Vorgabe": "+ Jauns sagatavojums"
+}

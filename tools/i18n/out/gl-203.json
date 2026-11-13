@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Aresta {0} (círculo R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Aresta {0} (arco R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} caras cónicas/esféricas como caras verdadeiras",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "«{0}» agora tamén é un corpo (son posibles empalmes, cortes e mecanizado 2D){1}{2}{3}. A malla está agochada.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Aresta {0}: o arco é demasiado pechado para esta aba",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Aresta {0}: aba nunha aresta curva – o seu bordo comprímese un {1} % durante a conformación (risco de engurras); o desenvolvemento é aí unha aproximación.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Aresta {0}: aba nunha aresta curva – o seu bordo estírase un {1} % durante a conformación (risco de fisuras); o desenvolvemento é aí unha aproximación.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Aresta {0}: os recortes nunha aba nunha aresta curva non se cortan."
+}

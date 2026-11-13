@@ -1,0 +1,10 @@
+{
+ "Laschenmaß": "Medida da aba",
+ "Gerader Teil (nach der Biegung)": "Parte reta (após a dobra)",
+ "Außenmaß (ab Außenfläche der Platte)": "Medida externa (a partir da face externa da placa)",
+ "Innenmaß (ab Innenfläche der Platte)": "Medida interna (a partir da face interna da placa)",
+ "Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil. Auch eine Lasche an einer gebogenen Kante wird an einer echten Ecke auf Gehrung geschnitten (dort ohne Eckfreistellung).": "Fechado: as abas em duas arestas vizinhas vão até a bissetriz do canto e deixam a folga ali. O alívio de canto fica onde as zonas de dobra se cruzam – na planificação e na peça dobrada. Uma aba em uma aresta curva também é cortada em meia-esquadria em um canto real (ali sem alívio de canto).",
+ "Presskraft": "Força de prensagem",
+ "Presskraft: Richtwert für freies Biegen im Gesenk V = {0} mm mit Zugfestigkeit {1} N/mm² ({2}); kürzester Schenkel dafür etwa {3} mm. Größte Biegung: {4} kN.": "Força de prensagem: valor de referência para dobra livre em matriz V = {0} mm com resistência à tração de {1} N/mm² ({2}); lado mais curto para isso, cerca de {3} mm. Maior dobra: {4} kN.",
+ "Kante {0}: das Laschenmaß {1} mm ist kleiner als die Biegung ({2} mm)": "Aresta {0}: a medida da aba {1} mm é menor que a dobra ({2} mm)"
+}

@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Наклонное врезание вдоль траектории",
+ "Gerade (radial)": "Прямое (радиальное)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Карман на цилиндрической поверхности по замкнутым контурам эскиза, расположенного вдоль оси вращения (внутренние контуры остаются островками). Эскиз наматывается на диаметр; приводная концевая фреза, направленная к оси, выбирает материал изнутри наружу (Z и C перемещаются совместно; Fanuc: цилиндрическая интерполяция G7.1). Фреза врезается по наклонной траектории вдоль самого внутреннего кольца.",
+ "+ Neue Maschine": "+ Новый станок",
+ "+ Neue Vorgabe": "+ Новый шаблон"
+}

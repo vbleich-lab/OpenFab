@@ -8,8 +8,10 @@
 export const LANGS = {
   de: 'Deutsch', en: 'English', gb: 'English (UK)', bs: 'Bosanski', cs: 'Čeština', da: 'Dansk', es: 'Español', fr: 'Français', gl: 'Galego', hr: 'Hrvatski',
   it: 'Italiano', lv: 'Latviešu', ms: 'Bahasa Melayu', nl: 'Nederlands', nb: 'Norsk bokmål', pl: 'Polski', pt: 'Português (Brasil)', fi: 'Suomi', tr: 'Türkçe',
-  ru: 'Русский', sr: 'Српски', uk: 'Українська', ka: 'ქართული', ja: '日本語', ko: '한국어', zh: '中文',
+  ru: 'Русский', sr: 'Српски', uk: 'Українська', ka: 'ქართული', he: 'עברית', ar: 'العربية', ja: '日本語', ko: '한국어', zh: '中文',
 };
+// written from right to left: the page is mirrored (dir="rtl"), numbers and NC code stay left to right
+export const RTL = new Set(['ar', 'he']);
 // what the document is declared as (hyphenation, fonts, screen readers)
 const HTML_LANG = { zh: 'zh-CN', pt: 'pt-BR', gb: 'en-GB' };
 // language tags of the system that do not start with the code of their dictionary
@@ -116,6 +118,8 @@ export function t(s) {
   const core = s.trim();
   const one = c => (c && /\p{L}{2}/u.test(c) ? lookup(c.replace(/[ \t]+/g, ' '), 0) : null);
   let r = one(core);
+  // a sign the program puts in front of a message ("⚠ " + error): the message itself is looked up
+  if (r == null) { const m = /^([⚠✓✗ⓘ]\s+)([\s\S]+)$/u.exec(core); if (m) { const x = one(m[2]); if (x != null) r = m[1] + x; } }
   // several lines put together by the program (a name above a hint): line by line
   if (r == null && core.includes('\n')) {
     const lines = core.split('\n').map(l => { const c = l.trim(), x = one(c); return x == null ? l : l.replace(c, () => x); }).join('\n');
@@ -220,6 +224,7 @@ export async function initI18n() {
     return;
   }
   document.documentElement.lang = HTML_LANG[lang] || lang;
+  if (RTL.has(lang)) document.documentElement.dir = 'rtl';
   tree(document.documentElement);
   cssTexts();
   if (document.title) document.title = t(document.title);

@@ -35,7 +35,9 @@ export function ctxMenu(x, y, items, title) {
   }
   document.body.append(m);
   const r = m.getBoundingClientRect();
-  m.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + 'px';
+  // (right-to-left languages: the menu opens towards the left of the pointer)
+  const x0 = document.documentElement.dir === 'rtl' ? x - r.width : x;
+  m.style.left = Math.max(4, Math.min(x0, innerWidth - r.width - 4)) + 'px';
   m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
   cur = m;
 }

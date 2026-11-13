@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "경로를 따라 램프",
+ "Gerade (radial)": "직선(반경 방향)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "선삭 축 방향으로 놓인 스케치의 닫힌 윤곽으로 원주면에 포켓을 만듭니다(내부 윤곽은 아일랜드로 남음). 스케치는 지름에 감기고, 축을 향한 구동식 엔드밀이 안쪽에서 바깥쪽으로 가공합니다(Z와 C가 함께 이동, Fanuc: 원통 보간 G7.1). 커터는 가장 안쪽 링을 따라 램프로 진입합니다.",
+ "+ Neue Maschine": "+ 새 머신",
+ "+ Neue Vorgabe": "+ 새 프리셋"
+}

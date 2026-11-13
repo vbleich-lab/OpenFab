@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Rampa duž putanje",
+ "Gerade (radial)": "Ravno (radijalno)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Džep na obodu iz zatvorenih kontura skice koja leži uzdužno uz osu obrtanja (unutrašnje konture ostaju kao ostrva). Skica se namotava na prečnik; pogonjena vretenasta glodala usmjerena prema osi uklanja materijal iznutra prema van (Z i C kreću se zajedno; Fanuc: cilindrična interpolacija G7.1). Glodalo ulazi po rampi duž najunutrašnjeg prstena.",
+ "+ Neue Maschine": "+ Nova mašina",
+ "+ Neue Vorgabe": "+ Novi predložak"
+}

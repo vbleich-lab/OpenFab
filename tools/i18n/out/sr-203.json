@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Ивица {0} (кружница R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Ивица {0} (лук R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} конусних/сферних површи као правих површи",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}“ је сада и тело (могуће су заобљење, исецање и 2D обрада){1}{2}{3}. Мрежа је сакривена.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Ивица {0}: лук је сувише узак за ову прирубницу",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Ивица {0}: прирубница на закривљеној ивици – њена се ивица при обликовању сабија за {1} % (опасност од набора); развијени облик је ту апроксимација.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Ивица {0}: прирубница на закривљеној ивици – њена се ивица при обликовању развлачи за {1} % (опасност од прслина); развијени облик је ту апроксимација.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Ивица {0}: изрези у прирубници на закривљеној ивици се не исецају."
+}

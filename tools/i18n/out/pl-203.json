@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Krawędź {0} (okrąg R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Krawędź {0} (łuk R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} ścian stożkowych/kulistych jako rzeczywiste ściany",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}” jest teraz także bryłą (zaokrąglenie, wycinanie i obróbka 2D możliwe){1}{2}{3}. Siatka jest ukryta.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Krawędź {0}: łuk jest zbyt ciasny dla tego kołnierza",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Krawędź {0}: kołnierz na krawędzi zakrzywionej – jego brzeg jest podczas gięcia ściskany o {1} % (ryzyko fałdowania); rozwinięcie jest tam przybliżeniem.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Krawędź {0}: kołnierz na krawędzi zakrzywionej – jego brzeg jest podczas gięcia rozciągany o {1} % (ryzyko pęknięć); rozwinięcie jest tam przybliżeniem.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Krawędź {0}: wycięcia w kołnierzu na krawędzi zakrzywionej nie są wykonywane."
+}

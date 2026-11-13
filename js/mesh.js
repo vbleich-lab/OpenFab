@@ -298,6 +298,33 @@ export function repair(m, { tol = 0.001, holes = true, orientation = true } = {}
   return out;
 }
 
+// caps of a plane cut: the open loops lying in the plane are closed, a loop inside another one stays a hole
+// (a cut tube gets a ring, not a disc). nsign: the side of the axis the caps look to.
+function capPlane(m, ax, offset, nsign) {
+  const a1 = (ax + 1) % 3, a2 = (ax + 2) % 3, P = m.pos;
+  const loops = boundaryLoops(m).filter(l => l.every(i => Math.abs(P[i * 3 + ax] - offset) < 1e-4)).map(l => ({ l, p: l.map(i => new THREE.Vector2(P[i * 3 + a1], P[i * 3 + a2])) }));
+  if (!loops.length) return m;
+  const inside = (q, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > q.y) !== (b.y > q.y) && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; };
+  if (loops.length > 1) for (const L of loops) L.depth = loops.reduce((n, O) => n + (O !== L && inside(L.p[0], O.p) ? 1 : 0), 0);
+  const add = [];
+  for (const L of loops) {
+    if ((L.depth || 0) % 2) continue;
+    const holes = loops.length > 1 ? loops.filter(H => H.depth === L.depth + 1 && inside(H.p[0], L.p)) : [];
+    const all = [L, ...holes].flatMap(x => x.l), pts = [L, ...holes].flatMap(x => x.p);
+    let tris;
+    try { tris = THREE.ShapeUtils.triangulateShape(L.p.slice(), holes.map(H => H.p.slice())); } catch { tris = []; }
+    if (!tris.length) { tris = []; for (let k = 1; k < L.l.length - 1; k++) tris.push([0, k, k + 1]); }
+    for (const [a, b, c] of tris) {
+      const cr = (pts[b].x - pts[a].x) * (pts[c].y - pts[a].y) - (pts[b].y - pts[a].y) * (pts[c].x - pts[a].x);
+      if (cr * nsign >= 0) add.push(all[a], all[b], all[c]); else add.push(all[a], all[c], all[b]);
+    }
+  }
+  const idx = new Uint32Array(m.idx.length + add.length);
+  idx.set(m.idx);
+  idx.set(add, m.idx.length);
+  return { pos: m.pos, idx };
+}
+
 // plane cut: keep one side ('pos' / 'neg'), or both as separate meshes; caps close the cut
 export function cutPlane(m, axis = 'z', offset = 0, keep = 'pos', cap = true) {
   const ax = { x: 0, y: 1, z: 2 }[axis] ?? 2;
@@ -332,7 +359,7 @@ export function cutPlane(m, axis = 'z', offset = 0, keep = 'pos', cap = true) {
     }
     let out = compact({ pos: new Float32Array(pos), idx: Uint32Array.from(idx) });
     out = cleanTris(out);
-    if (cap) out = fillHoles(out, loop => loop.every(i => Math.abs(out.pos[i * 3 + ax] - offset) < 1e-4));
+    if (cap) out = capPlane(out, ax, offset, -sgn);
     return out;
   };
   if (keep === 'both') return [side(1), side(-1)];
@@ -470,4 +497,1126 @@ export function split(m) {
     ts.forEach((t, i) => { idx[i * 3] = m.idx[t]; idx[i * 3 + 1] = m.idx[t + 1]; idx[i * 3 + 2] = m.idx[t + 2]; });
     return compact({ pos: m.pos, idx });
   }).sort((a, b) => b.idx.length - a.idx.length);
+}
+
+// ---------- more operations: mirror, combine, refine, section ----------
+const AX = { x: 0, y: 1, z: 2 };
+
+// several meshes as one (vertices are not merged: "Reparieren" welds touching parts)
+export function combine(list) {
+  const nv = list.reduce((a, m) => a + m.pos.length, 0), ni = list.reduce((a, m) => a + m.idx.length, 0);
+  const pos = new Float32Array(nv), idx = new Uint32Array(ni);
+  let pv = 0, pi = 0;
+  for (const m of list) {
+    pos.set(m.pos, pv);
+    for (let i = 0; i < m.idx.length; i++) idx[pi + i] = m.idx[i] + pv / 3;
+    pv += m.pos.length; pi += m.idx.length;
+  }
+  return { pos, idx };
+}
+
+// mirror at a plane perpendicular to an axis; keep = the original stays, joined with its mirror image (points on
+// the plane are welded, so a half becomes one closed part)
+export function mirror(m, axis = 'x', offset = 0, keep = false) {
+  const ax = AX[axis] ?? 0, pos = m.pos.slice();
+  for (let i = ax; i < pos.length; i += 3) pos[i] = 2 * offset - pos[i];
+  const mir = flip({ pos, idx: m.idx.slice() });
+  if (!keep) return mir;
+  // triangles lying in the mirror plane (the cap of a cut half) would become a wall inside the part: left out
+  const all = combine([m, mir]), tri = [];
+  for (let t = 0; t < all.idx.length; t += 3) {
+    const v = [all.idx[t], all.idx[t + 1], all.idx[t + 2]];
+    if (v.every(i => Math.abs(all.pos[i * 3 + ax] - offset) < 1e-5)) continue;
+    for (const i of v) tri.push(all.pos[i * 3], all.pos[i * 3 + 1], all.pos[i * 3 + 2]);
+  }
+  return weld(new Float32Array(tri), 1e-4);
+}
+
+/**
+ * Refine: split edges at their middle. maxEdge > 0: only edges longer than that (the mesh stays closed: a
+ * triangle is split to fit the edges that were split); maxEdge = 0: every edge (each triangle becomes four).
+ * levels = number of passes. The shape does not change.
+ */
+export function subdivide(m, maxEdge = 0, levels = 1, limit = 3e6) {
+  let pos = Array.from(m.pos), idx = Array.from(m.idx);
+  const L2 = maxEdge > 0 ? maxEdge * maxEdge : 0;
+  for (let pass = 0; pass < Math.max(1, Math.min(8, Math.round(levels))); pass++) {
+    const mid = new Map(), out = [];
+    const long = (a, b) => { if (!L2) return true; const dx = pos[a * 3] - pos[b * 3], dy = pos[a * 3 + 1] - pos[b * 3 + 1], dz = pos[a * 3 + 2] - pos[b * 3 + 2]; return dx * dx + dy * dy + dz * dz > L2; };
+    const mp = (a, b) => {
+      const k = edgeKey(a, b);
+      let j = mid.get(k);
+      if (j === undefined) { j = pos.length / 3; pos.push((pos[a * 3] + pos[b * 3]) / 2, (pos[a * 3 + 1] + pos[b * 3 + 1]) / 2, (pos[a * 3 + 2] + pos[b * 3 + 2]) / 2); mid.set(k, j); }
+      return j;
+    };
+    for (let t = 0; t < idx.length; t += 3) {
+      const v = [idx[t], idx[t + 1], idx[t + 2]], s = [long(v[0], v[1]), long(v[1], v[2]), long(v[2], v[0])], n = s[0] + s[1] + s[2];
+      if (!n) { out.push(...v); continue; }
+      if (n === 3) {
+        const a = mp(v[0], v[1]), b = mp(v[1], v[2]), c = mp(v[2], v[0]);
+        out.push(v[0], a, c, a, v[1], b, c, b, v[2], a, b, c);
+        continue;
+      }
+      // turn the triangle so the (first) split edge is 0–1
+      const r = n === 1 ? s.indexOf(true) : s.indexOf(false) === 2 ? 0 : s.indexOf(false) === 0 ? 1 : 2;
+      const p = v[r], q = v[(r + 1) % 3], w = v[(r + 2) % 3], a = mp(p, q);
+      if (n === 1) out.push(p, a, w, a, q, w);
+      else { const b = mp(q, w); out.push(p, a, w, a, b, w, a, q, b); }
+    }
+    if (out.length === idx.length) break;
+    if (out.length / 3 > limit) throw new Error('Zu viele Dreiecke – größere Kantenlänge oder weniger Durchgänge wählen');
+    idx = out;
+  }
+  return { pos: new Float32Array(pos), idx: Uint32Array.from(idx) };
+}
+
+/**
+ * Cross-section with a plane perpendicular to an axis: loops of 2D points in the plane ([x, y] for a Z plane,
+ * [y, z] for an X plane, [z, x] for a Y plane) with closed = the loop comes back to its start.
+ */
+export function sectionLoops(m, axis = 'z', offset = 0, tol = 1e-4) {
+  const ax = AX[axis] ?? 2, u = (ax + 1) % 3, w = (ax + 2) % 3, P = m.pos;
+  // a point exactly on the plane counts as above it, so every triangle is cut 0 or 2 times
+  const d = i => { const x = P[i * 3 + ax] - offset; return x === 0 ? 1e-9 : x; };
+  const pts = [], ids = new Map(), next = new Map(), prev = new Map();
+  const cut = (a, b) => {
+    const k = edgeKey(a, b);
+    let j = ids.get(k);
+    if (j === undefined) { const da = d(a), db = d(b), s = da / (da - db); j = pts.length; pts.push([P[a * 3 + u] + (P[b * 3 + u] - P[a * 3 + u]) * s, P[a * 3 + w] + (P[b * 3 + w] - P[a * 3 + w]) * s]); ids.set(k, j); }
+    return j;
+  };
+  for (let t = 0; t < m.idx.length; t += 3) {
+    const v = [m.idx[t], m.idx[t + 1], m.idx[t + 2]], up = v.map(i => d(i) > 0), n = up[0] + up[1] + up[2];
+    if (n === 0 || n === 3) continue;
+    // the edge leaving the upper side and the edge coming back: with the material on the left of a → b
+    let a = -1, b = -1;
+    for (let k = 0; k < 3; k++) { const p = v[k], q = v[(k + 1) % 3]; if (up[k] && !up[(k + 1) % 3]) a = cut(p, q); else if (!up[k] && up[(k + 1) % 3]) b = cut(p, q); }
+    if (a < 0 || b < 0 || a === b) continue;
+    next.set(a, b); prev.set(b, a);
+  }
+  const used = new Set(), loops = [];
+  const simplify = (L, closed) => {
+    const out = [];
+    for (let i = 0; i < L.length; i++) {
+      const p = L[i], a = out[out.length - 1], q = L[(i + 1) % L.length];
+      if (a && Math.hypot(p[0] - a[0], p[1] - a[1]) < tol) continue;
+      if (a && (closed || i < L.length - 1)) { const cr = (p[0] - a[0]) * (q[1] - a[1]) - (p[1] - a[1]) * (q[0] - a[0]), l = Math.hypot(q[0] - a[0], q[1] - a[1]); if (l > tol && Math.abs(cr) / l < tol && (p[0] - a[0]) * (q[0] - p[0]) + (p[1] - a[1]) * (q[1] - p[1]) >= 0) continue; }
+      out.push(p);
+    }
+    while (closed && out.length > 3 && Math.hypot(out[0][0] - out[out.length - 1][0], out[0][1] - out[out.length - 1][1]) < tol) out.pop();
+    // the start of a closed loop may lie in the middle of a straight side
+    for (let g = 0; closed && out.length > 3 && g < 2; g++) {
+      const a = out[out.length - 1], p = out[0], q = out[1], cr = (p[0] - a[0]) * (q[1] - a[1]) - (p[1] - a[1]) * (q[0] - a[0]), l = Math.hypot(q[0] - a[0], q[1] - a[1]);
+      if (l > tol && Math.abs(cr) / l < tol && (p[0] - a[0]) * (q[0] - p[0]) + (p[1] - a[1]) * (q[1] - p[1]) >= 0) out.shift(); else break;
+    }
+    return out;
+  };
+  for (const s of next.keys()) {
+    if (used.has(s)) continue;
+    // an open chain starts where nothing leads to it
+    let st = s;
+    for (let g = 0; g < 1e7 && prev.has(st) && prev.get(st) !== s; g++) st = prev.get(st);
+    if (prev.has(st) && prev.get(st) === s) st = s;
+    const L = [];
+    let v = st, closed = false;
+    for (let g = 0; g < 1e7 && v !== undefined; g++) { if (used.has(v)) { closed = v === st; break; } used.add(v); L.push(pts[v]); v = next.get(v); }
+    const out = simplify(L, closed);
+    if (out.length >= (closed ? 3 : 2)) loops.push({ pts: out, closed });
+  }
+  return loops;
+}
+
+// a three.js geometry (a tessellated body) as a mesh with shared points
+export function fromGeometry(g, tol = 1e-4) {
+  const p = g.attributes.position, ix = g.index, n = ix ? ix.count : p.count, tri = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const v = ix ? ix.getX(i) : i; tri[i * 3] = p.getX(v); tri[i * 3 + 1] = p.getY(v); tri[i * 3 + 2] = p.getZ(v); }
+  return orient(weld(tri, tol));
+}
+
+// ---------- more file formats: OBJ and 3MF out, 3MF and PLY in ----------
+const num6 = v => String(+(+v).toFixed(6));
+
+// list = [{ name, mesh }]
+export function toOBJ(list) {
+  const out = ['# WerkFab', '# Einheit: mm'];
+  let base = 1;
+  for (const { name, mesh } of list) {
+    out.push('o ' + String(name || 'Netz').replace(/\s+/g, '_'));
+    for (let i = 0; i < mesh.pos.length; i += 3) out.push(`v ${num6(mesh.pos[i])} ${num6(mesh.pos[i + 1])} ${num6(mesh.pos[i + 2])}`);
+    for (let t = 0; t < mesh.idx.length; t += 3) out.push(`f ${mesh.idx[t] + base} ${mesh.idx[t + 1] + base} ${mesh.idx[t + 2] + base}`);
+    base += mesh.pos.length / 3;
+  }
+  return out.join('\n') + '\n';
+}
+
+let crcTable = null;
+function crc32(u8) {
+  if (!crcTable) { crcTable = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0; } }
+  let c = 0xffffffff;
+  for (let i = 0; i < u8.length; i++) c = crcTable[(c ^ u8[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+// zip archive without compression: files = [[name, Uint8Array]]
+export function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  let off = 0;
+  for (const [name, data] of files) {
+    const nm = enc.encode(name), crc = crc32(data);
+    const head = new DataView(new ArrayBuffer(30));
+    head.setUint32(0, 0x04034b50, true); head.setUint16(4, 20, true); head.setUint16(8, 0, true); head.setUint32(10, 0x00210000, true);
+    head.setUint32(14, crc, true); head.setUint32(18, data.length, true); head.setUint32(22, data.length, true); head.setUint16(26, nm.length, true);
+    const cen = new DataView(new ArrayBuffer(46));
+    cen.setUint32(0, 0x02014b50, true); cen.setUint16(4, 20, true); cen.setUint16(6, 20, true); cen.setUint32(12, 0x00210000, true);
+    cen.setUint32(16, crc, true); cen.setUint32(20, data.length, true); cen.setUint32(24, data.length, true); cen.setUint16(28, nm.length, true); cen.setUint32(42, off, true);
+    parts.push(new Uint8Array(head.buffer), nm, data);
+    central.push(new Uint8Array(cen.buffer), nm);
+    off += 30 + nm.length + data.length;
+  }
+  const csize = central.reduce((a, p) => a + p.length, 0), end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, off, true);
+  const all = [...parts, ...central, new Uint8Array(end.buffer)], out = new Uint8Array(all.reduce((a, p) => a + p.length, 0));
+  let o = 0;
+  for (const p of all) { out.set(p, o); o += p.length; }
+  return out;
+}
+// the files of a zip archive: Map name → Uint8Array (stored, or deflated where the runtime can inflate)
+export async function unzip(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), dec = new TextDecoder();
+  let e = u8.length - 22;
+  while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('Kein ZIP-Archiv');
+  const n = dv.getUint16(e + 10, true), out = new Map();
+  let p = dv.getUint32(e + 16, true);
+  for (let i = 0; i < n && dv.getUint32(p, true) === 0x02014b50; i++) {
+    const method = dv.getUint16(p + 10, true), csz = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lo = dv.getUint32(p + 42, true);
+    const name = dec.decode(u8.subarray(p + 46, p + 46 + nl));
+    const ds = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true), raw = u8.subarray(ds, ds + csz);
+    if (method === 0) out.set(name, raw);
+    else if (method === 8) {
+      if (typeof DecompressionStream === 'undefined') throw new Error('Komprimierte Archive kann diese Umgebung nicht lesen');
+      out.set(name, new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer()));
+    }
+    p += 46 + nl + xl + cl;
+  }
+  return out;
+}
+
+// 3MF (the package 3D printers and slicers read): one object per mesh, unit millimetre
+export function to3MF(list) {
+  const x = ['<?xml version="1.0" encoding="UTF-8"?>', '<model unit="millimeter" xml:lang="de-DE" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">', ' <metadata name="Application">WerkFab</metadata>', ' <resources>'];
+  list.forEach(({ name, mesh }, i) => {
+    x.push(`  <object id="${i + 1}" type="model" name="${String(name || 'Netz').replace(/[<>&"]/g, '_')}">`, '   <mesh>', '    <vertices>');
+    for (let k = 0; k < mesh.pos.length; k += 3) x.push(`     <vertex x="${num6(mesh.pos[k])}" y="${num6(mesh.pos[k + 1])}" z="${num6(mesh.pos[k + 2])}"/>`);
+    x.push('    </vertices>', '    <triangles>');
+    for (let t = 0; t < mesh.idx.length; t += 3) x.push(`     <triangle v1="${mesh.idx[t]}" v2="${mesh.idx[t + 1]}" v3="${mesh.idx[t + 2]}"/>`);
+    x.push('    </triangles>', '   </mesh>', '  </object>');
+  });
+  x.push(' </resources>', ' <build>', ...list.map((_, i) => `  <item objectid="${i + 1}"/>`), ' </build>', '</model>');
+  const enc = new TextEncoder();
+  return zipStore([
+    ['[Content_Types].xml', enc.encode('<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>')],
+    ['_rels/.rels', enc.encode('<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>')],
+    ['3D/3dmodel.model', enc.encode(x.join('\n'))],
+  ]);
+}
+
+// all triangles of a 3MF file as a triangle soup in mm. Objects are read where they are defined; placements of
+// the build plate (item transform) and of components are applied when they are plain 3×4 matrices.
+export async function parse3MF(buf) {
+  const files = await unzip(buf);
+  const key = [...files.keys()].find(k => /\.model$/i.test(k));
+  if (!key) throw new Error('Kein 3D-Modell in der 3MF-Datei');
+  const xml = new TextDecoder().decode(files.get(key));
+  const unit = { micron: 0.001, millimeter: 1, centimeter: 10, inch: 25.4, foot: 304.8, meter: 1000 }[(/<model[^>]*\bunit="(\w+)"/.exec(xml) || [])[1]] || 1;
+  const attr = (s, n) => { const m = new RegExp('\\b' + n + '="([^"]*)"').exec(s); return m ? m[1] : null; };
+  const objs = new Map();
+  for (const m of xml.matchAll(/<object\b([^>]*)>([\s\S]*?)<\/object>/g)) {
+    const body = m[2], v = [], tri = [], comps = [];
+    for (const q of body.matchAll(/<vertex\b([^>]*)\/?>/g)) v.push(+attr(q[1], 'x'), +attr(q[1], 'y'), +attr(q[1], 'z'));
+    for (const q of body.matchAll(/<triangle\b([^>]*)\/?>/g)) tri.push(+attr(q[1], 'v1'), +attr(q[1], 'v2'), +attr(q[1], 'v3'));
+    for (const q of body.matchAll(/<component\b([^>]*)\/?>/g)) comps.push({ id: attr(q[1], 'objectid'), tf: attr(q[1], 'transform') });
+    objs.set(attr(m[1], 'id'), { v, tri, comps });
+  }
+  const out = [];
+  const mat = tf => { const a = (tf || '').trim().split(/\s+/).map(Number); return a.length === 12 && a.every(Number.isFinite) ? a : null; };
+  const mul = (A, B) => { // B first, then A (row vectors, 3MF order: m00 m01 m02 m10 … m30 m31 m32)
+    if (!A) return B; if (!B) return A;
+    const r = [];
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) r.push(B[i * 3] * A[j] + B[i * 3 + 1] * A[3 + j] + B[i * 3 + 2] * A[6 + j] + (i === 3 ? A[9 + j] : 0));
+    return r;
+  };
+  const emit = (id, M, depth) => {
+    const o = objs.get(id);
+    if (!o || depth > 8) return;
+    for (const i of o.tri) {
+      const x = o.v[i * 3], y = o.v[i * 3 + 1], z = o.v[i * 3 + 2];
+      if (M) out.push((x * M[0] + y * M[3] + z * M[6] + M[9]) * unit, (x * M[1] + y * M[4] + z * M[7] + M[10]) * unit, (x * M[2] + y * M[5] + z * M[8] + M[11]) * unit);
+      else out.push(x * unit, y * unit, z * unit);
+    }
+    for (const c of o.comps) emit(c.id, mul(M, mat(c.tf)), depth + 1);
+  };
+  const items = [...xml.matchAll(/<item\b([^>]*)\/?>/g)].map(q => ({ id: attr(q[1], 'objectid'), tf: mat(attr(q[1], 'transform')) }));
+  if (items.length) for (const it of items) emit(it.id, it.tf, 0);
+  else for (const id of objs.keys()) emit(id, null, 0);
+  if (!out.length) throw new Error('Keine Dreiecke in der 3MF-Datei gefunden');
+  return new Float32Array(out);
+}
+
+// PLY (scanners): ASCII or binary, points with x y z, faces as lists of point numbers
+export function parsePLY(buf) {
+  const u8 = new Uint8Array(buf);
+  let he = -1;
+  for (let i = 0; i + 10 < u8.length && i < 65536; i++) if (u8[i] === 101 && u8[i + 1] === 110 && u8[i + 2] === 100 && u8[i + 3] === 95 && u8[i + 9] === 114) { let j = i + 10; while (j < u8.length && u8[j] !== 10) j++; he = j + 1; break; }
+  const head = new TextDecoder().decode(u8.subarray(0, Math.max(0, he)));
+  if (he < 0 || !/^ply/.test(head)) throw new Error('Keine PLY-Datei');
+  const fmt = (/format\s+(\S+)/.exec(head) || [])[1];
+  const els = [];
+  for (const ln of head.split(/\r?\n/)) {
+    const t = ln.trim().split(/\s+/);
+    if (t[0] === 'element') els.push({ name: t[1], n: +t[2], props: [] });
+    else if (t[0] === 'property' && els.length) els[els.length - 1].props.push(t[1] === 'list' ? { list: true, ct: t[2], it: t[3], name: t[4] } : { type: t[1], name: t[2] });
+  }
+  const V = [], out = [];
+  const face = ids => { for (let k = 1; k < ids.length - 1; k++) for (const i of [ids[0], ids[k], ids[k + 1]]) out.push(V[i * 3], V[i * 3 + 1], V[i * 3 + 2]); };
+  if (fmt === 'ascii') {
+    const lines = new TextDecoder().decode(u8.subarray(he)).split(/\r?\n/);
+    let li = 0;
+    for (const el of els) for (let i = 0; i < el.n; i++) {
+      const t = (lines[li++] || '').trim().split(/\s+/).map(Number);
+      if (el.name === 'vertex') { const ix = el.props.findIndex(p => p.name === 'x'); V.push(t[ix], t[ix + 1], t[ix + 2]); }
+      else if (el.name === 'face') face(t.slice(1, 1 + t[0]));
+    }
+  } else {
+    const le = fmt !== 'binary_big_endian', dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    const SZ = { char: 1, uchar: 1, int8: 1, uint8: 1, short: 2, ushort: 2, int16: 2, uint16: 2, int: 4, uint: 4, int32: 4, uint32: 4, float: 4, float32: 4, double: 8, float64: 8 };
+    const rd = (ty, o) => ({ char: () => dv.getInt8(o), int8: () => dv.getInt8(o), uchar: () => dv.getUint8(o), uint8: () => dv.getUint8(o), short: () => dv.getInt16(o, le), int16: () => dv.getInt16(o, le), ushort: () => dv.getUint16(o, le), uint16: () => dv.getUint16(o, le),
+      int: () => dv.getInt32(o, le), int32: () => dv.getInt32(o, le), uint: () => dv.getUint32(o, le), uint32: () => dv.getUint32(o, le), float: () => dv.getFloat32(o, le), float32: () => dv.getFloat32(o, le), double: () => dv.getFloat64(o, le), float64: () => dv.getFloat64(o, le) }[ty] || (() => 0))();
+    let o = he;
+    for (const el of els) for (let i = 0; i < el.n; i++) {
+      const rec = {};
+      for (const p of el.props) {
+        if (p.list) { const n = rd(p.ct, o); o += SZ[p.ct] || 1; const ids = []; for (let k = 0; k < n; k++) { ids.push(rd(p.it, o)); o += SZ[p.it] || 4; } rec[p.name] = ids; }
+        else { rec[p.name] = rd(p.type, o); o += SZ[p.type] || 4; }
+      }
+      if (el.name === 'vertex') V.push(rec.x, rec.y, rec.z);
+      else if (el.name === 'face') face(rec.vertex_indices || rec.vertex_index || []);
+    }
+  }
+  if (!out.length) throw new Error('Keine Flächen in der PLY-Datei gefunden (reine Punktwolken werden nicht vernetzt)');
+  return new Float32Array(out);
+}
+
+// ---------- boolean of two closed meshes (BSP trees) ----------
+const BEPS = 1e-5;
+const planeOf = (a, b, c) => {
+  const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+  let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+  const l = Math.hypot(nx, ny, nz);
+  if (l < 1e-12) return null;
+  nx /= l; ny /= l; nz /= l;
+  return { n: [nx, ny, nz], w: nx * a[0] + ny * a[1] + nz * a[2] };
+};
+const flipPoly = p => ({ v: p.v.slice().reverse(), pl: { n: [-p.pl.n[0], -p.pl.n[1], -p.pl.n[2]], w: -p.pl.w } });
+// split a polygon by a plane into the four lists (coplanar front / back, front, back)
+function splitPoly(pl, poly, cf, cb, front, back) {
+  const n = pl.n, types = [];
+  let type = 0;
+  for (const v of poly.v) { const t = n[0] * v[0] + n[1] * v[1] + n[2] * v[2] - pl.w, ty = t < -BEPS ? 2 : t > BEPS ? 1 : 0; type |= ty; types.push(ty); }
+  if (type === 0) (n[0] * poly.pl.n[0] + n[1] * poly.pl.n[1] + n[2] * poly.pl.n[2] > 0 ? cf : cb).push(poly);
+  else if (type === 1) front.push(poly);
+  else if (type === 2) back.push(poly);
+  else {
+    const f = [], b = [];
+    for (let i = 0; i < poly.v.length; i++) {
+      const j = (i + 1) % poly.v.length, ti = types[i], tj = types[j], vi = poly.v[i], vj = poly.v[j];
+      if (ti !== 2) f.push(vi);
+      if (ti !== 1) b.push(vi);
+      if ((ti | tj) === 3) {
+        const dx = vj[0] - vi[0], dy = vj[1] - vi[1], dz = vj[2] - vi[2];
+        const s = (pl.w - (n[0] * vi[0] + n[1] * vi[1] + n[2] * vi[2])) / (n[0] * dx + n[1] * dy + n[2] * dz);
+        const v = [vi[0] + dx * s, vi[1] + dy * s, vi[2] + dz * s];
+        f.push(v); b.push(v);
+      }
+    }
+    if (f.length >= 3) front.push({ v: f, pl: poly.pl });
+    if (b.length >= 3) back.push({ v: b, pl: poly.pl });
+  }
+}
+// all loops instead of recursion: the tree of a convex part is one long chain
+const bspNew = () => ({ pl: null, front: null, back: null, polys: [] });
+function bspBuild(root, polys) {
+  const st = [[root, polys]];
+  while (st.length) {
+    const [nd, ps] = st.pop();
+    if (!ps.length) continue;
+    if (!nd.pl) nd.pl = ps[(ps.length / 2) | 0].pl;
+    const f = [], b = [];
+    for (const p of ps) splitPoly(nd.pl, p, nd.polys, nd.polys, f, b);
+    if (f.length) st.push([(nd.front ||= bspNew()), f]);
+    if (b.length) st.push([(nd.back ||= bspNew()), b]);
+  }
+  return root;
+}
+const bspNodes = root => { const out = [], st = [root]; while (st.length) { const n = st.pop(); out.push(n); if (n.front) st.push(n.front); if (n.back) st.push(n.back); } return out; };
+const bspAll = root => { const out = []; for (const n of bspNodes(root)) for (const p of n.polys) out.push(p); return out; };
+function bspInvert(root) {
+  for (const n of bspNodes(root)) {
+    n.polys = n.polys.map(flipPoly);
+    if (n.pl) n.pl = { n: [-n.pl.n[0], -n.pl.n[1], -n.pl.n[2]], w: -n.pl.w };
+    const t = n.front; n.front = n.back; n.back = t;
+  }
+}
+// the parts of polys that are not inside the solid of the tree
+function bspClip(root, polys) {
+  if (!root.pl) return polys.slice();
+  const out = [], st = [[root, polys]];
+  while (st.length) {
+    const [nd, ps] = st.pop(), f = [], b = [];
+    for (const p of ps) splitPoly(nd.pl, p, f, b, f, b);
+    if (nd.front) { if (f.length) st.push([nd.front, f]); } else for (const p of f) out.push(p);
+    if (nd.back && b.length) st.push([nd.back, b]);
+  }
+  return out;
+}
+const bspClipTo = (a, b) => { for (const n of bspNodes(a)) n.polys = bspClip(b, n.polys); };
+
+/**
+ * Boolean of two closed meshes: op = 'union' (a ∪ b), 'cut' (a − b) or 'intersect' (a ∩ b). Both must be closed
+ * with the outside outwards. The result is welded and its T-joints (points on a neighbour's edge, which splitting
+ * leaves behind) are closed.
+ */
+export function boolean(a, b, op = 'union', limit = 60000) {
+  const none = () => ({ pos: new Float32Array(0), idx: new Uint32Array(0) });
+  if (!a.idx.length || !b.idx.length) return op === 'union' ? (a.idx.length ? a : b) : op === 'cut' ? a : none();
+  // Only where the two meshes can meet – in the box both reach into – is there anything to compute: what lies
+  // outside of it is cut off first (with caps, so the piece stays a closed solid), and put back afterwards.
+  const A0 = bounds(a), B0 = bounds(b), ax3 = ['x', 'y', 'z'];
+  const lo = ax3.map(k => Math.max(A0.min[k], B0.min[k])), hi = ax3.map(k => Math.min(A0.max[k], B0.max[k]));
+  if (lo.some((v, k) => v > hi[k] + 1e-6)) return op === 'union' ? combine([a, b]) : op === 'cut' ? a : none();
+  const mg = Math.max(0.05, 0.002 * Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2])) * 1.137;
+  const bl = lo.map(v => Math.fround(v - mg)), bh = hi.map(v => Math.fround(v + mg));
+  const near = m => {
+    const I = m.idx, P = m.pos, nT = I.length / 3;
+    let far = 0;
+    for (let t = 0; t < I.length; t += 3) for (let k = 0; k < 3; k++) {
+      const x = P[I[t] * 3 + k], y = P[I[t + 1] * 3 + k], z = P[I[t + 2] * 3 + k];
+      if ((x < bl[k] && y < bl[k] && z < bl[k]) || (x > bh[k] && y > bh[k] && z > bh[k])) { far++; break; }
+    }
+    if (nT < 400 || far < nT * 0.3) return { in: m, outs: [], planes: [] };
+    let cap = m, open = m;
+    const outs = [], planes = [];
+    for (let k = 0; k < 3; k++) for (const [off, keep] of [[bl[k], 'pos'], [bh[k], 'neg']]) {
+      let beyond = false;
+      for (let i = k; i < open.pos.length && !beyond; i += 3) beyond = keep === 'pos' ? open.pos[i] < off : open.pos[i] > off;
+      if (!beyond) continue;
+      const o = cutPlane(open, ax3[k], off, keep === 'pos' ? 'neg' : 'pos', false);
+      if (o.idx.length) outs.push(o);
+      open = cutPlane(open, ax3[k], off, keep, false);
+      cap = cutPlane(cap, ax3[k], off, keep, true);
+      planes.push([k, off]);
+    }
+    return { in: cap, outs, planes };
+  };
+  const ra = near(a), rb = near(b);
+  if ((ra.in.idx.length + rb.in.idx.length) / 3 > limit) throw new Error('Zu viele Dreiecke für eine Boolesche Operation – vorher „Reduzieren“');
+  let tri = boolCore(ra.in, rb.in, op);
+  const planes = [...ra.planes, ...rb.planes];
+  if (planes.length) {
+    // the caps go again, the parts cut off come back
+    const kept = [];
+    for (let t = 0; t < tri.length; t += 9) {
+      if (planes.some(([k, off]) => Math.abs(tri[t + k] - off) < 1e-5 && Math.abs(tri[t + 3 + k] - off) < 1e-5 && Math.abs(tri[t + 6 + k] - off) < 1e-5)) continue;
+      for (let q = 0; q < 9; q++) kept.push(tri[t + q]);
+    }
+    tri = kept;
+    for (const m of op === 'union' ? [...ra.outs, ...rb.outs] : op === 'cut' ? ra.outs : []) for (let i = 0; i < m.idx.length; i++) { const v = m.idx[i] * 3; tri.push(m.pos[v], m.pos[v + 1], m.pos[v + 2]); }
+  }
+  if (!tri.length) return none();
+  const res = boolHeal(tri);
+  // (should the seam not close, the whole meshes are computed – as long as they are small enough for that)
+  if (planes.length && (a.idx.length + b.idx.length) / 3 <= limit && !stats(res).closed && stats(a).closed && stats(b).closed) {
+    const full = boolCore(a, b, op);
+    return full.length ? boolHeal(full) : none();
+  }
+  return res;
+}
+// triangles (nine numbers each) to a mesh; where two cuts met almost in one point and left the seam open,
+// the points are joined a little more generously
+// flaps: triangles hanging on a closed seam (one edge open, another one shared by more than two triangles)
+function dropFlaps(m) {
+  let cur = m;
+  for (let pass = 0; pass < 40; pass++) {
+    const I = cur.idx, count = new Map();
+    for (let t = 0; t < I.length; t += 3) for (let k = 0; k < 3; k++) { const e = edgeKey(I[t + k], I[t + (k + 1) % 3]); count.set(e, (count.get(e) || 0) + 1); }
+    const keep = [];
+    for (let t = 0; t < I.length; t += 3) {
+      const c = [0, 1, 2].map(k => count.get(edgeKey(I[t + k], I[t + (k + 1) % 3])));
+      if (!(c.includes(1) && c.some(x => x > 2))) keep.push(I[t], I[t + 1], I[t + 2]);
+    }
+    if (keep.length === I.length) break;
+    cur = { pos: cur.pos, idx: Uint32Array.from(keep) };
+  }
+  return cur === m ? m : compact(cur);
+}
+function boolHeal(tri) {
+  let res = dropFlaps(fixTJunctions(weld(new Float32Array(tri), 1e-4)));
+  for (const tol of [3e-4, 1e-3]) {
+    // the points on edges that do not have exactly two triangles
+    const I = res.idx, P = res.pos, count = new Map();
+    for (let t = 0; t < I.length; t += 3) for (let k = 0; k < 3; k++) { const e = edgeKey(I[t + k], I[t + (k + 1) % 3]); count.set(e, (count.get(e) || 0) + 1); }
+    const bad = new Set();
+    for (let t = 0; t < I.length; t += 3) for (let k = 0; k < 3; k++) { const p = I[t + k], q = I[t + (k + 1) % 3]; if (count.get(edgeKey(p, q)) !== 2) { bad.add(p); bad.add(q); } }
+    if (!bad.size) break;
+    if (bad.size > 4000) break;
+    const vs = [...bad], to = new Map();
+    const root = v => { while (to.has(v)) v = to.get(v); return v; };
+    for (let i = 0; i < vs.length; i++) for (let j = i + 1; j < vs.length; j++) {
+      const p = vs[i] * 3, q = vs[j] * 3;
+      if (Math.abs(P[p] - P[q]) > tol || Math.hypot(P[p] - P[q], P[p + 1] - P[q + 1], P[p + 2] - P[q + 2]) > tol) continue;
+      const rp = root(vs[i]), rq = root(vs[j]);
+      if (rp !== rq) to.set(rq, rp);
+    }
+    if (!to.size) continue;
+    const idx = new Uint32Array(I.length);
+    for (let i = 0; i < I.length; i++) idx[i] = root(I[i]);
+    res = dropFlaps(fixTJunctions(cleanTris({ pos: P, idx }), tol));
+  }
+  return res;
+}
+// the triangles of a op b (unwelded: nine numbers each)
+function boolCore(a, b, op) {
+  const polys = m => {
+    const out = [], P = m.pos;
+    for (let t = 0; t < m.idx.length; t += 3) {
+      const v = [m.idx[t], m.idx[t + 1], m.idx[t + 2]].map(i => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]]), pl = planeOf(v[0], v[1], v[2]);
+      if (pl) out.push({ v, pl });
+    }
+    return out;
+  };
+  const A = bspBuild(bspNew(), polys(a)), B = bspBuild(bspNew(), polys(b));
+  if (op === 'union') { bspClipTo(A, B); bspClipTo(B, A); bspInvert(B); bspClipTo(B, A); bspInvert(B); bspBuild(A, bspAll(B)); }
+  else if (op === 'cut') { bspInvert(A); bspClipTo(A, B); bspClipTo(B, A); bspInvert(B); bspClipTo(B, A); bspInvert(B); bspBuild(A, bspAll(B)); bspInvert(A); }
+  else { bspInvert(A); bspClipTo(B, A); bspInvert(B); bspClipTo(A, B); bspClipTo(B, A); bspBuild(A, bspAll(B)); bspInvert(A); }
+  const tri = [];
+  for (const p of bspAll(A)) for (let k = 1; k < p.v.length - 1; k++) tri.push(...p.v[0], ...p.v[k], ...p.v[k + 1]);
+  return tri;
+}
+
+// Close T-joints: a point of the open border that lies on another open edge splits that edge's triangle.
+export function fixTJunctions(m, tol = 2e-4, passes = 8) {
+  let cur = m;
+  for (let pass = 0; pass < passes; pass++) {
+    // needles first: a triangle whose third corner lies on its longest side covers nothing, but as a fan it
+    // would hang on the seam as a flap. Without it the corner is a plain point on an edge, mended below.
+    {
+      const I0 = cur.idx, P0 = cur.pos, keep = [];
+      for (let t = 0; t < I0.length; t += 3) {
+        const a = I0[t] * 3, b = I0[t + 1] * 3, c = I0[t + 2] * 3;
+        const ux = P0[b] - P0[a], uy = P0[b + 1] - P0[a + 1], uz = P0[b + 2] - P0[a + 2], vx = P0[c] - P0[a], vy = P0[c + 1] - P0[a + 1], vz = P0[c + 2] - P0[a + 2];
+        const ar = Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx), l1 = Math.hypot(ux, uy, uz), l2 = Math.hypot(vx, vy, vz), l3 = Math.hypot(vx - ux, vy - uy, vz - uz), lmax = Math.max(l1, l2, l3);
+        // (a needle with two corners almost in one place is left alone: it closes the mesh there)
+        if (ar > lmax * tol * 0.5 || Math.min(l1, l2, l3) < tol * 2) keep.push(I0[t], I0[t + 1], I0[t + 2]);
+      }
+      if (keep.length !== I0.length) cur = { pos: P0, idx: Uint32Array.from(keep) };
+    }
+    const I = cur.idx, P = cur.pos, count = new Map();
+    for (let t = 0; t < I.length; t += 3) for (let k = 0; k < 3; k++) { const e = edgeKey(I[t + k], I[t + (k + 1) % 3]); count.set(e, (count.get(e) || 0) + 1); }
+    const open = [], bv = new Set();
+    for (let t = 0; t < I.length; t += 3) for (let k = 0; k < 3; k++) { const a = I[t + k], b = I[t + (k + 1) % 3]; if (count.get(edgeKey(a, b)) === 1) { open.push([t, k, a, b]); bv.add(a); bv.add(b); } }
+    if (!open.length || open.length * bv.size > 8e7) break;
+    // border points in a grid, to find those near an edge
+    const cell = Math.max(tol * 50, 1e-3), grid = new Map(), key = (x, y, z) => `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
+    let bx = 0;
+    for (const [, , a, b] of open) bx += Math.hypot(P[a * 3] - P[b * 3], P[a * 3 + 1] - P[b * 3 + 1], P[a * 3 + 2] - P[b * 3 + 2]);
+    const useGrid = bx / open.length < cell * 40;
+    if (useGrid) for (const v of bv) { const k = key(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]); (grid.get(k) || grid.set(k, []).get(k)).push(v); }
+    const splits = new Map(); // triangle → [per edge: [[s, vertex], …]]
+    for (const [t, k, a, b] of open) {
+      const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2], dx = P[b * 3] - ax, dy = P[b * 3 + 1] - ay, dz = P[b * 3 + 2] - az, l2 = dx * dx + dy * dy + dz * dz;
+      if (l2 < 1e-16) continue;
+      const test = v => {
+        if (v === a || v === b) return;
+        const px = P[v * 3] - ax, py = P[v * 3 + 1] - ay, pz = P[v * 3 + 2] - az, s = (px * dx + py * dy + pz * dz) / l2;
+        if (s <= 1e-6 || s >= 1 - 1e-6) return;
+        if (Math.hypot(px - dx * s, py - dy * s, pz - dz * s) > tol) return;
+        let rec = splits.get(t);
+        if (!rec) splits.set(t, (rec = [[], [], []]));
+        if (!rec[k].some(q => q[1] === v)) rec[k].push([s, v]);
+      };
+      if (useGrid) {
+        const x0 = Math.floor(Math.min(ax, ax + dx) / cell) - 1, x1 = Math.floor(Math.max(ax, ax + dx) / cell) + 1, y0 = Math.floor(Math.min(ay, ay + dy) / cell) - 1, y1 = Math.floor(Math.max(ay, ay + dy) / cell) + 1, z0 = Math.floor(Math.min(az, az + dz) / cell) - 1, z1 = Math.floor(Math.max(az, az + dz) / cell) + 1;
+        for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (const v of grid.get(`${x},${y},${z}`) || []) test(v);
+      } else for (const v of bv) test(v);
+    }
+    if (!splits.size) break;
+    const pos = Array.from(P), idx = [];
+    for (let t = 0; t < I.length; t += 3) {
+      const rec = splits.get(t);
+      if (!rec) { idx.push(I[t], I[t + 1], I[t + 2]); continue; }
+      const loop = [];
+      for (let k = 0; k < 3; k++) { loop.push(I[t + k]); for (const [, v] of rec[k].sort((p, q) => p[0] - q[0])) loop.push(v); }
+      const cut = rec.filter(r => r.length).length;
+      if (cut === 1) {
+        // fan from the corner opposite the split edge
+        const k = rec.findIndex(r => r.length), apex = I[t + (k + 2) % 3], s = loop.indexOf(I[t + k]);
+        const chain = [];
+        for (let q = 0; q < loop.length; q++) { const v = loop[(s + q) % loop.length]; if (v !== apex) chain.push(v); }
+        for (let q = 0; q + 1 < chain.length; q++) idx.push(apex, chain[q], chain[q + 1]);
+      } else {
+        // several edges split: fan from the middle
+        const c = pos.length / 3;
+        pos.push((P[I[t] * 3] + P[I[t + 1] * 3] + P[I[t + 2] * 3]) / 3, (P[I[t] * 3 + 1] + P[I[t + 1] * 3 + 1] + P[I[t + 2] * 3 + 1]) / 3, (P[I[t] * 3 + 2] + P[I[t + 1] * 3 + 2] + P[I[t + 2] * 3 + 2]) / 3);
+        for (let q = 0; q < loop.length; q++) idx.push(c, loop[q], loop[(q + 1) % loop.length]);
+      }
+    }
+    cur = cleanTris({ pos: new Float32Array(pos), idx: Uint32Array.from(idx) });
+  }
+  return cur;
+}
+
+/**
+ * Round faces in a faceted mesh: flat strips around a common axis, between two planes across it. Whole rings
+ * (holes and pins, at least minFacets strips) and parts of a ring (fillets, half cylinders, rounded corners:
+ * at least three strips on one circle, evenly divided). Returns [{ c (point of the axis at the lower end),
+ * d (axis), r, h, hole (true: the material is outside the circle), n (strips of a whole turn), full,
+ * u, w (the axes across d: w = d × u), a0, sweep (the arc runs counter-clockwise from the angle a0),
+ * sl (area between the chords and the circle) }].
+ */
+export function findCylinders(m, minFacets = 8, info = null) {
+  const I = m.idx, P = m.pos, nT = I.length / 3;
+  const N = new Float64Array(nT * 3), needle = new Uint8Array(nT);
+  for (let t = 0; t < nT; t++) {
+    const a = I[t * 3] * 3, b = I[t * 3 + 1] * 3, c = I[t * 3 + 2] * 3;
+    const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, l = Math.hypot(nx, ny, nz) || 1;
+    N[t * 3] = nx / l; N[t * 3 + 1] = ny / l; N[t * 3 + 2] = nz / l;
+    // a needle (as cuts leave them): its normal is not to be trusted
+    if (l < 4e-3 * Math.max(ux * ux + uy * uy + uz * uz, vx * vx + vy * vy + vz * vz, (vx - ux) ** 2 + (vy - uy) ** 2 + (vz - uz) ** 2)) needle[t] = 1;
+  }
+  // does triangle s lie in the plane of triangle t?
+  const inPlane = (t, s) => { const o = I[t * 3] * 3; for (let k = 0; k < 3; k++) { const v = I[s * 3 + k] * 3; if (Math.abs((P[v] - P[o]) * N[t * 3] + (P[v + 1] - P[o + 1]) * N[t * 3 + 1] + (P[v + 2] - P[o + 2]) * N[t * 3 + 2]) > 2e-4) return false; } return true; };
+  const edges = new Map();
+  for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) { const a = I[t * 3 + k], b = I[t * 3 + (k + 1) % 3], e = edgeKey(a, b); const r = edges.get(e); if (r) r.push(t); else edges.set(e, [t, a, b]); }
+  // flat regions: neighbours in one plane
+  const par = new Int32Array(nT).map((_, i) => i), find = x => { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; };
+  const dotN = (s, t) => N[s * 3] * N[t * 3] + N[s * 3 + 1] * N[t * 3 + 1] + N[s * 3 + 2] * N[t * 3 + 2];
+  const pairs = [];
+  for (const r of edges.values()) { if (r.length !== 4) continue; const [t, a, b, s] = r; if (dotN(t, s) > 1 - 1e-7) par[find(t)] = find(s); else pairs.push([t, s, a, b]); }
+  // a needle joins one of the facets it lies in (and only one: it may lie in two that meet at a flat angle)
+  for (const [t, s] of pairs) {
+    if (needle[t] === needle[s]) continue;
+    const nd = needle[t] ? t : s, big = needle[t] ? s : t;
+    if (needle[nd] === 2 || !inPlane(big, nd)) continue;
+    par[find(nd)] = find(big);
+    needle[nd] = 2;
+  }
+  const reg = new Int32Array(nT).map((_, i) => find(i));
+  // "soft" edges (a bend of 0.6° … 31° between two flat regions), sorted by their direction: the strips of a
+  // cylinder meet in edges along its axis
+  const cmin = Math.cos((31 * Math.PI) / 180), cmax = Math.cos((0.6 * Math.PI) / 180);
+  if (info) Object.assign(info, { reg, N, softList: [], used: new Set() });
+  // the normal of a region: from all its triangles, by area (single needles do not disturb it)
+  const RN = new Float64Array(nT * 3);
+  for (let t = 0; t < nT; t++) {
+    const a = I[t * 3] * 3, b = I[t * 3 + 1] * 3, c = I[t * 3 + 2] * 3, g = reg[t] * 3;
+    const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+    RN[g] += uy * vz - uz * vy; RN[g + 1] += uz * vx - ux * vz; RN[g + 2] += ux * vy - uy * vx;
+  }
+  for (let t = 0; t < nT; t++) if (reg[t] === t) { const l = Math.hypot(RN[t * 3], RN[t * 3 + 1], RN[t * 3 + 2]) || 1; RN[t * 3] /= l; RN[t * 3 + 1] /= l; RN[t * 3 + 2] /= l; }
+  const classes = new Map();
+  for (const [t, s, a, b] of pairs) {
+    const g = reg[t] * 3, q = reg[s] * 3;
+    if (g === q) continue;
+    const c = RN[g] * RN[q] + RN[g + 1] * RN[q + 1] + RN[g + 2] * RN[q + 2];
+    if (c < cmin || c > cmax) continue;
+    let dx = P[b * 3] - P[a * 3], dy = P[b * 3 + 1] - P[a * 3 + 1], dz = P[b * 3 + 2] - P[a * 3 + 2];
+    const l = Math.hypot(dx, dy, dz);
+    if (l < 1e-9) continue;
+    dx /= l; dy /= l; dz /= l;
+    if (dx < -1e-6 || (Math.abs(dx) <= 1e-6 && (dy < -1e-6 || (Math.abs(dy) <= 1e-6 && dz < 0)))) { dx = -dx; dy = -dy; dz = -dz; }
+    const key = `${Math.round(dx * 500)},${Math.round(dy * 500)},${Math.round(dz * 500)}`;
+    let cl = classes.get(key);
+    if (!cl) classes.set(key, (cl = { d: [dx, dy, dz], soft: [] }));
+    cl.soft.push([reg[t], reg[s], a, b]);
+    if (info) info.softList.push([reg[t], reg[s]]);
+  }
+  // (directions that fell into two neighbouring cells of the rounding belong together)
+  let list = [...classes.values()].filter(c => c.soft.length >= 1);
+  if (list.length <= 3000) {
+    const merged = [];
+    for (const c of list.sort((p, q) => q.soft.length - p.soft.length)) {
+      const o = merged.find(q => Math.abs(q.d[0] * c.d[0] + q.d[1] * c.d[1] + q.d[2] * c.d[2]) > 0.999995);
+      if (o) o.soft.push(...c.soft); else merged.push(c);
+    }
+    list = merged;
+  }
+  let regTris = null;
+  if (info) { info.soft = info.softList; info.trisOf = () => trisOf(); }
+  const trisOf = () => { if (!regTris) { regTris = new Map(); for (let t = 0; t < nT; t++) { const r = regTris.get(reg[t]); if (r) r.push(t); else regTris.set(reg[t], [t]); } } return regTris; };
+  const out = [];
+  for (const cl of list) {
+    if (cl.soft.length < 3) continue;
+    const d = cl.d;
+    const ux0 = Math.abs(d[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = ux0[0] * d[0] + ux0[1] * d[1] + ux0[2] * d[2];
+    let u = [ux0[0] - d[0] * dd, ux0[1] - d[1] * dd, ux0[2] - d[2] * dd];
+    const ul = Math.hypot(...u); u = u.map(x => x / ul);
+    const w = [d[1] * u[2] - d[2] * u[1], d[2] * u[0] - d[0] * u[2], d[0] * u[1] - d[1] * u[0]];
+    const X = v => P[v * 3] * u[0] + P[v * 3 + 1] * u[1] + P[v * 3 + 2] * u[2], Y = v => P[v * 3] * w[0] + P[v * 3 + 1] * w[1] + P[v * 3 + 2] * w[2], H = v => P[v * 3] * d[0] + P[v * 3 + 1] * d[1] + P[v * 3 + 2] * d[2];
+    // seen along the axis every soft edge is a point ("line"), every strip a chord between two of them
+    const lines = new Map(), regLines = new Map();
+    for (const [ra, rb, a] of cl.soft) {
+      const x = X(a), y = Y(a), key = `${Math.round(x * 500)},${Math.round(y * 500)}`;
+      let ln = lines.get(key);
+      if (!ln) lines.set(key, (ln = { x, y, strips: [] }));
+      for (const r of [ra, rb]) { let s = regLines.get(r); if (!s) regLines.set(r, (s = new Set())); s.add(ln); }
+    }
+    if (lines.size < 3) continue;
+    for (const [r, s] of regLines) {
+      if (s.size === 2) { const [p, q] = [...s]; const st = { r, p, q }; p.strips.push(st); q.strips.push(st); }
+      else if (s.size === 1) {
+        // the last strip of an arc ends in a sharp edge: its far side is the end of the chain
+        const [p] = [...s];
+        let far = null, fd = 1e-3;
+        for (const t of trisOf().get(r)) for (let k = 0; k < 3; k++) { const v = I[t * 3 + k], x = X(v), y = Y(v), l = Math.hypot(x - p.x, y - p.y); if (l > fd) { fd = l; far = { x, y, strips: [] }; } }
+        if (far) { const st = { r, p, q: far }; p.strips.push(st); far.strips.push(st); lines.set('end' + r, far); }
+      }
+    }
+    // chains of strips: through lines where exactly two strips meet
+    const usedS = new Set(), chains = [];
+    const walk = (ln, st) => {
+      const pts = [ln], strips = [];
+      for (;;) {
+        usedS.add(st); strips.push(st);
+        ln = st.p === ln ? st.q : st.p;
+        pts.push(ln);
+        if (ln.strips.length !== 2) break;
+        st = ln.strips[0] === st ? ln.strips[1] : ln.strips[0];
+        if (usedS.has(st)) break;
+      }
+      return { pts, strips };
+    };
+    for (const ln of lines.values()) if (ln.strips.length !== 2) for (const st of ln.strips) if (!usedS.has(st)) chains.push(walk(ln, st));
+    for (const ln of lines.values()) if (ln.strips.length === 2 && !usedS.has(ln.strips[0])) {
+      const c = walk(ln, ln.strips[0]);
+      if (c.pts[c.pts.length - 1] !== c.pts[0]) { chains.push(c); continue; }
+      // a closed chain: one circle all the way round, or opened after its longest chord
+      c.closed = true;
+      chains.push(c);
+    }
+    const circle = pts => {
+      const mx = pts.reduce((a, p) => a + p.x, 0) / pts.length, my = pts.reduce((a, p) => a + p.y, 0) / pts.length;
+      let sxx = 0, syy = 0, sxy = 0, sxz = 0, syz = 0, sz = 0;
+      for (const p of pts) { const x = p.x - mx, y = p.y - my, z = x * x + y * y; sxx += x * x; syy += y * y; sxy += x * y; sxz += x * z; syz += y * z; sz += z; }
+      const det = sxx * syy - sxy * sxy;
+      if (Math.abs(det) < 1e-12) return null;
+      const cx = (sxz * syy - syz * sxy) / (2 * det), cy = (syz * sxx - sxz * sxy) / (2 * det), r = Math.sqrt(cx * cx + cy * cy + sz / pts.length);
+      if (!(r > 1e-3)) return null;
+      const tol = Math.max(2e-3, 1e-3 * r);
+      return pts.every(p => Math.abs(Math.hypot(p.x - mx - cx, p.y - my - cy) - r) <= tol) ? { x: mx + cx, y: my + cy, r } : null;
+    };
+    const emit = (pts, strips, full) => {
+      const C = circle(full ? pts.slice(0, -1) : pts);
+      if (!C) return false;
+      // the strips: all between the same two planes across the axis, all turned the same way
+      const T = trisOf();
+      let h0 = Infinity, h1 = -Infinity, side = 0;
+      const spans = [];
+      for (const st of strips) {
+        let a = Infinity, b = -Infinity;
+        for (const t of T.get(st.r)) for (let k = 0; k < 3; k++) { const hh = H(I[t * 3 + k]); if (hh < a) a = hh; if (hh > b) b = hh; }
+        spans.push([a, b]); h0 = Math.min(h0, a); h1 = Math.max(h1, b);
+        const t = T.get(st.r)[0], mxp = (st.p.x + st.q.x) / 2 - C.x, myp = (st.p.y + st.q.y) / 2 - C.y;
+        const s = (N[t * 3] * u[0] + N[t * 3 + 1] * u[1] + N[t * 3 + 2] * u[2]) * mxp + (N[t * 3] * w[0] + N[t * 3 + 1] * w[1] + N[t * 3 + 2] * w[2]) * myp;
+        if (side && Math.sign(s) !== side) return false;
+        side = Math.sign(s) || side;
+      }
+      if (h1 - h0 < 1e-3 || !side || spans.some(s => s[0] - h0 > 2e-3 || h1 - s[1] > 2e-3)) return false;
+      // angles: counter-clockwise from the first point, every chord a small step
+      const ang = pts.map(p => Math.atan2(p.y - C.y, p.x - C.x));
+      const steps = [];
+      for (let i = 1; i < ang.length; i++) { let s = ang[i] - ang[i - 1]; while (s > Math.PI) s -= 2 * Math.PI; while (s < -Math.PI) s += 2 * Math.PI; steps.push(s); }
+      const sg = Math.sign(steps[0]);
+      if (!sg || steps.some(s => Math.sign(s) !== sg || Math.abs(s) > 0.56)) return false;
+      const sweep = steps.reduce((a, s) => a + Math.abs(s), 0);
+      if (full ? Math.abs(sweep - 2 * Math.PI) > 1e-3 : sweep > 2 * Math.PI - 0.05 || sweep < 0.26) return false;
+      // regular: the chords between the first and the last are equal (the outer two may be cut shorter)
+      const inner = steps.slice(full ? 0 : 1, full ? undefined : -1).map(Math.abs), big = Math.max(...inner, 0);
+      if (inner.some(s => s < big * 0.97) || (!full && (Math.abs(steps[0]) > big * 1.03 || Math.abs(steps[steps.length - 1]) > big * 1.03))) return false;
+      const sl = steps.reduce((a, s) => a + (C.r * C.r / 2) * (Math.abs(s) - Math.sin(Math.abs(s))), 0);
+      const a0 = sg > 0 ? ang[0] : ang[ang.length - 1];
+      out.push({ c: [u[0] * C.x + w[0] * C.y + d[0] * h0, u[1] * C.x + w[1] * C.y + d[1] * h0, u[2] * C.x + w[2] * C.y + d[2] * h0], d: d.slice(), r: C.r, h: h1 - h0, hole: side < 0,
+        n: full ? strips.length : Math.max(3, Math.round((2 * Math.PI) / (big || Math.abs(steps[0])))), full, u, w, a0, sweep, sl });
+      if (info) for (const st of strips) info.used.add(st.r);
+      return true;
+    };
+    for (const ch of chains) {
+      let { pts, strips } = ch;
+      if (ch.closed) {
+        if (strips.length >= minFacets && emit(pts, strips, true)) continue;
+        // open it after the longest chord
+        let best = 0, bl = -1;
+        strips.forEach((st, i) => { const l = Math.hypot(st.p.x - st.q.x, st.p.y - st.q.y); if (l > bl) { bl = l; best = i; } });
+        const n = strips.length, k = (best + 1) % n;
+        const ring = pts.slice(0, -1);
+        pts = [...ring.slice(k), ...ring.slice(0, k), ring[k]];
+        strips = [...strips.slice(k), ...strips.slice(0, k)];
+      }
+      // pieces of the chain on one circle: at least three chords
+      let i = 0;
+      while (i + 3 < pts.length) {
+        let j = i + 3, okC = circle(pts.slice(i, j + 1));
+        if (!okC) { i++; continue; }
+        while (j + 1 < pts.length && circle(pts.slice(i, j + 2))) j++;
+        // (a chord cut short at the far end is kept, a long one – the flat face next to a fillet – never fits)
+        if (emit(pts.slice(i, j + 1), strips.slice(i, j), false)) i = j; else i++;
+      }
+    }
+  }
+  return out.sort((a, b) => b.r - a.r);
+}
+
+// smallest eigenvector of a symmetric 3 × 3 matrix [xx, xy, xz, yy, yz, zz] (Jacobi), with the eigenvalues sorted
+function eig3(m) {
+  const A = [[m[0], m[1], m[2]], [m[1], m[3], m[4]], [m[2], m[4], m[5]]], V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let sweep = 0; sweep < 30; sweep++) {
+    let off = 0;
+    for (const [p, q] of [[0, 1], [0, 2], [1, 2]]) {
+      off += A[p][q] * A[p][q];
+      if (Math.abs(A[p][q]) < 1e-300) continue;
+      const th = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < 3; k++) { const x = A[k][p], y = A[k][q]; A[k][p] = c * x - s * y; A[k][q] = s * x + c * y; }
+      for (let k = 0; k < 3; k++) { const x = A[p][k], y = A[q][k]; A[p][k] = c * x - s * y; A[q][k] = s * x + c * y; }
+      for (let k = 0; k < 3; k++) { const x = V[k][p], y = V[k][q]; V[k][p] = c * x - s * y; V[k][q] = s * x + c * y; }
+    }
+    if (off < 1e-22) break;
+  }
+  const o = [0, 1, 2].sort((a, b) => A[a][a] - A[b][b]);
+  return { val: o.map(i => A[i][i]), vec: o.map(i => [V[0][i], V[1][i], V[2][i]]) };
+}
+// solve a small linear system (Gauss with pivoting); null if singular
+function solveN(M, b) {
+  const n = b.length, A = M.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    if (Math.abs(A[p][c]) < 1e-12) return null;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let r = 0; r < n; r++) if (r !== c) { const k = A[r][c] / A[c][c]; for (let q = c; q <= n; q++) A[r][q] -= k * A[c][q]; }
+  }
+  return A.map((r, i) => r[n] / r[i]);
+}
+
+/**
+ * All round faces of a faceted mesh: { cylinders (as findCylinders), cones, spheres }.
+ * cones: whole rings of flat strips around an axis that meet in one point – countersinks, tapers, cone tips:
+ *   { apex, d (axis, from the apex to the wide end), t0, t1 (distances from the apex), r0, r1, hole, n }.
+ * spheres: patches whose corners all lie on one sphere – balls, domes, rounded corners:
+ *   { c, r, hole, vol (volume between the facets and the sphere), n (triangles) }.
+ */
+export function findRound(m, minFacets = 8) {
+  const info = {}, cylinders = findCylinders(m, minFacets, info), cones = [], spheres = [], minSeg = Math.max(4, minFacets >> 1);
+  const { reg, N, soft, used, trisOf } = info, I = m.idx, P = m.pos;
+  // what is left: flat regions joined by soft edges
+  const par = new Map(), find = x => { let p = par.get(x); if (p === undefined) { par.set(x, x); return x; } while (p !== par.get(p)) p = par.get(p); par.set(x, p); return p; };
+  for (const [a, b] of soft) { if (used.has(a) || used.has(b)) continue; const ra = find(a), rb = find(b); if (ra !== rb) par.set(rb, ra); }
+  const comps = new Map();
+  for (const r of par.keys()) { const g = find(r); let c = comps.get(g); if (!c) comps.set(g, (c = [])); c.push(r); }
+  const T = trisOf();
+  for (let regs of comps.values()) {
+    if (regs.length < minSeg) continue;
+    const tris = regs.flatMap(r => T.get(r)), vs = [...new Set(tris.flatMap(t => [I[t * 3], I[t * 3 + 1], I[t * 3 + 2]]))];
+    const V = v => [P[v * 3], P[v * 3 + 1], P[v * 3 + 2]];
+    // normal and area of every region from all its triangles; shreds (left by a cut) do not count as strips
+    const area = [];
+    const nrmAll = regs.map(r => {
+      const g = [0, 0, 0];
+      for (const t of T.get(r)) { const a = V(I[t * 3]), b = V(I[t * 3 + 1]), c = V(I[t * 3 + 2]), u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], w = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]; g[0] += u[1] * w[2] - u[2] * w[1]; g[1] += u[2] * w[0] - u[0] * w[2]; g[2] += u[0] * w[1] - u[1] * w[0]; }
+      const l = Math.hypot(...g) || 1;
+      area.push(l / 2);
+      return g.map(x => x / l);
+    });
+    const amed = area.slice().sort((p, q) => p - q)[area.length >> 1], bigIdx = regs.map((_, i) => i).filter(i => area[i] > 0.05 * amed);
+    const allRegs = regs;
+    regs = bigIdx.map(i => allRegs[i]);
+    const nrm = bigIdx.map(i => nrmAll[i]);
+    if (regs.length < minSeg) continue;
+    // ---- a cone: every normal has the same angle to the axis ----
+    // (a whole ring of strips, or a part of one: { …, a0, sweep, u, w } – the strips from the angle a0 on, measured
+    // from u towards w)
+    const cone = (regs, nrm) => {
+      const vs = [...new Set(regs.flatMap(r => T.get(r)).flatMap(t => [I[t * 3], I[t * 3 + 1], I[t * 3 + 2]]))];
+      const mean = [0, 1, 2].map(k => nrm.reduce((a, n) => a + n[k], 0) / nrm.length), C = [0, 0, 0, 0, 0, 0];
+      for (const n of nrm) { const x = n[0] - mean[0], y = n[1] - mean[1], z = n[2] - mean[2]; C[0] += x * x; C[1] += x * y; C[2] += x * z; C[3] += y * y; C[4] += y * z; C[5] += z * z; }
+      const E = eig3(C);
+      let a = E.vec[0];
+      if (E.val[1] < 0.002 * nrm.length || nrm.some(n => Math.abs((n[0] - mean[0]) * a[0] + (n[1] - mean[1]) * a[1] + (n[2] - mean[2]) * a[2]) > 4e-3)) return null;
+      const cs = mean[0] * a[0] + mean[1] * a[1] + mean[2] * a[2];
+      if (Math.abs(cs) < 0.02 || Math.abs(cs) > 0.9995) return null;
+      // the apex: where all the planes meet
+      const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0];
+      regs.forEach((r, i) => { const n = nrm[i], p = V(I[T.get(r)[0] * 3]), dd = n[0] * p[0] + n[1] * p[1] + n[2] * p[2]; for (let x = 0; x < 3; x++) { b[x] += n[x] * dd; for (let y = 0; y < 3; y++) M[x][y] += n[x] * n[y]; } });
+      const apex = solveN(M, b);
+      if (!apex) return null;
+      const tOf = p => (p[0] - apex[0]) * a[0] + (p[1] - apex[1]) * a[1] + (p[2] - apex[2]) * a[2];
+      const pts = vs.map(V);
+      if (pts.reduce((s, p) => s + tOf(p), 0) < 0) a = a.map(x => -x);
+      let st = 0, stt = 0, t0 = Infinity, t1 = -Infinity;
+      const tr = pts.map(p => { const t = tOf(p), q = [p[0] - apex[0] - a[0] * t, p[1] - apex[1] - a[1] * t, p[2] - apex[2] - a[2] * t]; return [t, Math.hypot(...q), q]; });
+      for (const [t, rho] of tr) { st += rho * t; stt += t * t; t0 = Math.min(t0, t); t1 = Math.max(t1, t); }
+      // (the corners lie on the cone; points a cut has made lie on the facets, a little inside: they do not
+      // take part in the slope)
+      let kk = st / stt;
+      for (let pass = 0; pass < 4; pass++) {
+        const top = Math.max(...tr.map(([t, rho]) => rho - kk * t)), keep = tr.filter(([t, rho]) => rho - kk * t > top - Math.max(2e-3, 2e-4 * kk * t1));
+        if (keep.length < 2 * minSeg) return null;
+        const k2 = keep.reduce((a, [t, rho]) => a + rho * t, 0) / keep.reduce((a, [t]) => a + t * t, 0);
+        if (Math.abs(k2 - kk) < 1e-9) break;
+        kk = k2;
+      }
+      const tol = Math.max(3e-3, 1.5e-3 * kk * t1);
+      if (!(kk > 1e-3) || t0 < -tol || t1 - t0 < 1e-3 || tr.some(([t, rho]) => rho - kk * t > tol || rho - kk * t < -0.04 * kk * t - tol)) return null;
+      if (t0 < tol) t0 = 0;
+      // every strip from one end to the other, the wide end a regular ring all the way round
+      for (const r of regs) { let lo = Infinity, hi = -Infinity; for (const t of T.get(r)) for (let q = 0; q < 3; q++) { const x = tOf(V(I[t * 3 + q])); lo = Math.min(lo, x); hi = Math.max(hi, x); } if (lo - t0 > 3e-3 || t1 - hi > 3e-3) return null; }
+      const u = tr.find(x => x[1] > 0.5 * kk * t1)[2], ul = Math.hypot(...u), ux = u.map(x => x / ul), w = [a[1] * ux[2] - a[2] * ux[1], a[2] * ux[0] - a[0] * ux[2], a[0] * ux[1] - a[1] * ux[0]];
+      const ang = [...new Set(tr.filter(x => Math.abs(x[0] - t1) < 3e-3 && Math.abs(x[1] - kk * x[0]) < Math.max(2e-3, 2e-4 * kk * t1)).map(x => Math.round(Math.atan2(x[2][0] * w[0] + x[2][1] * w[1] + x[2][2] * w[2], x[2][0] * ux[0] + x[2][1] * ux[1] + x[2][2] * ux[2]) * 2000)))].sort((p, q) => p - q).map(x => x / 2000);
+      if (ang.length <= minSeg) return null;
+      // (a cut may leave points right next to a corner: the division is taken from the usual gap, every point
+      // has to sit at a corner of it and every corner has to be there – or, for a part of a ring, one unbroken
+      // row of corners)
+      const gaps = ang.map((x, i) => (i ? x - ang[i - 1] : x + 2 * Math.PI - ang[ang.length - 1]));
+      const gsort = gaps.slice().sort((p, q) => q - p), gmax = gsort[0] > 3 * gsort[1] ? gsort[1] : gsort[0];
+      const gs = gaps.filter(x => x > 0.25 * gmax).sort((p, q) => p - q), nSeg = Math.round((2 * Math.PI) / gs[gs.length >> 1]), step = (2 * Math.PI) / nSeg;
+      if (nSeg < minFacets || Math.abs(gs[gs.length >> 1] - step) > 0.03 * step) return null;
+      const slots = new Set();
+      for (const x of ang) { const q = (x - ang[0]) / step, k = Math.round(q); if (Math.abs(q - k) > 0.12) return null; slots.add(((k % nSeg) + nSeg) % nSeg); }
+      let seg = null;
+      if (slots.size !== nSeg) {
+        const s0 = [...slots].find(k => !slots.has((k - 1 + nSeg) % nSeg));
+        let len = 0;
+        while (len < nSeg && slots.has((s0 + len) % nSeg)) len++;
+        if (len !== slots.size || len <= minSeg) return null;
+        seg = { a0: ang[0] + s0 * step, sweep: (len - 1) * step, u: ux, w };
+      } else if (regs.length < minFacets) return null;
+      // material inside (pin) or outside (hole)
+      let side = 0;
+      regs.forEach((r, i) => { const p = V(I[T.get(r)[0] * 3]), t = tOf(p), q = [p[0] - apex[0] - a[0] * t, p[1] - apex[1] - a[1] * t, p[2] - apex[2] - a[2] * t]; const tt = T.get(r), c = tt.length; let g = [0, 0, 0]; for (const x of tt) for (let k = 0; k < 3; k++) { const y = V(I[x * 3 + k]); g = g.map((z, j) => z + y[j] / (3 * c)); } const tg = tOf(g), rq = [g[0] - apex[0] - a[0] * tg, g[1] - apex[1] - a[1] * tg, g[2] - apex[2] - a[2] * tg]; side += Math.sign(nrm[i][0] * rq[0] + nrm[i][1] * rq[1] + nrm[i][2] * rq[2]); void q; });
+      if (Math.abs(side) !== regs.length) return null;
+      return { apex, d: a, t0, t1, r0: kk * t0, r1: kk * t1, hole: side < 0, n: nSeg, ...(seg || {}) };
+    };
+    const co = cone(regs, nrm);
+    if (co) { cones.push(co); continue; }
+    // ---- a cone between two rings of corners ----
+    // (how a CAD export triangulates a cone: the corners lie on its two circles, the triangles run from one to
+    // the other in any division – no strips of one width, so the planes above say nothing)
+    const ringCone = (rs, ns) => {
+      const tris = rs.flatMap(r => T.get(r));
+      if (tris.length < 2 * minSeg) return null;
+      const pts = [...new Set(tris.flatMap(t => [I[t * 3], I[t * 3 + 1], I[t * 3 + 2]]))].map(V);
+      const mean = [0, 1, 2].map(k => ns.reduce((a, n) => a + n[k], 0) / ns.length), C = [0, 0, 0, 0, 0, 0];
+      for (const n of ns) { const x = n[0] - mean[0], y = n[1] - mean[1], z = n[2] - mean[2]; C[0] += x * x; C[1] += x * y; C[2] += x * z; C[3] += y * y; C[4] += y * z; C[5] += z * z; }
+      const a0 = eig3(C).vec[0], dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+      // the rings: along the rough axis the corners fall into heaps (two, or more where the export has laid
+      // further rings in between)
+      const ord = pts.map(p => [dot(p, a0), p]).sort((p, q) => p[0] - q[0]);
+      let gap = 0;
+      for (let i = 1; i < ord.length; i++) gap = Math.max(gap, ord[i][0] - ord[i - 1][0]);
+      const rings = [[ord[0][1]]];
+      for (let i = 1; i < ord.length; i++) { if (ord[i][0] - ord[i - 1][0] > 0.3 * gap) rings.push([]); rings[rings.length - 1].push(ord[i][1]); }
+      if (rings.length < 2 || rings.length > 40 || rings.some(r => r.length < 3)) return null;
+      // the axis exactly: every ring is flat, across the same direction
+      const cen = ps => [0, 1, 2].map(k => ps.reduce((s, p) => s + p[k], 0) / ps.length), gs0 = rings.map(cen), C2 = [0, 0, 0, 0, 0, 0];
+      rings.forEach((ps, k) => { const g = gs0[k]; for (const p of ps) { const x = p[0] - g[0], y = p[1] - g[1], z = p[2] - g[2]; C2[0] += x * x; C2[1] += x * y; C2[2] += x * z; C2[3] += y * y; C2[4] += y * z; C2[5] += z * z; } });
+      let a = eig3(C2).vec[0];
+      const gL = gs0[rings.length - 1];
+      if (dot(a, [gL[0] - gs0[0][0], gL[1] - gs0[0][1], gL[2] - gs0[0][2]]) < 0) a = a.map(x => -x);
+      if (rings.some((ps, k) => ps.some(p => Math.abs(dot([p[0] - gs0[k][0], p[1] - gs0[k][1], p[2] - gs0[k][2]], a)) > 3e-3))) return null;
+      const ux0 = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = dot(ux0, a), e1 = (v => { const l = Math.hypot(...v); return v.map(x => x / l); })([ux0[0] - a[0] * dd, ux0[1] - a[1] * dd, ux0[2] - a[2] * dd]);
+      const e2 = [a[1] * e1[2] - a[2] * e1[1], a[2] * e1[0] - a[0] * e1[2], a[0] * e1[1] - a[1] * e1[0]];
+      const circle = (ps, g) => {
+        const M3 = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b3 = [0, 0, 0], xy = ps.map(p => { const q = [p[0] - g[0], p[1] - g[1], p[2] - g[2]]; return [dot(q, e1), dot(q, e2)]; });
+        for (const [x, y] of xy) { const row = [x, y, 1], z = x * x + y * y; for (let i = 0; i < 3; i++) { b3[i] += row[i] * z; for (let j = 0; j < 3; j++) M3[i][j] += row[i] * row[j]; } }
+        const sol = solveN(M3, b3);
+        if (!sol) return null;
+        const cx = sol[0] / 2, cy = sol[1] / 2, rr = Math.sqrt(Math.max(0, sol[2] + cx * cx + cy * cy));
+        if (!(rr > 1e-3) || xy.some(([x, y]) => Math.abs(Math.hypot(x - cx, y - cy) - rr) > Math.max(2e-3, 2e-4 * rr))) return null;
+        return { c: [g[0] + e1[0] * cx + e2[0] * cy, g[1] + e1[1] * cx + e2[1] * cy, g[2] + e1[2] * cx + e2[2] * cy], r: rr, ps };
+      };
+      const cs = rings.map((ps, k) => circle(ps, gs0[k]));
+      if (cs.some(c => !c)) return null;
+      const cA = cs[0], cB = cs[cs.length - 1];
+      const dv = [cB.c[0] - cA.c[0], cB.c[1] - cA.c[1], cB.c[2] - cA.c[2]], h = dot(dv, a);
+      if (!(h > 1e-3) || Math.abs(cA.r - cB.r) < Math.max(1e-3, 1e-3 * h)) return null;
+      // all centres on the axis, the radius growing evenly along it
+      for (const c of cs) {
+        const q = [c.c[0] - cA.c[0], c.c[1] - cA.c[1], c.c[2] - cA.c[2]], tq = dot(q, a);
+        if (Math.hypot(q[0] - a[0] * tq, q[1] - a[1] * tq, q[2] - a[2] * tq) > Math.max(3e-3, 1e-3 * h) || Math.abs(c.r - (cA.r + ((cB.r - cA.r) * tq) / h)) > Math.max(3e-3, 3e-4 * Math.max(cA.r, cB.r))) return null;
+      }
+      const wideB = cB.r > cA.r, d = wideB ? a : a.map(x => -x), small = wideB ? cA : cB, big = wideB ? cB : cA, kk = (big.r - small.r) / h;
+      const apex = small.c.map((x, i) => x - d[i] * (small.r / kk)), t0 = small.r / kk, t1 = big.r / kk, A = cA.ps, B = cB.ps;
+      const tOf = p => dot([p[0] - apex[0], p[1] - apex[1], p[2] - apex[2]], d);
+      // how far round, and the widest step between two corners
+      const ux = (v => { const l = Math.hypot(...v); return v.map(x => x / l); })((wideB ? B : A)[0].map((x, i) => x - big.c[i])), w = [d[1] * ux[2] - d[2] * ux[1], d[2] * ux[0] - d[0] * ux[2], d[0] * ux[1] - d[1] * ux[0]];
+      const angs = (ps, c) => ps.map(p => { const q = [p[0] - c[0], p[1] - c[1], p[2] - c[2]]; return Math.atan2(dot(q, w), dot(q, ux)); }).sort((p, q) => p - q);
+      const gapsOf = an => an.map((x, i) => (i ? x - an[i - 1] : x + 2 * Math.PI - an[an.length - 1]));
+      const aw = angs(wideB ? B : A, big.c), gw = gapsOf(aw);
+      // (the other rings: their steps without the open stretch of a part of a ring)
+      const others = cs.filter(c => c !== big && c.r > 0.05).map(c => gapsOf(angs(c.ps, c.c)).sort((p, q) => q - p));
+      const med = gw.slice().sort((p, q) => p - q)[gw.length >> 1], wi = gw.indexOf(Math.max(...gw));
+      let seg = null, step = Math.max(...gw);
+      if (gw[wi] > 2.5 * med && gw[wi] > 0.5) {
+        const sweep = 2 * Math.PI - gw[wi];
+        if (sweep < 0.5) return null;
+        seg = { a0: aw[wi], sweep, u: ux, w };
+        step = Math.max(...gw.filter((_, i) => i !== wi), ...others.flatMap(g => g.slice(1)));
+      } else step = Math.max(step, ...others.flat());
+      if (!(step > 1e-4) || step > 1.3) return null;
+      // material inside (pin) or outside (hole)
+      let side = 0, star = 0;
+      const O = small.c;
+      for (const t of tris) {
+        const p = V(I[t * 3]), q = V(I[t * 3 + 1]), r3 = V(I[t * 3 + 2]), u = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], v = [r3[0] - p[0], r3[1] - p[1], r3[2] - p[2]];
+        const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], g = [(p[0] + q[0] + r3[0]) / 3, (p[1] + q[1] + r3[1]) / 3, (p[2] + q[2] + r3[2]) / 3];
+        const tt = tOf(g), rad = [g[0] - apex[0] - d[0] * tt, g[1] - apex[1] - d[1] * tt, g[2] - apex[2] - d[2] * tt];
+        side += Math.sign(dot(n, rad));
+        star += dot(n, [p[0] - O[0], p[1] - O[1], p[2] - O[2]]) / 6;
+      }
+      if (Math.abs(side) !== tris.length) return null;
+      // what the facets leave out of the cone: both seen from the centre of the small ring
+      // (… and the cone from that centre to the wide ring reaches further where the ring is a circle, not a polygon)
+      const lune = gw.reduce((q, g, i) => q + (seg && i === wi ? 0 : g - Math.sin(g)), 0);
+      const vol = ((seg ? seg.sweep : 2 * Math.PI) / 2) * (h / 3) * (small.r * small.r + small.r * big.r) - Math.abs(star) + (h / 3) * 0.5 * big.r * big.r * lune;
+      if (!(vol > 0)) return null;
+      return { apex, d, t0, t1, r0: small.r, r1: big.r, hole: side < 0, n: Math.max(minFacets, Math.floor((2 * Math.PI) / step)), vol, ...(seg || {}) };
+    };
+    {
+      // without the large flat faces that run on from it (the chamfer between two rounded corners), piece by piece
+      const keep = regs.map((_, i) => i).filter(i => area[bigIdx[i]] <= 20 * amed), at = new Map(keep.map(i => [regs[i], i])), pr = new Map(keep.map(i => [i, i]));
+      const fd = x => { while (pr.get(x) !== x) { pr.set(x, pr.get(pr.get(x))); x = pr.get(x); } return x; };
+      for (const [p, q] of soft) { const i = at.get(p), j = at.get(q); if (i === undefined || j === undefined) continue; const ri = fd(i), rj = fd(j); if (ri !== rj) pr.set(rj, ri); }
+      const groups = new Map();
+      for (const i of keep) { const g = fd(i); let l = groups.get(g); if (!l) groups.set(g, (l = [])); l.push(i); }
+      const found = [];
+      for (const l of groups.values()) { if (l.length < minSeg) continue; const rc = ringCone(l.map(i => regs[i]), l.map(i => nrm[i])); if (rc) found.push(rc); }
+      if (found.length) { cones.push(...found); continue; }
+    }
+    sph: {
+    if (regs.length < minFacets) break sph;
+    // ---- a sphere: every corner at the same distance from one point ----
+    // (a large flat face that runs on from the patch – the plate under a low dome – is not part of it)
+    const keepI = regs.map((_, i) => i).filter(i => area[bigIdx[i]] <= 20 * amed), regsS = keepI.map(i => regs[i]), nrmS = keepI.map(i => nrm[i]);
+    if (regsS.length < minFacets) break sph;
+    const trisS = regsS.flatMap(r => T.get(r)), pts = [...new Set(trisS.flatMap(t => [I[t * 3], I[t * 3 + 1], I[t * 3 + 2]]))].map(V);
+    const fit = ps => {
+      const g = [0, 1, 2].map(k => ps.reduce((a, p) => a + p[k], 0) / ps.length);
+      const M4 = Array.from({ length: 4 }, () => [0, 0, 0, 0]), b4 = [0, 0, 0, 0];
+      for (const p of ps) { const x = [p[0] - g[0], p[1] - g[1], p[2] - g[2], 1], z = x[0] * x[0] + x[1] * x[1] + x[2] * x[2]; for (let i = 0; i < 4; i++) { b4[i] += x[i] * z; for (let j = 0; j < 4; j++) M4[i][j] += x[i] * x[j]; } }
+      const sol = solveN(M4, b4);
+      if (!sol) return null;
+      const r2 = sol[3] + (sol[0] * sol[0] + sol[1] * sol[1] + sol[2] * sol[2]) / 4;
+      return r2 > 1e-6 ? { c: [sol[0] / 2 + g[0], sol[1] / 2 + g[1], sol[2] / 2 + g[2]], r: Math.sqrt(r2) } : null;
+    };
+    // the corners of the facets lie on the sphere; points a cut has made lie on the facets, a little inside:
+    // they are left out of the fit, and may be up to the height of a facet's bulge inside
+    let S = fit(pts), onS = pts;
+    // best: the true corners of the facets – where three or more of them meet. (A point a cut has made lies on
+    // an edge between two facets or inside one.)
+    {
+      const pk = v => Math.round(P[v * 3] * 1e4) + "," + Math.round(P[v * 3 + 1] * 1e4) + "," + Math.round(P[v * 3 + 2] * 1e4);
+      const cnt = new Map();
+      for (const t of trisS) for (let q = 0; q < 3; q++) { const k = pk(I[t * 3 + q]), e = cnt.get(k); if (e) e[0].add(reg[t]); else cnt.set(k, [new Set([reg[t]]), I[t * 3 + q]]); }
+      const inner = [...cnt.values()].filter(e => e[0].size >= 3).map(e => V(e[1])), Si = inner.length >= 12 ? fit(inner) : null;
+      if (Si && inner.every(p => Math.abs(Math.hypot(p[0] - Si.c[0], p[1] - Si.c[1], p[2] - Si.c[2]) - Si.r) < Math.max(2e-3, 2e-4 * Si.r))) { S = Si; onS = null; }
+    }
+    // (the band is drawn tighter step by step: a first fit through all points is still off)
+    for (const bnd of onS ? [5e-3, 2e-3, 1e-3, 5e-4, 2e-4] : []) {
+      if (!S) break;
+      const dist = p => Math.hypot(p[0] - S.c[0], p[1] - S.c[1], p[2] - S.c[2]) - S.r, top = Math.max(...pts.map(dist));
+      const keep = pts.filter(p => dist(p) > top - Math.max(2e-3, bnd * S.r));
+      if (keep.length < 8) break;
+      const S2 = fit(keep);
+      if (!S2) break;
+      S = S2; onS = keep;
+    }
+    if (!S || (onS && onS.length < Math.max(8, 0.15 * pts.length))) break sph;
+    const c = S.c, r = S.r, tol = Math.max(3e-3, 1.5e-3 * r);
+    if (pts.some(p => { const e = Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) - r; return e > tol || e < -0.04 * r - tol; })) break sph;
+    // the normals look away from the centre (ball) or to it (hollow); the volume under the sphere and over the facets
+    let side = 0, vol = 0, okS = true;
+    for (const t of trisS) {
+      const A = V(I[t * 3]).map((x, k) => x - c[k]), B = V(I[t * 3 + 1]).map((x, k) => x - c[k]), Cc = V(I[t * 3 + 2]).map((x, k) => x - c[k]);
+      const det = A[0] * (B[1] * Cc[2] - B[2] * Cc[1]) - A[1] * (B[0] * Cc[2] - B[2] * Cc[0]) + A[2] * (B[0] * Cc[1] - B[1] * Cc[0]);
+      const la = Math.hypot(...A), lb = Math.hypot(...B), lc = Math.hypot(...Cc), dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+      const om = 2 * Math.atan2(Math.abs(det), la * lb * lc + dot(A, B) * lc + dot(A, Cc) * lb + dot(B, Cc) * la);
+      vol += (r * r * r * om) / 3 - Math.abs(det) / 6;
+      const sgn = Math.sign(det);
+      if (side && sgn && sgn !== side) { okS = false; break; }
+      side = sgn || side;
+    }
+    if (!okS || !side) break sph;
+    // every facet lies across its radius (two rings of points alone – a cone, a cylinder – lie on a sphere too)
+    if (regsS.some((rg, i) => { const g = [0, 0, 0], tt = T.get(rg); for (const t of tt) for (let q = 0; q < 3; q++) { const p = V(I[t * 3 + q]); g[0] += p[0] - c[0]; g[1] += p[1] - c[1]; g[2] += p[2] - c[2]; } const l = Math.hypot(...g) || 1; return Math.abs(nrmS[i][0] * g[0] + nrmS[i][1] * g[1] + nrmS[i][2] * g[2]) / l < 0.97 || l / (3 * tt.length) < 0.955 * r; })) break sph;
+    // where the patch lies: the direction of its middle, how far it reaches from there, how deep its facets go
+    const ax = [0, 0, 0];
+    for (const p of pts) { const l = Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) || 1; ax[0] += (p[0] - c[0]) / l; ax[1] += (p[1] - c[1]) / l; ax[2] += (p[2] - c[2]) / l; }
+    const al = Math.hypot(...ax);
+    let alpha = Math.PI, rin = r;
+    if (al > 1e-6 * pts.length) { ax[0] /= al; ax[1] /= al; ax[2] /= al; alpha = Math.max(...pts.map(p => Math.acos(Math.max(-1, Math.min(1, ((p[0] - c[0]) * ax[0] + (p[1] - c[1]) * ax[1] + (p[2] - c[2]) * ax[2]) / (Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) || 1)))))); }
+    regsS.forEach((rg, i) => { const p = V(I[T.get(rg)[0] * 3]); rin = Math.min(rin, Math.abs(nrmS[i][0] * (p[0] - c[0]) + nrmS[i][1] * (p[1] - c[1]) + nrmS[i][2] * (p[2] - c[2]))); });
+    spheres.push({ c, r, hole: side < 0, vol, n: trisS.length, ax, alpha, rin });
+    continue;
+    }
+    {
+      // several parts of cones in one piece – the chamfer round a plate with rounded corners: the flat chamfers
+      // between them touch the cones (and pass through their apexes), so the strips are told apart by their
+      // size: the strips of one part of a cone are all alike
+      const areaB = bigIdx.map(i => area[i]), at = new Map(regs.map((r, i) => [r, i])), adj = regs.map(() => []);
+      for (const [a, b] of soft) { const i = at.get(a), j = at.get(b); if (i !== undefined && j !== undefined) { adj[i].push(j); adj[j].push(i); } }
+      const dOf = i => { const n = nrm[i], p = V(I[T.get(regs[i])[0] * 3]); return n[0] * p[0] + n[1] * p[1] + n[2] * p[2]; };
+      const free = new Set(regs.map((_, i) => i));
+      let found = 0;
+      for (let seed = 0; seed < regs.length; seed++) {
+        if (!free.has(seed)) continue;
+        const like = j => free.has(j) && Math.abs(areaB[j] - areaB[seed]) < 0.05 * areaB[seed];
+        const grp = [seed], seen = new Set([seed]);
+        for (let q = 0; q < grp.length; q++) for (const j of adj[grp[q]]) if (!seen.has(j) && like(j)) { seen.add(j); grp.push(j); }
+        if (grp.length <= minSeg) continue;
+        // (they have to meet in one point)
+        const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0];
+        for (const i of grp) { const n = nrm[i], dd = dOf(i); for (let x = 0; x < 3; x++) { b[x] += n[x] * dd; for (let y = 0; y < 3; y++) M[x][y] += n[x] * n[y]; } }
+        const ap = solveN(M, b);
+        if (!ap || grp.some(i => Math.abs(nrm[i][0] * ap[0] + nrm[i][1] * ap[1] + nrm[i][2] * ap[2] - dOf(i)) > 0.02)) continue;
+        const c2 = cone(grp.map(i => regs[i]), grp.map(i => nrm[i]));
+        if (c2) { cones.push(c2); for (const i of grp) free.delete(i); found++; }
+      }
+    }
+  }
+  return { cylinders, cones: cones.sort((a, b) => b.r1 - a.r1), spheres: spheres.sort((a, b) => b.r - a.r) };
+}
+
+/**
+ * Needles with two corners almost in one place (as cuts leave them) are closed: the two corners become one, the
+ * triangle disappears. A kernel cannot make a face of such a triangle – the solid would have a gap there. Only
+ * taken when a closed mesh stays closed.
+ */
+export function collapseNeedles(m, rel = 2e-3, abs = 2e-3) {
+  let cur = m;
+  const closed0 = stats(m).closed;
+  for (let pass = 0; pass < 4; pass++) {
+    const I = cur.idx, P = cur.pos, to = new Map(), root = v => { while (to.has(v)) v = to.get(v); return v; };
+    const d = (a, b) => Math.hypot(P[a * 3] - P[b * 3], P[a * 3 + 1] - P[b * 3 + 1], P[a * 3 + 2] - P[b * 3 + 2]);
+    for (let t = 0; t < I.length; t += 3) {
+      const v = [I[t], I[t + 1], I[t + 2]], l = [d(v[0], v[1]), d(v[1], v[2]), d(v[2], v[0])], k = l.indexOf(Math.min(...l)), lmax = Math.max(...l);
+      if (l[k] > abs || l[k] > rel * lmax) continue;
+      const a = root(v[k]), b = root(v[(k + 1) % 3]);
+      if (a !== b) to.set(b, a);
+    }
+    if (!to.size) break;
+    const idx = new Uint32Array(I.length);
+    for (let i = 0; i < I.length; i++) idx[i] = root(I[i]);
+    const next = cleanTris({ pos: P, idx });
+    if (closed0 && !stats(next).closed) break;
+    cur = next;
+  }
+  return cur;
 }

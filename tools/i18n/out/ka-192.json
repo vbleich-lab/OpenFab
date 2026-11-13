@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "ჯიბე გარე ზედაპირზე",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "ჯიბე გარსშემოსავლზე ესკიზის დახურული კონტურებიდან, რომელიც ბრუნვის ღერძის გასწვრივ მდებარეობს (შიდა კონტურები კუნძულებად რჩება). ესკიზი დიამეტრზე იხვევა; ღერძისკენ მიმართული ამძრავიანი თითისებრი ფრეზი მასალას შიგნიდან გარეთ აცლის (Z და C ერთად მოძრაობს; Fanuc: ცილინდრული ინტერპოლაცია G7.1). ფრეზი რადიალურად შედის.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "ტოლერანტობის მნიშვნელობა, მის შემდეგ ბაზები (გამოყოფილი ინტერვალით), მაგ. Ø0,05 A B. ფრჩხილებში მოცემული დანამატები იხატება წრეში ჩასმული ასოთი: Ø0,05(M) A(M) – (M) მაქსიმალური მასალა, (L) მინიმალური მასალა, (P) დაპროექტებული, (F) თავისუფალი მდგომარეობა, (E) მომცველი პირობა",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "ხარატული დამუშავება: Y ღერძი ჩართულია (სიბრტყე X/Y; აქვე ჩაწერეთ დაზგის C-დამჭერი)",
+ "Drehen: Y-Achse aus": "ხარატული დამუშავება: Y ღერძი გამორთულია",
+ "Y-Achse statt Polar-Interpolation": "Y ღერძი პოლარული ინტერპოლაციის ნაცვლად",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "ხარატული დაზგა Y ღერძით: გასაღების ზედაპირები, კონტურები და ჯიბეები ბოლო სიბრტყეზე სრულდება უძრავი დეტალით (C ფიქსირებული) X და Y მიმართულებით – უფრო ზუსტად, ვიდრე პოლარული ინტერპოლაცია. რაც Y სვლას სცილდება, პოლარულ ინტერპოლაციაზე რჩება.",
+ "Y-Verfahrweg (±)": "Y სვლა (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Y ღერძის უდიდესი სვლა ცენტრიდან, მმ-ში",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: ტრაექტორია სცილდება Y სვლას (± {1} mm) – გამოტანილია პოლარული ინტერპოლაციით",
+ "Tasche Mantelfläche (C-Achse)": "ჯიბე გარე ზედაპირზე (C ღერძი)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "ჯიბის ესკიზი ბრუნვის ღერძის გასწვრივ უნდა მდებარეობდეს (იგი გარსშემოსავლზე იხვევა) – ბოლო მხარისთვის გამოიყენეთ „ჯიბე ბოლო სიბრტყეზე“",
+ "Die Tasche liegt in Z nicht am Teil": "ჯიბე Z-ში დეტალზე არ მდებარეობს"
+}

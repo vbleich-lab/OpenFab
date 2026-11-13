@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Карман на цилиндре",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Карман на окружности по замкнутым контурам эскиза, расположенного вдоль оси вращения (внутренние контуры остаются островками). Эскиз наматывается на диаметр; приводной концевой фрезой, направленной к оси, материал выбирается изнутри наружу (Z и C перемещаются совместно; Fanuc: цилиндрическая интерполяция G7.1). Фреза врезается радиально.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Значение допуска, далее базы (через пробел), например Ø0,05 A B. Дополнения в скобках рисуются буквой в круге: Ø0,05(M) A(M) – (M) максимум материала, (L) минимум материала, (P) проекционный допуск, (F) свободное состояние, (E) требование огибающей",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Точение: ось Y включена (плоскость X/Y; здесь также указать зажим оси C станка)",
+ "Drehen: Y-Achse aus": "Точение: ось Y выключена",
+ "Y-Achse statt Polar-Interpolation": "Ось Y вместо полярной интерполяции",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Токарный станок с осью Y: лыски под ключ, контуры и карманы на торце обрабатываются при неподвижной детали (C зафиксирована) по X и Y – точнее, чем при полярной интерполяции. Что выходит за ход по Y, остаётся на полярной интерполяции.",
+ "Y-Verfahrweg (±)": "Ход по Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Наибольший ход оси Y от центра, в мм",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: траектория выходит за ход по Y (± {1} мм) – выведена с полярной интерполяцией",
+ "Tasche Mantelfläche (C-Achse)": "Карман на цилиндре (ось C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Эскиз кармана должен располагаться вдоль оси вращения (он наматывается на окружность) – для торца использовать «Карман на торце»",
+ "Die Tasche liegt in Z nicht am Teil": "Карман по Z не лежит на детали"
+}

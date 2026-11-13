@@ -36,6 +36,13 @@ export const ICONS = {
   mesh_transform: svg(P('M3 19 12 4l9 15z', 'f1') + P('M12 9v10M7 14h10M12 9l-2 2M12 9l2 2', 'a')),
   mesh_flip: svg(P('M3 19 12 4l9 15z', 'f2') + P('M12 9v6M10 13l2 2 2-2', 'a')),
   mesh_split: svg(P('M2 19 7 9l5 10z', 'f2') + P('M12 15 17 5l5 10z', 'f3')),
+  mesh_mirror: svg(P('M12 3v18', 'a').replace('/>', ' stroke-dasharray="2 2"/>') + P('M9.5 6 3.5 18h6z', 'f2') + P('M5.5 14h4M7.5 10v8') + P('M14.5 6l6 12h-6z', 'f1')),
+  mesh_combine: svg(P('M2 19 8 8l6 11z', 'f2') + P('M10 19 16 8l6 11z', 'f1') + P('M12 5v6M9 8h6', 'a')),
+  mesh_boolean: svg(P('M2 19 8 8l6 11z', 'f2') + P('M10 19 16 8l6 11z', 'f1') + P('M10 19l2-3.7 2 3.7z', 'af')),
+  mesh_refine: svg(P('M3 19 12 4l9 15z', 'f2') + P('M7.5 11.5h9M7.5 11.5 12 19l4.5-7.5M5.25 15.25h13.5M9.75 7.75h4.5', 'a')),
+  mesh_tobody: svg(P('M2 14 6 6l4 8z', 'f2') + P('M4 10h4M6 6v8') + P('M10 11h4M12 9l2 2-2 2', 'a') + P('M15 9l4-2 3 2v7l-4 2-3-2z', 'f1') + P('M15 9l3 2 4-2M18 11v7')),
+  mesh_frombody: svg(P('M2 9l4-2 3 2v7l-4 2-3-2z', 'f1') + P('M2 9l3 2 4-2M5 11v7') + P('M10 11h4M12 9l2 2-2 2', 'a') + P('M14 16 18 7l4 9z', 'f2') + P('M16 11.5h4M18 7v9')),
+  mesh_section: svg(P('M3 19 12 4l9 15z', 'f2') + P('M2 13h20', 'r') + P('M8.4 13h7.2', 'a').replace('/>', ' stroke-width="2.4"/>')),
 
   // ---------- skizze ----------
   sketch: svg(R(3, 13, 14, 8, 'f1', 1) + P('M8 19h3.5L21 9.5l-3.5-3.5L8 15.5z', 'f2') + P('M16 7.5l3.5 3.5') + P('M8 19l1.2-3.3 2.1 2.1z', 'k')),
@@ -104,6 +111,9 @@ export const ICONS = {
   axis2pt: svg(P('M3 21 21 3', 'a').replace('/>', ' stroke-dasharray="3 2"/>') + C(7, 17, 2, 'af') + C(17, 7, 2, 'af')),
   axisPlanes: svg(P('M2 16l6-6h14l-6 6z', 'f1') + P('M9 3v13l6 5V8z', 'f2') + P('M12 2v20', 'a')),
   cpoint: svg(P('M12 3v18M3 12h18', '').replace('/>', ' opacity=".35"/>') + C(12, 12, 3.6, 'af')),
+  flat: svg(P('M3 8h18v8H3z', 'f1') + P('M8 8v8M16 8v8', 'a').replace('/>', ' stroke-dasharray="2 1.5"/>') + P('M3 8h18v8H3z')),
+  nest: svg(R(2, 4, 20, 16, 'f1', 1) + R(4, 6, 7, 5, 'f2') + R(12.5, 6, 7.5, 5, 'f2') + R(4, 13, 10, 5, 'f2') + R(15.5, 13, 4.5, 5, 'f2')),
+  flat_dxf: svg(P('M3 6h18v8H3z', 'f1') + P('M8 6v8M16 6v8', 'a').replace('/>', ' stroke-dasharray="2 1.5"/>') + P('M12 15v6M9.5 18.5 12 21l2.5-2.5', 'a')),
   sheet: svg(P('M4 15l8-4 8 4-8 4z', 'f1') + P('M4 15v2l8 4v-2zM12 19v2l8-4v-2z', 'f2') + P('M12 11V5l8-4', 'a')),
   section: svg(isoBox(12, 3, 8, 9) + P('M2 14l20-6', 'a').replace('/>', ' stroke-dasharray="3 2"/>')),
   component: svg(isoBox(11, 6, 7, 7) + P('M19 2v6M16 5h6', 'a')),

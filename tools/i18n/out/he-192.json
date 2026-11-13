@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "כיס על הקוטר החיצוני",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "כיס על ההיקף מתוך הקונטורים הסגורים של סקיצה המונחת לאורך ציר הסיבוב (קונטורים פנימיים נשארים כאיים). הסקיצה נעטפת על הקוטר; כרסום קצה מונע המכוון אל הציר מבצע חספוס מבפנים החוצה (Z ו-C נעים יחד; ב-Fanuc: אינטרפולציה גלילית G7.1). הכרסום חודר ברדיאליות.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "ערך הסבולת ואחריו הייחוסים (מופרדים ברווחים), למשל Ø0,05 A B. תוספות בסוגריים מצוירות כאות בתוך עיגול: Ø0,05(M) A(M) – (M) חומר מרבי, (L) חומר מזערי, (P) מוקרן, (F) מצב חופשי, (E) תנאי מעטפת",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "חריטה: ציר Y פעיל (מישור X/Y; יש להזין כאן גם את פקודת הנעילה של C במכונה)",
+ "Drehen: Y-Achse aus": "חריטה: ציר Y כבוי",
+ "Y-Achse statt Polar-Interpolation": "ציר Y במקום אינטרפולציה קוטבית",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "מחרטה עם ציר Y: משטחי מפתח, קונטורים וכיסים על הפנים הקדמית מבוצעים כשהחלק נייח (C נעול) ב-X וב-Y – בדיוק רב יותר מאינטרפולציה קוטבית. מה שחורג ממהלך Y נשאר באינטרפולציה קוטבית.",
+ "Y-Verfahrweg (±)": "מהלך Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "המהלך המרבי של ציר Y מהמרכז, במ\"מ",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: המסלול חורג ממהלך Y (± {1} מ\"מ) – הופק באינטרפולציה קוטבית",
+ "Tasche Mantelfläche (C-Achse)": "כיס על המשטח הגלילי (ציר C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "סקיצת הכיס חייבת להיות מונחת לאורך ציר הסיבוב (היא נעטפת על ההיקף) – עבור הפנים הקדמית יש להשתמש ב„כיס על הפנים הקדמית“",
+ "Die Tasche liegt in Z nicht am Teil": "הכיס אינו נמצא על החלק בכיוון Z"
+}

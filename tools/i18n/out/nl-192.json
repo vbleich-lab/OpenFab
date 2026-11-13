@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Kamer op diameter",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Kamer op de omtrek uit de gesloten contouren van een schets die langs de draaias ligt (binnencontouren blijven als eilanden staan). De schets wordt om de diameter gewikkeld; een aangedreven vingerfrees die naar de as wijst, ruimt van binnen naar buiten uit (Z en C bewegen samen; Fanuc: cilinderinterpolatie G7.1). De frees dringt radiaal in.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Toleranciewaarde, daarachter de referenties (gescheiden door spaties), bijv. Ø0,05 A B. Toevoegingen tussen haakjes worden als letter in een cirkel getekend: Ø0,05(M) A(M) – (M) maximaal materiaal, (L) minimaal materiaal, (P) geprojecteerd, (F) vrije toestand, (E) omhullingsvoorwaarde",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Draaien: Y-as aan (vlak X/Y; voer hier ook de C-klemming van de machine in)",
+ "Drehen: Y-Achse aus": "Draaien: Y-as uit",
+ "Y-Achse statt Polar-Interpolation": "Y-as in plaats van poolinterpolatie",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Draaibank met Y-as: sleutelvlakken, contouren en kamers op het voorvlak worden bij stilstaand werkstuk (C vast) in X en Y gevolgd – nauwkeuriger dan poolinterpolatie. Wat buiten de Y-slag valt, blijft met poolinterpolatie.",
+ "Y-Verfahrweg (±)": "Y-slag (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Grootste verplaatsing van de Y-as vanuit het midden, in mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: de baan gaat voorbij de Y-slag (± {1} mm) – uitgevoerd met poolinterpolatie",
+ "Tasche Mantelfläche (C-Achse)": "Kamer op manteloppervlak (C-as)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "De schets van de kamer moet langs de draaias liggen (ze wordt om de omtrek gewikkeld) – voor de voorzijde „Kamer op voorvlak“",
+ "Die Tasche liegt in Z nicht am Teil": "De kamer ligt in Z niet op het werkstuk"
+}

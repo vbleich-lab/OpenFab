@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Kenar {0} (daire R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Kenar {0} (yay R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} konik/küresel yüzey gerçek yüzey olarak",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "“{0}” artık aynı zamanda bir gövde (radyus, kesme, 2D işleme mümkün){1}{2}{3}. Ağ gizlendi.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Kenar {0}: yay bu flanş için fazla dar",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Kenar {0}: eğri kenardaki flanş – kenarı şekillendirme sırasında %{1} sıkışır (kırışma riski); kesim parçası orada bir yaklaşıklıktır.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Kenar {0}: eğri kenardaki flanş – kenarı şekillendirme sırasında %{1} uzar (çatlama riski); kesim parçası orada bir yaklaşıklıktır.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Kenar {0}: eğri kenardaki flanştaki kesimler kesilmez."
+}

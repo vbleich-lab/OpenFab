@@ -1,0 +1,22 @@
+{
+ "Koordinaten am Mauszeiger": "إحداثيات مؤشر الفأرة",
+ "Zeigt in der Skizze X und Y des Mauszeigers unten links": "يعرض X وY لمؤشر الفأرة في أسفل اليسار أثناء الرسم التخطيطي",
+ "Eigenes Design": "تصميم مخصص",
+ "Fläche hinter den Fenstern – gilt, wenn oben das Design „Eigenes“ gewählt ist": "المساحة خلف النوافذ – تسري عند اختيار التصميم „مخصص“ في الأعلى",
+ "Fenster und Leisten": "النوافذ والأشرطة",
+ "Dunkle Farbe = dunkles Design, helle Farbe = helles Design": "لون داكن = تصميم داكن، لون فاتح = تصميم فاتح",
+ "Sollte sich deutlich von „Fenster und Leisten“ abheben": "ينبغي أن يتمايز بوضوح عن „النوافذ والأشرطة“",
+ "Linien und Ränder": "الخطوط والحدود",
+ "Titelleiste": "شريط العنوان",
+ "Kantenglättung": "تنعيم الحواف",
+ "Glättet die Kanten im 3D-Bild; wirkt nach einem Neustart des Programms": "ينعّم الحواف في العرض ثلاثي الأبعاد؛ يسري بعد إعادة تشغيل البرنامج",
+ "Bodenschatten": "ظل الأرضية",
+ "Weicher Schatten unter dem Modell (Arbeitsbereich Konstruktion)": "ظل ناعم تحت النموذج (مساحة عمل التصميم)",
+ "Eigenes": "مخصص",
+ "Design als Datei": "التصميم كملف",
+ "Design, Farben, Symbole, Form und Schrift in einer Datei – zum Weitergeben oder für einen anderen Rechner": "التصميم والألوان والرموز والشكل والخط في ملف واحد – للمشاركة أو للاستخدام على حاسوب آخر",
+ "Speichern …": "حفظ …",
+ "Design geladen – mit „Übernehmen“ wird es wirksam.": "تم تحميل التصميم – يسري عند الضغط على „تطبيق“.",
+ "Das ist keine WerkFab-Design-Datei.": "هذا ليس ملف تصميم WerkFab.",
+ "Laden …": "تحميل …"
+}

@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "انحدار على امتداد المسار",
+ "Gerade (radial)": "مستقيم (شعاعي)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "جيب على المحيط الخارجي من الكفافات المغلقة لرسم تخطيطي يقع بمحاذاة محور الدوران (تبقى الكفافات الداخلية كجزر). يُلَفّ الرسم التخطيطي على القطر؛ وتقوم مطحنة طرفية مسطحة مدارة موجهة نحو المحور بالإزالة من الداخل إلى الخارج (يتحرك Z وC معًا؛ في Fanuc: الاستيفاء الأسطواني G7.1). تغوص القاطعة على مسار منحدر على امتداد الحلقة الأعمق.",
+ "+ Neue Maschine": "+ آلة جديدة",
+ "+ Neue Vorgabe": "+ إعداد مسبق جديد"
+}

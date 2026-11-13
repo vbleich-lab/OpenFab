@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Tasku vaippapinnalle",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Tasku kehälle luonnoksen suljetuista ääriviivoista, joka on pyörintäakselin suuntainen (sisemmät ääriviivat jäävät saarekkeiksi). Luonnos kierretään halkaisijan ympärille; akselia kohti osoittava moottoroitu päätyjyrsin poistaa materiaalia sisältä ulospäin (Z ja C liikkuvat yhdessä; Fanuc: sylinteri-interpolointi G7.1). Jyrsin sukeltaa säteen suunnassa.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Toleranssiarvo ja sen perässä vertailupinnat (välilyönnillä erotettuina), esim. Ø0,05 A B. Sulkeissa olevat lisät piirretään kirjaimena ympyrässä: Ø0,05(M) A(M) – (M) maksimimateriaali, (L) minimimateriaali, (P) projisoitu, (F) vapaa tila, (E) vaippaehto",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Sorvaus: Y-akseli päällä (taso X/Y; kirjaa tähän myös koneen C-lukitus)",
+ "Drehen: Y-Achse aus": "Sorvaus: Y-akseli pois",
+ "Y-Achse statt Polar-Interpolation": "Y-akseli napakoordinaatti-interpoloinnin sijaan",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Sorvi Y-akselilla: avainpinnat, ääriviivat ja taskut otsapinnalla ajetaan kappaleen ollessa paikallaan (C lukittu) X- ja Y-suunnassa – tarkemmin kuin napakoordinaatti-interpoloinnilla. Y-liikematkan ylittävä osa jää napakoordinaatti-interpoloinnille.",
+ "Y-Verfahrweg (±)": "Y-liikematka (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Y-akselin suurin liikematka keskeltä, mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: rata ylittää Y-liikematkan (± {1} mm) – tulostettu napakoordinaatti-interpoloinnilla",
+ "Tasche Mantelfläche (C-Achse)": "Tasku vaippapinnalle (C-akseli)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Taskun luonnoksen on oltava pyörintäakselin suuntainen (se kierretään kehälle) – otsapintaa varten käytä toimintoa „Tasku otsapinnalle“",
+ "Die Tasche liegt in Z nicht am Teil": "Tasku ei ole kappaleen kohdalla Z-suunnassa"
+}

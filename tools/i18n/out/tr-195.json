@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "Yol boyunca rampa",
+ "Gerade (radial)": "Düz (radyal)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "Tornalama eksenine paralel yerleştirilmiş bir eskizin kapalı konturlarından çevre üzerinde cep (iç konturlar ada olarak kalır). Eskiz çapa sarılır; eksene bakan tahrikli bir parmak freze içten dışa doğru talaş kaldırır (Z ve C birlikte hareket eder; Fanuc: silindirik enterpolasyon G7.1). Freze, en içteki halka boyunca rampa ile dalar.",
+ "+ Neue Maschine": "+ Yeni makine",
+ "+ Neue Vorgabe": "+ Yeni ön ayar"
+}

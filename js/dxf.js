@@ -131,12 +131,14 @@ const r6 = v => +(+v).toFixed(6);
 export function writeDXF(entities) {
   const out = ['0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', '4', '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES'];
   for (const e of entities) {
-    if (e.type === 'circle') { out.push('0', 'CIRCLE', '8', '0', '10', r6(e.cx), '20', r6(e.cy), '30', '0', '40', r6(e.r)); continue; }
+    // e.layer: the layer of the entity (bend lines of a flat pattern go to a layer of their own)
+    const ly = e.layer || '0';
+    if (e.type === 'circle') { out.push('0', 'CIRCLE', '8', ly, '10', r6(e.cx), '20', r6(e.cy), '30', '0', '40', r6(e.r)); continue; }
     for (const o of entityOutlines(e)) {
       if (o.pts.length < 2) continue;
-      out.push('0', 'POLYLINE', '8', '0', '66', '1', '10', '0', '20', '0', '30', '0', '70', o.closed ? '1' : '0');
-      for (const [x, y] of o.pts) out.push('0', 'VERTEX', '8', '0', '10', r6(x), '20', r6(y), '30', '0');
-      out.push('0', 'SEQEND', '8', '0');
+      out.push('0', 'POLYLINE', '8', ly, '66', '1', '10', '0', '20', '0', '30', '0', '70', o.closed ? '1' : '0');
+      for (const [x, y] of o.pts) out.push('0', 'VERTEX', '8', ly, '10', r6(x), '20', r6(y), '30', '0');
+      out.push('0', 'SEQEND', '8', ly);
     }
   }
   out.push('0', 'ENDSEC', '0', 'EOF');

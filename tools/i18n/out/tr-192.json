@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Çevre cebi",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Dönme eksenine paralel duran bir eskizin kapalı konturlarından çevre üzerinde cep (iç konturlar ada olarak kalır). Eskiz çapa sarılır; eksene bakan tahrikli bir parmak freze içten dışa doğru boşaltır (Z ve C birlikte hareket eder; Fanuc: silindir enterpolasyonu G7.1). Freze radyal olarak dalar.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Tolerans değeri, ardından datumlar (boşlukla ayrılmış), ör. Ø0,05 A B. Parantez içindeki eklemeler daire içinde harf olarak çizilir: Ø0,05(M) A(M) – (M) maksimum malzeme, (L) minimum malzeme, (P) izdüşümlü, (F) serbest durum, (E) zarf koşulu",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Tornalama: Y ekseni açık (X/Y düzlemi; makinenin C kelepçesini de buraya girin)",
+ "Drehen: Y-Achse aus": "Tornalama: Y ekseni kapalı",
+ "Y-Achse statt Polar-Interpolation": "Polar enterpolasyon yerine Y ekseni",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Y eksenli torna tezgâhı: alın yüzeyindeki anahtar ağzı yüzeyleri, konturlar ve cepler, parça sabitken (C sabit) X ve Y ile işlenir – polar enterpolasyondan daha hassastır. Y strokunu aşan kısımlar polar enterpolasyonla kalır.",
+ "Y-Verfahrweg (±)": "Y stroku (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Y ekseninin merkezden en büyük yolu, mm cinsinden",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: Yol, Y strokunu (± {1} mm) aşıyor – polar enterpolasyonla çıktılandı",
+ "Tasche Mantelfläche (C-Achse)": "Çevre yüzeyi cebi (C ekseni)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Cebin eskizi dönme eksenine paralel olmalıdır (çevreye sarılır) – alın yüzeyi için „Alın yüzeyi cebi“ kullanın",
+ "Die Tasche liegt in Z nicht am Teil": "Cep, Z yönünde parça üzerinde değil"
+}

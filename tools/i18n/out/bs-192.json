@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Džep na omotaču",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Džep na obimu iz zatvorenih kontura skice koja leži duž ose tokarenja (unutrašnje konture ostaju kao ostrva). Skica se namotava na prečnik; pogonjena prstasta glodalica usmjerena prema osi uklanja materijal iznutra prema van (Z i C se kreću zajedno; Fanuc: cilindrična interpolacija G7.1). Glodalica uranja radijalno.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Vrijednost tolerancije, iza nje baze (odvojene razmakom), npr. Ø0,05 A B. Dodaci u zagradama crtaju se kao slovo u krugu: Ø0,05(M) A(M) – (M) maksimum materijala, (L) minimum materijala, (P) projicirano, (F) slobodno stanje, (E) uvjet ovojnice",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Tokarenje: Y-osa uključena (ravan X/Y; ovdje upišite i C-stezanje mašine)",
+ "Drehen: Y-Achse aus": "Tokarenje: Y-osa isključena",
+ "Y-Achse statt Polar-Interpolation": "Y-osa umjesto polarne interpolacije",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Tokarilica s Y-osom: ključne površine, konture i džepovi na čelu izvode se s nepokretnim dijelom (C fiksna) u X i Y – preciznije od polarne interpolacije. Ono što prelazi Y-hod ostaje na polarnoj interpolaciji.",
+ "Y-Verfahrweg (±)": "Y-hod (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Najveći hod Y-ose od sredine, u mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}: putanja prelazi Y-hod (± {1} mm) – ispisano s polarnom interpolacijom",
+ "Tasche Mantelfläche (C-Achse)": "Džep na omotaču (C-osa)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "Skica džepa mora ležati duž ose tokarenja (namotava se na obim) – za čeonu stranu koristite „Džep na čelu“",
+ "Die Tasche liegt in Z nicht am Teil": "Džep u Z ne leži na dijelu"
+}

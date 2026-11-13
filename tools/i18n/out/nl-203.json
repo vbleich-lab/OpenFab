@@ -1,0 +1,10 @@
+{
+ "Kante {0} (Kreis R{1}, {2} mm)": "Rand {0} (cirkel R{1}, {2} mm)",
+ "Kante {0} (Bogen R{1}, {2} mm)": "Rand {0} (boog R{1}, {2} mm)",
+ "– {0} Kegel-/Kugelflächen als echte Flächen": "– {0} kegel-/bolvlakken als echte vlakken",
+ "„{0}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich){1}{2}{3}. Das Netz ist ausgeblendet.": "„{0}” is nu ook een lichaam (afronding, uitsnijden, 2D-bewerking mogelijk){1}{2}{3}. De mesh is verborgen.",
+ "Kante {0}: der Bogen ist zu eng für diese Lasche": "Rand {0}: de boog is te krap voor deze flens",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestaucht (Faltengefahr); der Zuschnitt ist dort eine Näherung.": "Rand {0}: flens op een gebogen rand – de rand wordt bij het vormen {1} % samengedrukt (kans op plooien); de uitslag is daar een benadering.",
+ "Kante {0}: Lasche an einer gebogenen Kante – ihr Rand wird beim Umformen um {1} % gestreckt (Rissgefahr); der Zuschnitt ist dort eine Näherung.": "Rand {0}: flens op een gebogen rand – de rand wordt bij het vormen {1} % uitgerekt (kans op scheuren); de uitslag is daar een benadering.",
+ "Kante {0}: Ausschnitte in einer Lasche an einer gebogenen Kante werden nicht geschnitten.": "Rand {0}: uitsparingen in een flens op een gebogen rand worden niet uitgesneden."
+}

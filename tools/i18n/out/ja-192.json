@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "外周ポケット",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "回転軸に沿って配置されたスケッチの閉じた輪郭から、外周上にポケットを作成します（内側の輪郭はアイランドとして残ります）。スケッチは直径に巻き付けられ、軸に向いた駆動式エンドミルが内側から外側へ荒取りします（ZとCが同時に動作。Fanuc：円筒補間 G7.1）。エンドミルは半径方向に切り込みます。",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "公差値と、それに続くデータム（スペースで区切る）。例：Ø0,05 A B。括弧内の付加記号は円で囲んだ文字として描画されます：Ø0,05(M) A(M) – (M) 最大実体、(L) 最小実体、(P) 突出公差域、(F) 自由状態、(E) 包絡の条件",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "旋削：Y軸オン（X/Y平面。ここに機械のCクランプも入力してください）",
+ "Drehen: Y-Achse aus": "旋削：Y軸オフ",
+ "Y-Achse statt Polar-Interpolation": "極座標補間の代わりにY軸を使用",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Y軸付き旋盤：端面のレンチ面、輪郭、ポケットは、ワークを固定（C固定）したままXとYで加工します。極座標補間より高精度です。Y軸ストロークを超える部分は極座標補間のままになります。",
+ "Y-Verfahrweg (±)": "Y軸ストローク（±）",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "中心からのY軸の最大移動量（mm）",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0}：パスがY軸ストローク（± {1} mm）を超えています。極座標補間で出力しました",
+ "Tasche Mantelfläche (C-Achse)": "外周面ポケット（C軸）",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "ポケットのスケッチは回転軸に沿って配置する必要があります（外周に巻き付けられます）。端面には「端面ポケット」を使用してください",
+ "Die Tasche liegt in Z nicht am Teil": "ポケットがZ方向でワーク上にありません"
+}

@@ -1,0 +1,7 @@
+{
+ "Rampe entlang der Bahn": "経路に沿ったランプ",
+ "Gerade (radial)": "直線(半径方向)",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht auf einer Rampe entlang des innersten Rings ein.": "旋盤軸に沿って配置されたスケッチの閉じた輪郭から、外周上にポケットを作成します(内側の輪郭は島として残ります)。スケッチは直径に巻き付けられ、軸方向を向いた駆動式エンドミルが内側から外側へ加工します(ZとCが同時に動作、Fanuc:円筒補間G7.1)。カッターは最も内側のリングに沿ってランプで切り込みます。",
+ "+ Neue Maschine": "+ 新規マシン",
+ "+ Neue Vorgabe": "+ 新規プリセット"
+}

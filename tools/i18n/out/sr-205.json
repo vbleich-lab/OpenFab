@@ -1,0 +1,10 @@
+{
+ "Laschenmaß": "Мера прирубнице",
+ "Gerader Teil (nach der Biegung)": "Раван део (после савијања)",
+ "Außenmaß (ab Außenfläche der Platte)": "Спољна мера (од спољне површине плоче)",
+ "Innenmaß (ab Innenfläche der Platte)": "Унутрашња мера (од унутрашње површине плоче)",
+ "Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil. Auch eine Lasche an einer gebogenen Kante wird an einer echten Ecke auf Gehrung geschnitten (dort ohne Eckfreistellung).": "Затворено: краци на две суседне ивице иду до симетрале угла и тамо остављају зазор. Растерећење угла налази се тамо где се зоне савијања укрштају – у развијеном и у савијеном делу. И крак на закривљеној ивици се на правом углу сече на герунг (тамо без растерећења угла).",
+ "Presskraft": "Сила пресовања",
+ "Presskraft: Richtwert für freies Biegen im Gesenk V = {0} mm mit Zugfestigkeit {1} N/mm² ({2}); kürzester Schenkel dafür etwa {3} mm. Größte Biegung: {4} kN.": "Сила пресовања: оријентациона вредност за слободно савијање у матрици V = {0} mm при затезној чврстоћи {1} N/mm² ({2}); најкраћи крак за то око {3} mm. Највеће савијање: {4} kN.",
+ "Kante {0}: das Laschenmaß {1} mm ist kleiner als die Biegung ({2} mm)": "Ивица {0}: мера прирубнице {1} mm мања је од савијања ({2} mm)"
+}

@@ -1,0 +1,15 @@
+{
+ "Tasche Mantel": "Poche sur diamètre",
+ "Tasche auf dem Umfang aus den geschlossenen Konturen einer Skizze, die längs zur Drehachse liegt (innere Konturen bleiben als Inseln stehen). Die Skizze wird auf den Durchmesser gewickelt; ein angetriebener Schaftfräser, der zur Achse zeigt, räumt von innen nach außen (Z und C fahren gemeinsam; Fanuc: Zylinder-Interpolation G7.1). Der Fräser taucht radial ein.": "Poche sur la circonférence à partir des contours fermés d'une esquisse située dans le sens de l'axe de rotation (les contours intérieurs subsistent comme îlots). L'esquisse est enroulée sur le diamètre ; une fraise à queue entraînée, dirigée vers l'axe, évide de l'intérieur vers l'extérieur (Z et C se déplacent simultanément ; Fanuc : interpolation cylindrique G7.1). La fraise plonge radialement.",
+ "Toleranzwert, dahinter die Bezüge (durch Leerzeichen getrennt), z. B. Ø0,05 A B. Zusätze in Klammern werden als Buchstabe im Kreis gezeichnet: Ø0,05(M) A(M) – (M) Maximum-Material, (L) Minimum-Material, (P) projiziert, (F) freier Zustand, (E) Hüllbedingung": "Valeur de tolérance suivie des références (séparées par des espaces), p. ex. Ø0,05 A B. Les compléments entre parenthèses sont dessinés comme une lettre dans un cercle : Ø0,05(M) A(M) – (M) maximum de matière, (L) minimum de matière, (P) projetée, (F) état libre, (E) exigence de l'enveloppe",
+ "Drehen: Y-Achse ein (Ebene X/Y; hier auch die C-Klemmung der Maschine eintragen)": "Tournage : axe Y activé (plan X/Y ; indiquer ici aussi le serrage C de la machine)",
+ "Drehen: Y-Achse aus": "Tournage : axe Y désactivé",
+ "Y-Achse statt Polar-Interpolation": "Axe Y au lieu de l'interpolation polaire",
+ "Drehmaschine mit Y-Achse: Schlüsselflächen, Konturen und Taschen auf der Planfläche fahren mit feststehendem Teil (C fest) in X und Y – genauer als die Polar-Interpolation. Was über den Y-Weg hinausgeht, bleibt bei der Polar-Interpolation.": "Tour avec axe Y : les méplats de clé, contours et poches sur la face sont usinés avec la pièce immobile (C fixe) en X et Y – plus précis que l'interpolation polaire. Ce qui dépasse la course Y reste en interpolation polaire.",
+ "Y-Verfahrweg (±)": "Course Y (±)",
+ "Größter Weg der Y-Achse aus der Mitte, in mm": "Course maximale de l'axe Y depuis le centre, en mm",
+ "{0}: Die Bahn geht über den Y-Verfahrweg (± {1} mm) hinaus – mit Polar-Interpolation ausgegeben": "{0} : la trajectoire dépasse la course Y (± {1} mm) – sortie en interpolation polaire",
+ "Tasche Mantelfläche (C-Achse)": "Poche sur diamètre (axe C)",
+ "Die Skizze der Tasche muss längs zur Drehachse liegen (sie wird auf den Umfang gewickelt) – für die Stirnseite „Tasche Planfläche“": "L'esquisse de la poche doit être située dans le sens de l'axe de rotation (elle est enroulée sur la circonférence) – pour la face frontale, utiliser « Poche sur face »",
+ "Die Tasche liegt in Z nicht am Teil": "La poche ne se trouve pas sur la pièce en Z"
+}

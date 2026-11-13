@@ -1,0 +1,10 @@
+{
+ "Laschenmaß": "Cote de la patte",
+ "Gerader Teil (nach der Biegung)": "Partie droite (après le pli)",
+ "Außenmaß (ab Außenfläche der Platte)": "Cote extérieure (depuis la face extérieure de la plaque)",
+ "Innenmaß (ab Innenfläche der Platte)": "Cote intérieure (depuis la face intérieure de la plaque)",
+ "Geschlossen: Laschen an zwei Nachbarkanten laufen bis zur Winkelhalbierenden der Ecke und lassen dort den Spalt frei. Die Eckfreistellung sitzt, wo sich die Biegezonen kreuzen – in der Abwicklung und im gebogenen Teil. Auch eine Lasche an einer gebogenen Kante wird an einer echten Ecke auf Gehrung geschnitten (dort ohne Eckfreistellung).": "Fermé : les pattes sur deux arêtes voisines s'étendent jusqu'à la bissectrice du coin et y laissent le jeu. Le dégagement d'angle se situe là où les zones de pliage se croisent – dans le dépliage et dans la pièce pliée. Une patte sur une arête courbe est elle aussi coupée en onglet à un vrai coin (sans dégagement d'angle à cet endroit).",
+ "Presskraft": "Force de pressage",
+ "Presskraft: Richtwert für freies Biegen im Gesenk V = {0} mm mit Zugfestigkeit {1} N/mm² ({2}); kürzester Schenkel dafür etwa {3} mm. Größte Biegung: {4} kN.": "Force de pressage : valeur indicative pour le pliage à l'air dans une matrice V = {0} mm avec une résistance à la traction de {1} N/mm² ({2}) ; aile la plus courte pour cela environ {3} mm. Pli le plus exigeant : {4} kN.",
+ "Kante {0}: das Laschenmaß {1} mm ist kleiner als die Biegung ({2} mm)": "Arête {0} : la cote de la patte {1} mm est inférieure au pli ({2} mm)"
+}
