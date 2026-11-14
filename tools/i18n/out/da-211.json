@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "Uden møtrik",
+ "Durchgangsbohrung durch alle Teile": "Gennemgående hul gennem alle dele",
+ "Gewindebohrung im untersten Teil": "Gevindhul i den nederste del",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "Gevindhul i den nederste del: det gennemgående hul ender, hvor den nederste del begynder; dér oprettes kernehullet med gevind – tre gevindgange dybere, end skruen rækker, eller gennem hele delen. Ligger der kun én del under punktet, får den gevind fra fladen.",
+ "Für {0} ist kein Gewinde hinterlegt.": "Der er ikke gemt noget gevind for {0}.",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "Skruen rækker ikke ind i den nederste del (længde {0} mm, {1} mm over den).",
+ "Gewindebohrung für {0} – Skizze": "Gevindhul til {0} – skitse",
+ "Gewindebohrung für {0}": "Gevindhul til {0}",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "gevindhul {0} – indskruningsdybde kun {1} mm",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "gevindhul {0}, indskruningsdybde {1} mm"
+}

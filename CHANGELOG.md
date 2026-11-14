@@ -1,5 +1,42 @@
 # Änderungen
 
+## v1.0.0-rc.11 – 2026-11-14
+
+### Normteile
+- **Gewinde**: Schrauben, Gewindestifte, Gewindestangen und Muttern tragen ihr Gewinde – wahlweise als Kennzeichnung (der Körper bleibt glatt, die Zeichnung zeigt das Gewinde), ausmodelliert (der Gewindegang wird wirklich geschnitten) oder als glatter Zylinder. Die Bohrung einer Mutter hat jetzt den Kerndurchmesser.
+- **Sieben weitere Reihen** (zusammen 25): Zylinderschraube mit niedrigem Kopf (DIN 7984), Hutmutter (DIN 1587), Scheibe kleine Reihe (ISO 7092), Kegelstift (ISO 2339), Spannstift (ISO 8752), Passfeder Form B (DIN 6885), Wellendichtring (DIN 3760).
+- Der Körper eines Normteils heißt wie das Teil („ISO 4762 M6×20“) – im Browser und in der Stückliste.
+- Behoben: in Bohrungen von Blechteilen ließ sich kein Normteil einsetzen (siehe Blech).
+- **Verschraubung in einem Zug**: zur Schraube kommen auf Wunsch Scheibe unter dem Kopf, Mutter auf der Gegenseite und Scheibe unter der Mutter – ein Klick auf die Bohrung setzt alles, ein Schritt im Verlauf. Die Klemmdicke ist die Länge der Bohrung, auch durch mehrere Teile, wenn ihre Bohrungen fluchten und aneinanderstoßen.
+- **Größe und Länge als Vorschlag**: die Gewindegröße richtet sich auf Wunsch nach der Bohrung, die Länge nach der Klemmdicke – mit Mutter die kürzeste Vorzugslänge, bei der die Schraube zwei Gewindegänge übersteht. Ist die gewählte Schraube zu kurz, sagt es die Statuszeile.
+- **Schraube auf eine Fläche – die Bohrung entsteht mit**: neue Position „Fläche anklicken“. An jedem Klickpunkt auf einer ebenen Fläche entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel; M3 … M24) durch alle Teile, die dort aufeinanderliegen, und die Schraube sitzt gleich darin – mit Scheiben und Mutter, wenn gewählt. Senkschrauben bekommen die 90°-Senkung, Zylinderschrauben auf Wunsch eine Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Ein Schritt im Verlauf; Bohrung und Schraube bleiben danach änderbar.
+- **Gewindebohrung im untersten Teil**: ohne Mutter endet die Durchgangsbohrung auf Wunsch dort, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Ein einzelnes Teil bekommt das Gewinde von der Fläche an. Die Statuszeile nennt die Einschraubtiefe und warnt, wenn sie kleiner ist als der Gewindedurchmesser.
+
+### Blech
+- **Runde Bohrungen, Langlöcher und runde Ecken sind echte Zylinderflächen** (vorher Vielecke): Bohrungen in Blechteilen werden als Bohrungen erkannt – für Normteile, Bohrbearbeitungen, Durchmessermaße und Mittellinien. Auch die Biegungen gerader Laschen sind echte Zylinder; ein Blechteil hat damit einen Bruchteil der Flächen (Platte mit vier Laschen: 48 statt 156).
+- **Prägungen mit schräger Wand**: Wandschräge 0 … 60° je Prägung, für eckige und runde Konturen; das Blech behält seine Dicke.
+- **Schneidprogramm**: Haltestege (Anzahl je Umriss und Breite – der Strahl setzt dort aus, der Fräser hebt auf halbe Blechdicke), Kiemenschlitze werden mitgeschnitten, Vorlagen für die Steuerung (allgemein M3/M5, GRBL-Laser, LinuxCNC QtPlasmaC, M7/M9 oder eigene Befehle für Ein und Aus).
+- Geprüft: geschlossene Ecken bleiben geschlossen, wenn eine Lasche an einer Biegelinie geteilt wird.
+- **Laschen an gebogenen Kanten sind echte Ringflächen**: die Biegung um eine runde Kante ist eine Fläche statt rund 30 Kegelstreifen – glatter in der Ansicht, kleiner im STEP, sauber wählbar.
+- **Schneidprogramm – Vorschau**: vor dem Speichern zeigt ein Bild je Tafel die Bahn – Schnitte, Anschnitte mit Einstichpunkt, Eilgänge, Haltestege und die Reihenfolge der Konturen; dazu Schnittlänge, Zahl der Einstiche und Haltestege, Ersparnis und ungefähre Dauer.
+- **Haltestege auch in Ausschnitten**: Ausschnitte ab einem wählbaren Umfang bekommen Stege, damit große Abfallstücke nicht kippen.
+- **Gemeinsame Schnittkanten**: liegen zwei Zuschnitte genau eine Schnittfuge auseinander, wird die gemeinsame Kante nur einmal geschnitten (Laser: Strahl aus und Eilgang; Fräser: abheben und neu eintauchen).
+- Der Anschnitt liegt nie in einem Nachbarteil: fehlt freier Abfall neben einer Kontur, wird auf der Kontur eingestochen.
+- **Eckfreischnitte mit glatten Wänden**: der Freischnitt an einer Ecke zwischen zwei Laschen ist ein glatter Schnitt statt einer Treppe aus sechs Stufen – eckige Freischnitte mit ebenen Wänden und echten Bögen, runde mit glatten Freiformflächen. Das gilt auch für Ecken, die kein rechter Winkel sind (Dreieck, Parallelogramm, Vieleck).
+
+### Netz
+- **Netz → Körper: Kegel in einem Stück**: Kegel, Kegelstümpfe und Spitzen, wie sie ein CAD-Programm vernetzt (mehrere Ringe mit verschiedener Teilung, dazwischen ebene Streifen, eine Spitze), werden eine einzige Kegelfläche – ein Kegelstumpf kommt mit 3 statt 65 Flächen an, ein Kegel mit Spitze mit 2 statt 80. Sehr fein vernetzte runde Flächen hängen beim Erkennen jetzt zusammen.
+- **Netz → Körper: Verrundungen um runde Kanten als echte Ringflächen**: Viertel- und Teilringe an Scheiben, Taschenböden und Platten mit runden Ecken werden erkannt (auch mit schräger Achse) und kommen als Torus in den Körper; der Rauminhalt stimmt bis auf die Vernetzung. Die Meldung nennt ihre Zahl.
+- **Kugelkuppen rund hundertmal schneller**: Kuppen, Mulden und Kugelenden entstehen in Zehntelsekunden statt in 10 bis 20 Sekunden – erst vertreten wenige große Facetten die vielen kleinen, dann kommt die echte Fläche dazu.
+- Behoben: Facettenreihen einer Verrundung wurden als viele kurze Zylinderstücke gelesen.
+- **Ringflächen zur Achse hin sind echte Flächen**: der verrundete Rand einer Bohrung oder Senkung und die Hohlkehle am Fuß eines Zapfens kommen als Torus in den Körper (Viertelring, Ringradius mindestens das 1,6-Fache des Rundungsradius).
+- **Volle Ringe**: ein O-Ring oder Torus als ganzes Netz wird erkannt – auch schräg im Raum – und als exakter Ring ausgegeben.
+- **Verrundungen um runde Kanten 5- bis 50-mal schneller**: eine scharfe Ecke vertritt die Verrundung, bis die echte Fläche geschnitten ist – eine Scheibe mit verrundeter Kante braucht unter einer Sekunde statt 12, ein Zapfen mit Hohlkehle rund 2 statt 85 Sekunden.
+- **Halbrunde Kanten und Teilringe**: auch Ringflächen, die kein Viertelkreis sind (halbrunder Rand einer Scheibe, rundum verrundete Platte mit runden Ecken), gehen den schnellen Weg – ein halbrunder Rand in unter einer Sekunde, eine rundum verrundete Platte mit 8 Ring- und 12 Zylinderflächen.
+- Behoben: bei fein vernetzten Ringen wurden Streifen quer über den Ring als kurze Zylinderstücke gelesen – der Ring blieb unerkannt und die Umwandlung dauerte sehr lange. Ein Ring, an den ein Kegel anschließt, wird jetzt erkannt.
+- **Sicherheitsnetz**: der geschriebene STEP-Körper wird zurückgelesen und mit dem Netz verglichen; stimmt der Rauminhalt nicht, wird ohne Ringflächen oder zuletzt mit den Facetten ausgegeben – nie ein kaputter Körper.
+- Behoben: der Rauminhalt mancher Ringflächen wurde falsch geschätzt (die Fläche blieb dann facettiert); gerade Verrundungen, die in eine Eckverrundung übergehen, konnten den Körper zerstören.
+
 ## v1.0.0-rc.10 – 2026-11-14
 
 ### Normteile

@@ -493,8 +493,10 @@ const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
   ok('Normteile: jede Familie in jeder Größe ergibt ein Teil mit Volumen', STD_FAMILIES.length >= 18 && n > 150 && !bad.length, `${STD_FAMILIES.length} Familien, ${n} Größen ${bad.slice(0, 4).join('; ')}`);
   const w = stdPartSteps('iso7089', 'M8'), cap = stdPartSteps('iso4762', 'M6', 20), csk = stdPartSteps('iso10642', 'M6', 20), nut = stdPartSteps('iso4032', 'M10');
   ok('Normteile: Scheibe M8 = 8,4 × 16 × 1,6; Zylinderschraube M6×20 reicht von −20 bis Kopfhöhe 6', near(stdPartVolume(w.steps), Math.PI * (64 - 4.2 * 4.2) * 1.6, 1e-6) && near(cap.z0, -20) && near(cap.z1, 6) && near(cap.rmax, 5) && near(csk.z1, 0) && near(csk.z0, -20) && near(csk.rmax, 6.72));
-  const vn = stdPartVolume(nut.steps), vhex = (Math.sqrt(3) / 2) * 256 * 8.4 - Math.PI * 25 * 8.4;
+  const vn = stdPartVolume(nut.steps), rc = (10 - 1.0825 * 1.5) / 2, vhex = (Math.sqrt(3) / 2) * 256 * 8.4 - Math.PI * rc * rc * 8.4;
   ok('Normteile: Mutter M10 – Sechskant SW 16 × 8,4 mit Bohrung, Fasen nehmen wenig weg', vn < vhex && vn > 0.85 * vhex && near(nut.z1, 8.4), `${vn.toFixed(1)} von ${vhex.toFixed(1)} mm³`);
+  const th = stdPartSteps('iso4762', 'M8', 30).steps.find(q => q.k === 'thread'), tn = stdPartSteps('iso4032', 'M8').steps.find(q => q.k === 'thread'), sp = stdPartSteps('iso8752', '6', 20), tp = stdPartSteps('iso2339', '6', 50);
+  ok('Normteile: 25 Reihen; Gewinde als eigener Schritt (Schraube außen auf d, Mutter innen auf dem Kerndurchmesser), Spannstift hohl, Kegelstift 1:50', STD_FAMILIES.length === 25 && th.size === 'M8' && near(th.r, 4) && near(th.z, -15) && near(tn.r, (8 - 1.0825 * 1.25) / 2) && !stdPartSteps('iso7089', 'M8').steps.some(q => q.k === 'thread') && stdPartVolume(sp.steps) < 0.75 * Math.PI * 9 * 20 && near(tp.rmax, 3.5) && stdPartName(stdFamily('din6885b'), '6×6', 25) === 'DIN 6885 B 6×6×25');
   let e = '';
   try { stdPartSteps('iso7380', 'M24', 20); } catch (err) { e = err.message; }
   ok('Normteile: Name und fehlende Größe', stdPartName(stdFamily('iso4762'), 'M6', 20) === 'ISO 4762 M6×20' && stdPartName(stdFamily('din625'), '608', 0) === 'DIN 625 608' && /gibt es in der Norm nicht/.test(e));
@@ -533,6 +535,45 @@ const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
   const m = cutProgram([sq], { mode: 'mill', kerf: 3, feed: 600, lead: 4, thickness: 2, step: 1, rpm: 18000 });
   const ml = m.text.trim().split('\n'), zs = ml.filter(l => /^G1 Z/.test(l)).map(l => +l.match(/Z(-?[\d.]+)/)[1]);
   ok('Schneidprogramm Fräsen: Durchgänge bis unter das Blech, Bahn um den halben Fräser außen', ml.includes('M3 S18000') && zs.join(',') === '-1,-2,-2.3' && near(Math.min(...m.paths[0].pts.map(q => q[0])), 8.5, 2e-3) && ml.filter(l => l === 'G0 Z5').length === 2 && !ml.some(l => l.startsWith('G4')), zs.join(' / '));
+  // tabs, open cuts, controls
+  const big = [[0, 0], [100, 0], [100, 50], [0, 50]];
+  const tb = cutProgram([big, [[20, 20], [20, 30], [30, 30], [30, 20]]], { mode: 'laser', kerf: 0, feed: 1000, lead: 2, pierce: 0.2, power: 500, thickness: 2, tabs: 4, tabW: 1 });
+  const tl = tb.text.trim().split('\n'), outer = tb.paths.find(q => !q.hole);
+  ok('Schneidprogramm: Haltestege – der Strahl setzt je Steg aus, Ausschnitte bekommen keine', tb.tabs === 4 && outer.tabs.length === 4 && tb.paths.find(q => q.hole).tabs.length === 0 && tb.pierces === 2 + 4 && tl.filter(l => l === 'M5').length === 6 && near(tb.length, 300 + 40 - 4 + 2 + 2, 0.05) && outer.tabs.every(([a, b]) => near(b - a, 1, 1e-9)), `${tb.pierces} Einstiche, ${tb.length.toFixed(2)} mm`);
+  const tm = cutProgram([big], { mode: 'mill', kerf: 2, feed: 600, lead: 3, thickness: 3, step: 1.5, tabs: 2, tabW: 3, tabH: 1 });
+  const tz = tm.text.trim().split('\n').filter(l => /^G1 Z/.test(l)).map(l => +l.match(/Z(-?[\d.]+)/)[1]);
+  ok('Schneidprogramm Fräsen: Stege bleiben 1 mm hoch stehen (nur in den Durchgängen darunter)', tm.tabs === 2 && tz.join(',') === '-1.5,-3,-2,-3,-2,-3,-3.3,-2,-3.3,-2,-3.3' && near(tm.paths[0].tabs[0][1] - tm.paths[0].tabs[0][0], 5, 1e-9), tz.join(' '));
+  const sl = cutProgram([big], { mode: 'plasma', kerf: 1, feed: 2000, lead: 3, pierce: 0.3, thickness: 2, open: [[[40, 20], [70, 20]]], control: 'plasmac' });
+  const sll = sl.text.trim().split('\n');
+  ok('Schneidprogramm: Kiemenschlitz auf seiner Linie vor dem Umriss, QtPlasmaC ohne G4', sl.paths[0].open && sl.pierces === 2 && sll.includes('G0 X40 Y20') && sll.includes('G1 X70 Y20 F2000') && sll.filter(l => l === 'M3 $0 S1').length === 2 && sll.filter(l => l === 'M5 $0').length === 2 && !sll.some(l => l.startsWith('G4')) && sll.indexOf('G1 X70 Y20 F2000') < sll.findIndex(l => /^G1 X-?[\d.]+ Y-0\.5/.test(l)), sll.slice(4, 9).join(' | '));
+  const cu = cutProgram([big], { mode: 'waterjet', kerf: 0.8, feed: 300, thickness: 2, control: 'custom', onCode: 'M62 P1\nM64', offCode: 'M63 P1' }), gr = cutProgram([big], { mode: 'laser', power: 700, control: 'grbl' });
+  ok('Schneidprogramm: eigene Befehle (einzeilig) und GRBL-Laser M4', cu.text.includes('\nM62 P1 M64\n') && cu.text.includes('\nM63 P1\n') && gr.text.includes('\nM4 S700\n') && gr.text.includes('\nM5\n'));
+  const { nestParts } = await import('../js/sheetmetal.js');
+  for (const tight of [false, true]) {
+    const np = nestParts([{ id: 'a', outline: [[[0, 0], [80, 0], [80, 30], [0, 30]]], open: [[[10, 15], [40, 15]]], qty: 2 }], 60, 200, 5, true, tight);
+    const good = np.placed.length === 2 && np.placed.every(p => { const xs = p.loops[0].map(q => q[0]), ys = p.loops[0].map(q => q[1]), o = p.open[0]; return o && near(Math.hypot(o[1][0] - o[0][0], o[1][1] - o[0][1]), 30, 1e-6) && o.every(q => q[0] > Math.min(...xs) + 5 && q[0] < Math.max(...xs) - 5 && q[1] > Math.min(...ys) + 5 && q[1] < Math.max(...ys) - 5); });
+    ok(`Schachteln (${tight ? 'ineinander' : 'Reihen'}): Schlitze wandern gedreht mit ihrem Zuschnitt`, good, JSON.stringify(np.placed.map(p => p.open[0])));
+  }
+  {
+    const sqr = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], inP = ([x, y], P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < ((P[j][0] - P[i][0]) * (y - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; return c; };
+    const base = { mode: 'laser', kerf: 0.2, feed: 1000, lead: 3, pierce: 0.2, thickness: 2 };
+    const h1 = cutProgram([sqr(0, 0, 100, 60), sqr(20, 20, 50, 50)], { ...base, tabs: 4, tabW: 1, holeTabs: 100 }), h2 = cutProgram([sqr(0, 0, 100, 60), sqr(20, 20, 50, 50)], { ...base, tabs: 4, tabW: 1, holeTabs: 200 });
+    ok('Schneidprogramm: Haltestege auch in Ausschnitten ab dem gewählten Umfang', h1.tabs === 8 && h1.paths.find(q => q.hole).tabs.length === 4 && h2.tabs === 4 && h2.paths.find(q => q.hole).tabs.length === 0, `${h1.tabs} ${h2.tabs}`);
+    const A = sqr(0, 0, 50, 50), B = sqr(50.2, 0, 100.2, 50);
+    const c1 = cutProgram([A, B], { ...base, common: true }), c0 = cutProgram([A, B], base);
+    ok('Schneidprogramm: gemeinsame Kante zweier Zuschnitte (eine Schnittfuge Abstand) wird nur einmal geschnitten', near(c1.saved, 50, 0.3) && c0.saved === 0 && near(c0.length - c1.length, c1.saved, 1e-6) && c1.pierces >= 2, `${c1.saved} ${c0.length} ${c1.length}`);
+    ok('Schneidprogramm: der Anschnitt liegt nicht im Nachbarteil', [c1, c0].every(p => p.paths.every(q => !inP(q.lead, A) && !inP(q.lead, B))), JSON.stringify(c1.paths.map(q => q.lead)));
+    const tight = cutProgram([sqr(0, 0, 60, 60), sqr(10, 10, 50, 50), sqr(10.2, 10.2, 49.8, 49.8)], base);
+    ok('Schneidprogramm: ohne freien Abfall neben der Kontur wird auf der Kontur eingestochen', tight.paths.length === 3 && tight.paths.filter(q => q.lead[0] === q.pts[0][0] && q.lead[1] === q.pts[0][1]).length === 2, JSON.stringify(tight.paths.map(q => [q.lead, q.pts[0]])));
+    const sum = k => c1.trace.filter(q => q[4] === k).reduce((a, q) => a + Math.hypot(q[2] - q[0], q[3] - q[1]), 0);
+    ok('Schneidprogramm: die Spur für die Vorschau (Schnitt + Anschnitt = Schnittlänge, Eilgang, Stege)', near(sum(1) + sum(2), c1.length, 1e-6) && sum(0) > 50 && h1.trace.filter(q => q[4] === 3).length >= 8 && c1.trace.every(q => q.length === 5), `${sum(1) + sum(2)} ${c1.length}`);
+    const cm = cutProgram([A, sqr(53, 0, 103, 50)], { mode: 'mill', kerf: 3, feed: 600, lead: 4, thickness: 2, step: 1, common: true });
+    ok('Schneidprogramm Fräsen: über der gemeinsamen Kante fährt der Fräser oben im Eilgang', near(cm.saved, 50, 3.2) && cm.text.split('\n').filter(l => l === 'G0 Z5').length >= 4, String(cm.saved));
+    const { boltSizeFor, boltStack } = await import('../js/stdparts.js');
+    const bs = boltStack('iso4762', 'M6', 12, { headWasher: 'iso7089', nut: 'iso4032', nutWasher: 'iso7089' }), bc = boltStack('iso10642', 'M6', 12, { headWasher: 'iso7089', nut: 'iso10511' }), bn = boltStack('iso4017', 'M8', 30, {});
+    ok('Normteile: Verschraubung – Größe aus der Bohrung, Länge aus Klemmdicke + Scheiben + Mutter + 2 Gänge', boltSizeFor(6.6) === 'M6' && boltSizeFor(9) === 'M8' && boltSizeFor(5.5) === 'M5' && boltSizeFor(2) === null && boltSizeFor(40) === null
+      && near(bs.need, 12 + 1.6 + 1.6 + 5.2 + 2) && bs.len === 25 && bc.hw === 0 && near(bc.need, 20) && bc.len === 20 && bn.len === 30 && bn.m === 0, JSON.stringify([bs, bc, bn]));
+  }
 }
 
 // ---- a cone as a CAD export triangulates it: rings of corners with different divisions ----
@@ -548,4 +589,116 @@ const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
   const c = pin.cones[0], hc = hole.cones[0];
   // what the facets leave out: frustum minus the two faceted frustums (48 ↔ 24 corners, by the prismatoid rule)
   ok('Netz: Kegel aus Punktringen verschiedener Teilung (CAD-Export) erkannt, als Zapfen und als Senkung', pin.cones.length === 1 && pin.spheres.length === 0 && !!c && near(c.r0, 7, 1e-3) && near(c.r1, 10, 1e-3) && near(c.t1 - c.t0, 3, 1e-3) && !c.hole && c.vol > 0.5 && c.vol < 6 && c.n >= 8 && !c.sweep && hole.cones.length === 1 && hc.hole && near(hc.vol, c.vol, 1e-6), c ? `Rest ${c.vol.toFixed(3)} mm³, n ${c.n}` : '');
+}
+
+// ---- a cone as the kernel meshes it: rings of different division, flat strips in between, a tip ----
+{
+  const ring = (r, z, n, ph = 0) => Array.from({ length: n }, (_, i) => [r * Math.cos((2 * Math.PI * i) / n + ph), r * Math.sin((2 * Math.PI * i) / n + ph), z]);
+  const tris = [];
+  const add = (a, b, c) => { const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]], n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2]], g = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3]; tris.push(...(n[0] * g[0] + n[1] * g[1] > 0 ? [a, b, c] : [a, c, b])); };
+  // two rings zipped by angle
+  const band = (A, B) => { let i = 0, j = 0; const na = A.length, nb = B.length; while (i < na || j < nb) { if (j >= nb || (i < na && (i + 1) / na <= (j + 1) / nb)) { add(A[i % na], A[(i + 1) % na], B[j % nb]); i++; } else { add(B[j % nb], B[(j + 1) % nb], A[i % na]); j++; } } };
+  const build = rs => { tris.length = 0; for (let k = 0; k + 1 < rs.length; k++) { if (rs[k + 1].length === 1) rs[k].forEach((p, i) => add(p, rs[k][(i + 1) % rs[k].length], rs[k + 1][0])); else band(rs[k], rs[k + 1]); } return M.findRound(M.weld(new Float32Array(tris.flat()))); };
+  const fr = build([ring(10, 0, 45), ring(8.25, 2, 32), ring(6.5, 4, 32), ring(4.75, 6, 32), ring(3, 8, 42)]), c = fr.cones[0];
+  ok('Netz: Kegelstumpf mit fünf Ringen (45/32/32/32/42 Ecken, Streifen dazwischen fast eben zum Rand) in einem Stück', fr.cones.length === 1 && !!c && near(c.r0, 3, 2e-3) && near(c.r1, 10, 2e-3) && near(c.t1 - c.t0, 8, 2e-3) && !c.hole && c.vol > 0, JSON.stringify(fr.cones.map(q => [+q.r0.toFixed(2), +q.r1.toFixed(2), q.n])));
+  const tp = build([ring(10, 0, 45), ring(8, 2.4, 32), [[0, 0, 12]]]), t = tp.cones[0];
+  ok('Netz: Kegel mit Spitze – der unregelmäßige Rand gehört dazu', tp.cones.length === 1 && !!t && near(t.r0, 0, 1e-6) && near(t.r1, 10, 2e-3) && near(t.t1 - t.t0, 12, 2e-3) && t.vol > 0 && t.vol < 0.02 * ((Math.PI * 100 * 12) / 3), JSON.stringify(tp.cones.map(q => [+q.r0.toFixed(2), +q.r1.toFixed(2), q.n, +(q.vol ?? -1).toFixed(2)])));
+}
+
+// ---- a torus: the fillet round a round edge, as rings of corners on a circle in the plane through the axis ----
+{
+  const ring = (r, z, n, a0 = 0, sw = 2 * Math.PI) => Array.from({ length: sw < 6.28 ? n + 1 : n }, (_, i) => [r * Math.cos(a0 + (sw * i) / n), r * Math.sin(a0 + (sw * i) / n), z]);
+  const mk = (rings, { flip = false, open = false, cap = false } = {}) => {
+    const tris = [], put = t => tris.push(...(flip ? [t[0], t[2], t[1]] : t));
+    for (let k = 0; k + 1 < rings.length; k++) { const A = rings[k], B = rings[k + 1], n = A.length; for (let i = 0; i < (open ? n - 1 : n); i++) { const j = (i + 1) % n; put([A[i], A[j], B[j]]); put([A[i], B[j], B[i]]); } }
+    if (cap) { const L = rings[rings.length - 1], F = rings[0], n = L.length; for (let i = 0; i < n; i++) { put([L[i], L[(i + 1) % n], [0, 0, L[0][2]]]); put([F[(i + 1) % n], F[i], [0, 0, F[0][2]]]); } }
+    return M.weld(new Float32Array(tris.flat()));
+  };
+  const volOf = m => { let v = 0; const P = m.pos, I = m.idx; for (let t = 0; t < I.length; t += 3) { const a = [P[I[t] * 3], P[I[t] * 3 + 1], P[I[t] * 3 + 2]], b = [P[I[t + 1] * 3], P[I[t + 1] * 3 + 1], P[I[t + 1] * 3 + 2]], c = [P[I[t + 2] * 3], P[I[t + 2] * 3 + 1], P[I[t + 2] * 3 + 2]]; v += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; } return v; };
+  const N = 48, K = 6, HP = Math.PI / 2;
+  // a disc Ø 20 × 5 with its upper edge rounded 2 mm
+  const prof = (n, a0, sw) => [ring(10, 0, n, a0, sw), ring(10, 3, n, a0, sw), ...Array.from({ length: K }, (_, i) => { const s = ((i + 1) * HP) / K; return ring(8 + 2 * Math.cos(s), 3 + 2 * Math.sin(s), n, a0, sw); })];
+  const m1 = mk(prof(N), { cap: true }), f1 = M.findRound(m1), t1 = f1.tori[0], g = (2 * Math.PI) / N;
+  // what the facets leave out: the true solid less the mesh, less what the cylinder below leaves out
+  const want = Math.PI * 100 * 3 + Math.PI * 64 * 2 + 2 * Math.PI * (8 + 8 / (3 * Math.PI)) * Math.PI - volOf(m1) - Math.PI * 100 * 3 * (1 - Math.sin(g) / g);
+  ok('Netz: Verrundung um eine runde Kante als Torus erkannt (Scheibe, Kante oben 2 mm)', f1.tori.length === 1 && f1.cylinders.length === 1 && !f1.cones.length && !f1.spheres.length && near(t1.R, 8, 1e-3) && near(t1.r, 2, 1e-3) && t1.s0 === 0 && t1.s1 === HP && !t1.inner && !t1.hole && !t1.sweep && t1.n === N && near(t1.c[2], 3, 1e-3) && near(t1.vol, want, 0.02 * want), `${t1?.vol} ${want}`);
+  const f2 = M.findRound(mk(prof(N), { cap: true, flip: true })), t2 = f2.tori[0];
+  ok('Netz: dieselbe Form als Hohlraum (Tasche mit rundem Grund) – Material außen', f2.tori.length === 1 && !f2.cones.length && t2.hole && !t2.inner && near(t2.vol, t1.vol, 1e-6), String(t2?.vol));
+  const f3 = M.findRound(mk(prof(12, 0.3, HP), { open: true })), t3 = f3.tori[0];
+  ok('Netz: Viertel eines Torus (Verrundung um eine runde Ecke) mit Anfang und Bogen', f3.tori.length === 1 && !f3.cones.length && near(t3.a0, 0.3, 1e-3) && near(t3.sweep, HP, 1e-3) && near(t3.vol, t1.vol / 4, 0.01 * t1.vol) && t3.n === N, JSON.stringify([t3?.a0, t3?.sweep, t3?.vol, t3?.n]));
+  // the rim of a hole Ø 12, rounded 2 mm: the half of the tube that looks to the axis
+  const rim = [ring(6, 0, N), ring(6, 3, N), ...Array.from({ length: K }, (_, i) => { const s = ((i + 1) * HP) / K; return ring(8 - 2 * Math.cos(s), 3 + 2 * Math.sin(s), N); })];
+  const f4 = M.findRound(mk(rim, { flip: true })), t4 = f4.tori[0];
+  ok('Netz: gerundeter Bohrungsrand – innere Hälfte des Torus, die Facetten liegen beiderseits der Fläche', f4.tori.length === 1 && !f4.cones.length && t4.inner && !t4.hole && t4.vol === null && near(t4.R, 8, 1e-3) && near(t4.r, 2, 1e-3) && t4.din > 1e-3 && t4.dout > 1e-3, JSON.stringify([t4?.din, t4?.dout]));
+  const tilt = m => { const c = Math.cos(0.4), s = Math.sin(0.4), P = m.pos; for (let i = 0; i < P.length; i += 3) { const y = P[i + 1], z = P[i + 2]; P[i + 1] = y * c - z * s; P[i + 2] = y * s + z * c; } return m; };
+  const f5 = M.findRound(tilt(mk(prof(N).slice(1)))), t5 = f5.tori[0];
+  ok('Netz: Torus mit schräger Achse, ohne Zylinder daneben (Achse aus den Flächenrichtungen)', f5.tori.length === 1 && near(t5.R, 8, 1e-3) && near(t5.r, 2, 1e-3) && near(Math.abs(t5.d[2]), Math.cos(0.4), 1e-4), JSON.stringify(t5?.d));
+  // (two bands only say nothing: a cone is no torus, a ball stays a ball)
+  const f6 = M.findRound(mk([ring(10, 0, N), ring(8, 2, N), ring(6, 4, N), ring(4, 6, N), ring(2, 8, N)]));
+  ok('Netz: ein Kegel aus mehreren Ringen wird kein Torus', f6.tori.length === 0 && f6.cones.length === 1, `${f6.tori.length} ${f6.cones.length}`);
+}
+
+// ---- large facets stand in for the many small ones of a torus or of the cap of a sphere ----
+{
+  const ring = (r, z, n) => Array.from({ length: n }, (_, i) => [r * Math.cos((2 * Math.PI * i) / n), r * Math.sin((2 * Math.PI * i) / n), z]);
+  const volOf = m => { let v = 0; const P = m.pos, I = m.idx; for (let t = 0; t < I.length; t += 3) { const a = [P[I[t] * 3], P[I[t] * 3 + 1], P[I[t] * 3 + 2]], b = [P[I[t + 1] * 3], P[I[t + 1] * 3 + 1], P[I[t + 1] * 3 + 2]], c = [P[I[t + 2] * 3], P[I[t + 2] * 3 + 1], P[I[t + 2] * 3 + 2]]; v += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; } return v; };
+  const N = 64, K = 12, HP = Math.PI / 2, rings = [ring(10, 0, N), ring(10, 3, N), ...Array.from({ length: K }, (_, i) => { const s = ((i + 1) * HP) / K; return ring(8 + 2 * Math.cos(s), 3 + 2 * Math.sin(s), N); })];
+  const tris = [], put = t => tris.push(...t);
+  for (let k = 0; k + 1 < rings.length; k++) for (let i = 0; i < N; i++) { const j = (i + 1) % N; put([rings[k][i], rings[k][j], rings[k + 1][j]]); put([rings[k][i], rings[k + 1][j], rings[k + 1][i]]); }
+  for (let i = 0; i < N; i++) { put([rings[K + 1][i], rings[K + 1][(i + 1) % N], [0, 0, 5]]); put([rings[0][(i + 1) % N], rings[0][i], [0, 0, 0]]); }
+  const m = M.weld(new Float32Array(tris.flat())), f = M.findRound(m), st = M.standIn(m, f.tori, f.spheres), it = st.tori[0];
+  // the true solid: cylinder 3 high, disc Ø 16 × 2, a quarter circle turned around
+  const full = Math.PI * 100 * 3 + Math.PI * 64 * 2 + 2 * Math.PI * (8 + 8 / (3 * Math.PI)) * Math.PI, g = (2 * Math.PI) / N, cylGap = Math.PI * 100 * 3 * (1 - Math.sin(g) / g);
+  ok('Netz → Körper: eine scharfe Ecke vertritt die Verrundung einer runden Kante (Netz bleibt geschlossen, Rauminhalt bis zur echten Fläche stimmt)', st.tori.length === 1 && it.corner && M.stats(st.m).closed && st.m.idx.length < m.idx.length / 3 && near(it.dout, 2 * (Math.SQRT2 - 1), 0.02) && near(volOf(st.m), Math.PI * 100 * 5 * (Math.sin(g) / g), 0.01) && near(volOf(st.m) - it.vol, full - cylGap, 0.05), `${m.idx.length / 3} → ${st.m.idx.length / 3} Dreiecke, ${volOf(st.m) - it.vol} ${full - cylGap}`);
+  // a cap of a sphere r 10 (1 rad from its pole) on a plate 30 × 30 × 2
+  const t2 = [], p2 = t => t2.push(...t), R0 = 10, al = 1, n = 48, kk = 10, zc = -R0 * Math.cos(al);
+  const rr = Array.from({ length: kk }, (_, i) => { const a = al * (1 - i / kk); return ring(R0 * Math.sin(a), zc + R0 * Math.cos(a), n); });
+  for (let k = 0; k + 1 < rr.length; k++) for (let i = 0; i < n; i++) { const j = (i + 1) % n; p2([rr[k][i], rr[k][j], rr[k + 1][j]]); p2([rr[k][i], rr[k + 1][j], rr[k + 1][i]]); }
+  for (let i = 0; i < n; i++) p2([rr[kk - 1][i], rr[kk - 1][(i + 1) % n], [0, 0, zc + R0]]);
+  const B = rr[0], cs = [[15, 15, 0], [-15, 15, 0], [-15, -15, 0], [15, -15, 0]], lo = cs.map(p => [p[0], p[1], -2]);
+  for (let i = 0; i < n; i++) p2([B[(i + 1) % n], B[i], cs[Math.floor(i / (n / 4))]]);
+  for (let q = 0; q < 4; q++) { const r = (q + 1) % 4; p2([cs[q], cs[r], B[((q + 1) * n) / 4 % n]]); p2([cs[q], lo[q], lo[r]]); p2([cs[q], lo[r], cs[r]]); }
+  p2([lo[0], lo[2], lo[1]]); p2([lo[0], lo[3], lo[2]]);
+  const m2 = M.weld(new Float32Array(t2.flat())), f2 = M.findRound(m2), s2 = M.standIn(m2, f2.tori, f2.spheres), cap = s2.spheres[0], hh = R0 - R0 * Math.cos(al);
+  ok('Netz → Körper: ein flacher Deckel vertritt die Kugelkuppe – übrig bleibt die Platte, die Kuppe kommt als echtes Kugelstück dazu', M.stats(m2).closed && f2.spheres.length === 1 && s2.spheres.length === 1 && M.stats(s2.m).closed && near(volOf(s2.m), 1800, 1e-2) && near(cap.h0, R0 * Math.cos(al), 1e-3) && near(cap.vol, (Math.PI * hh * hh * (3 * R0 - hh)) / 3, 0.01) && Math.abs(cap.ax[2]) > 0.9999, `${volOf(s2.m)} ${cap?.vol}`);
+}
+
+// ---- the half of a tube that looks to the axis, and a ring on its own ----
+{
+  const volOf = m => { let v = 0; const P = m.pos, I = m.idx; for (let t = 0; t < I.length; t += 3) { const a = [P[I[t] * 3], P[I[t] * 3 + 1], P[I[t] * 3 + 2]], b = [P[I[t + 1] * 3], P[I[t + 1] * 3 + 1], P[I[t + 1] * 3 + 2]], c = [P[I[t + 2] * 3], P[I[t + 2] * 3 + 1], P[I[t + 2] * 3 + 2]]; v += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; } return v; };
+  // a closed profile (distance from the axis, height) turned around z in N steps
+  const turn = (prof, N) => {
+    const tris = [], pt = (p, i) => [p[0] * Math.cos((2 * Math.PI * i) / N), p[0] * Math.sin((2 * Math.PI * i) / N), p[1]];
+    for (let k = 0; k < prof.length; k++) { const a = prof[k], b = prof[(k + 1) % prof.length]; for (let i = 0; i < N; i++) { tris.push(pt(a, i), pt(b, i), pt(b, i + 1)); tris.push(pt(a, i), pt(b, i + 1), pt(a, i + 1)); } }
+    let m = M.weld(new Float32Array(tris.flat()));
+    if (volOf(m) < 0) { const I = m.idx; for (let t = 0; t < I.length; t += 3) { const x = I[t + 1]; I[t + 1] = I[t + 2]; I[t + 2] = x; } }
+    return m;
+  };
+  const N = 96, kN = (N * Math.sin((2 * Math.PI) / N)) / (2 * Math.PI), K = 12;
+  // a disc Ø 40 × 6 with a hole Ø 12, the rim of the hole rounded with 1.5
+  const arc = Array.from({ length: K + 1 }, (_, i) => { const s = (Math.PI / 2) * (1 - i / K); return [7.5 - 1.5 * Math.cos(s), 4.5 + 1.5 * Math.sin(s)]; });
+  const m = turn([[6, 0], [20, 0], [20, 6], ...arc], N), f = M.findRound(m), to = f.tori[0], st = M.standIn(m, f.tori, f.spheres), it = st.tori[0];
+  const corner = 2 * Math.PI * 1.5 * 1.5 * (7.5 * (1 - Math.PI / 4) - 1.5 / 6);
+  ok('Netz → Körper: am verrundeten Rand einer Bohrung vertritt eine scharfe Ecke die Ringfläche (geschlossen, Rauminhalt der Ecke stimmt)', f.tori.length === 1 && to.inner && !to.hole && near(to.R, 7.5, 1e-3) && near(to.r, 1.5, 1e-3) && st.tori.length === 1 && it.corner && M.stats(st.m).closed && near(volOf(st.m), kN * Math.PI * (400 - 36) * 6, 0.01) && near(it.vol, corner + 1.5 * Math.PI * 36 * (1 - kN), 0.01) && near(it.dout, 1.5 * (Math.SQRT2 - 1), 0.02), `${f.tori.length} ${volOf(st.m)} ${kN * Math.PI * (400 - 36) * 6} ${it?.vol} ${corner}`);
+  // a pin Ø 16 on a disc Ø 40 × 4, the foot rounded with 2
+  const arc2 = Array.from({ length: K + 1 }, (_, i) => { const s = -(Math.PI / 2) * (i / K); return [10 - 2 * Math.cos(s), 6 + 2 * Math.sin(s)]; });
+  const m2 = turn([[0, 0], [20, 0], [20, 4], ...arc2.slice().reverse(), [8, 10], [0, 10]], N), f2 = M.findRound(m2), t2 = f2.tori[0], s2 = M.standIn(m2, f2.tori, f2.spheres), i2 = s2.tori[0];
+  ok('Netz → Körper: an der Hohlkehle am Fuß eines Zapfens ebenso – die Ecke wird aufgefüllt', f2.tori.length === 1 && t2.inner && t2.hole && near(t2.R, 10, 1e-3) && s2.tori.length === 1 && i2.corner && M.stats(s2.m).closed && near(volOf(s2.m), kN * Math.PI * (400 * 4 + 64 * 6), 0.01) && near(i2.vol, 2 * Math.PI * 4 * (10 * (1 - Math.PI / 4) - 2 / 6) + 2 * Math.PI * 64 * (1 - kN), 0.01), `${f2.tori.length} ${volOf(s2.m)} ${i2?.vol}`);
+  // an O-ring 30 × 4, lying askew
+  const ringP = Array.from({ length: 24 }, (_, i) => [15 + 2 * Math.cos((2 * Math.PI * i) / 24), 2 * Math.sin((2 * Math.PI * i) / 24)]);
+  const m3 = turn(ringP, 64), ca = Math.cos(0.5), sa = Math.sin(0.5);
+  for (let i = 0; i < m3.pos.length; i += 3) { const y = m3.pos[i + 1], z = m3.pos[i + 2]; m3.pos[i] += 7; m3.pos[i + 1] = y * ca - z * sa + 3; m3.pos[i + 2] = y * sa + z * ca - 2; }
+  const f3 = M.findRound(m3), t3 = f3.tori[0], s3 = M.standIn(m3, f3.tori, f3.spheres), full = 2 * Math.PI * Math.PI * 15 * 4;
+  ok('Netz → Körper: ein Ring für sich (O-Ring) wird als ganzer Torus erkannt, auch schräg im Raum', f3.tori.length === 1 && f3.cylinders.length === 0 && t3.whole && near(t3.R, 15, 1e-3) && near(t3.r, 2, 1e-3) && near(t3.c[0], 7, 1e-3) && near(t3.c[1], 3, 1e-3) && near(t3.c[2], -2, 1e-3) && near(Math.abs(t3.d[2]), ca, 1e-4) && near(t3.vol, full - volOf(m3), 1e-2) && s3.tori.length === 0 && t3.ti.length === m3.idx.length / 3, `${f3.tori.length} ${f3.cylinders.length} ${t3?.R} ${t3?.r} ${t3?.c} ${t3?.vol} ${full - volOf(m3)}`);
+  // (a ball is no ring)
+  const ball = turn(Array.from({ length: 13 }, (_, i) => [5 * Math.sin((Math.PI * i) / 12), -5 * Math.cos((Math.PI * i) / 12)]), 32);
+  ok('Netz → Körper: eine Kugel wird kein Ring', !M.findRound(ball).tori.length, `${M.findRound(ball).tori.length}`);
+}
+
+// ---- the hole a screw brings along ----
+{
+  const { boltHole, boltSizeFor } = await import('../js/stdparts.js');
+  const a = boltHole('iso4762', 'M6', true), b = boltHole('iso4762', 'M6', false), c = boltHole('iso10642', 'M8', false), d = boltHole('iso4017', 'M10', true);
+  let thrown = false; try { boltHole('iso4762', 'M99'); } catch { thrown = true; }
+  ok('Normteile: Bohrung zur Schraube – Durchgangsloch ISO 273 mittel, Senkbohrung so tief wie der Kopf, 90°-Senkung für den Senkkopf', a.dia === 6.6 && a.kind === 'cbore' && a.cbDia === 11 && near(a.cbDepth, 6) && near(a.seat, 6) && b.kind === 'simple' && b.seat === 0 && b.dia === 6.6 && c.kind === 'csink' && c.dia === 9 && near(c.csDia, 17.92) && c.csAngle === 90 && c.seat === 0 && d.kind === 'simple' && d.dia === 11 && thrown && boltSizeFor(a.dia) === 'M6' && boltSizeFor(c.dia) === 'M8', JSON.stringify([a, b, c, d]));
 }

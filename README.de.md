@@ -1,5 +1,7 @@
 # WerkFab
 
+<a href="https://paypal.me/VitalijBleich"><img src="docs/media/kaffee-button.svg" alt="Spendier mir einen Kaffee (PayPal)" height="48"></a> &nbsp; **[WerkFab mit einem Kaffee unterstützen → paypal.me/VitalijBleich](https://paypal.me/VitalijBleich)**
+
 [English](README.md) · **Deutsch**
 
 **CAD/CAM für Konstruktion und Fertigung – komplett offline, im Browser oder als App für Windows, Linux und macOS.**
@@ -11,7 +13,7 @@ WerkFab ist ein parametrisches 3D-CAD mit integriertem CAM. Teile werden über S
 > [!CAUTION]
 > **Jedes NC-Programm muss vor dem ersten Einsatz geprüft werden – an der Maschine im Probelauf (Einzelsatz, reduzierter Eilgang, ohne Werkstück oder mit Abstand in Z) oder in einem externen NC-Simulator.** Die Simulation in WerkFab ersetzt diese Prüfung nicht. WerkFab ist freie Software ohne jede Gewährleistung; für Schäden an Maschine, Werkzeug, Werkstück oder Personen wird nicht gehaftet (siehe [Sicherheit](#sicherheit-nc-programme-immer-vorher-simulieren)).
 
-> **Status: Release Candidate 10 (v1.0.0-rc.10).** Der Funktionsumfang ist vollständig für 1.0.
+> **Status: Release Candidate 11 (v1.0.0-rc.11).** Der Funktionsumfang ist vollständig für 1.0.
 
 ![Konstruktion über die Zeitachse, danach Fräsbahnen und Simulation mit Materialabtrag](docs/media/demo.gif)
 

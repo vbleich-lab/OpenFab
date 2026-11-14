@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "Sen porca",
+ "Durchgangsbohrung durch alle Teile": "Burato pasante por todas as pezas",
+ "Gewindebohrung im untersten Teil": "Burato roscado na peza inferior",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "Burato roscado na peza inferior: o burato pasante remata onde comeza a peza inferior; alí créase o burato previo da rosca coa rosca – tres filetes máis fondo do que chega o parafuso, ou por toda a peza. Se só hai unha peza baixo o punto, esta recibe a rosca desde a cara.",
+ "Für {0} ist kein Gewinde hinterlegt.": "Non hai ningunha rosca gardada para {0}.",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "O parafuso non chega á peza inferior (lonxitude {0} mm, {1} mm por riba).",
+ "Gewindebohrung für {0} – Skizze": "Burato roscado para {0} – esbozo",
+ "Gewindebohrung für {0}": "Burato roscado para {0}",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "burato roscado {0} – profundidade de rosca só {1} mm",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "burato roscado {0}, profundidade de rosca {1} mm"
+}

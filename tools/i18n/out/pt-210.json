@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Clique em uma face – o furo é criado junto",
+ "Kopf versenken (Senkbohrung)": "Embutir a cabeça (furo com rebaixo)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Clique em uma face: em cada ponto clicado é criado o furo passante para o parafuso (ISO 273, série média) através de todas as peças sobrepostas ali – com escareado de 90° para parafusos de cabeça escareada e, opcionalmente, com rebaixo (DIN 974-1, série 1) tão profundo quanto a cabeça para parafusos de cabeça cilíndrica. O parafuso já fica encaixado nele. Depois, o furo e o parafuso podem ser alterados na linha do tempo.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Peça normalizada: {0} inserido – clique em outro ponto ou encerre.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Peça normalizada: clique em um ponto de uma face plana – ali é criado o furo.",
+ "Auf eine ebene Fläche klicken.": "Clique em uma face plana.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Esta é uma face redonda – clique em uma face plana.",
+ "Unter diesem Punkt liegt kein Material.": "Não há material sob este ponto.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "A peça é fina demais para o rebaixo (profundidade {0} mm, espessura {1} mm).",
+ "Bohrung für {0} – Skizze": "Furo para {0} – esboço",
+ "Bohrung für {0}": "Furo para {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "Furo Ø {0} mm com rebaixo Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "Furo Ø {0} mm com escareado 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "Furo Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "União parafusada: {0} – {1}; o parafuso é curto demais para a espessura fixada de {2} mm (necessário: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, espessura {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Não há furo passante definido para {0}"
+}

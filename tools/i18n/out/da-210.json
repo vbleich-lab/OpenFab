@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Klik på en flade – hullet oprettes samtidig",
+ "Kopf versenken (Senkbohrung)": "Forsænk hoved (cylindrisk sænkning)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Klik på en flade: i hvert klikpunkt oprettes gennemgangshullet til skruen (ISO 273, mellemrække) gennem alle dele, der ligger oven på hinanden dér – til undersænkede skruer med 90° undersænkning, til cylinderskruer efter ønske med cylindrisk sænkning (DIN 974-1, række 1) lige så dyb som hovedet. Skruen sidder straks i hullet. Hul og skrue kan derefter ændres i tidslinjen.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Standarddel: {0} indsat – klik på endnu et punkt, eller afslut.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Standarddel: klik på et punkt på en plan flade – dér oprettes hullet.",
+ "Auf eine ebene Fläche klicken.": "Klik på en plan flade.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Dette er en rund flade – klik på en plan flade.",
+ "Unter diesem Punkt liegt kein Material.": "Der er intet materiale under dette punkt.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Delen er for tynd til sænkningen (sænkedybde {0} mm, tykkelse {1} mm).",
+ "Bohrung für {0} – Skizze": "Hul til {0} – skitse",
+ "Bohrung für {0}": "Hul til {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "hul Ø {0} mm med cylindrisk sænkning Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "hul Ø {0} mm med 90° undersænkning Ø {1} mm",
+ "Bohrung Ø {0} mm": "hul Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Skrueforbindelse: {0} – {1}; skruen er for kort til klemtykkelsen {2} mm (nødvendig: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, tykkelse {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Der er ikke gemt noget gennemgangshul til {0}"
+}

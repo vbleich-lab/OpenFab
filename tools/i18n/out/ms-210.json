@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Klik muka – lubang dibuat bersama",
+ "Kopf versenken (Senkbohrung)": "Benamkan kepala (benam silinder)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Klik muka: pada setiap titik klik dibuat lubang lalu untuk skru (ISO 273, siri sederhana) menerusi semua bahagian yang bertindih di situ – untuk skru benam dengan benam 90°, untuk skru kepala silinder secara pilihan dengan benam silinder (DIN 974-1, siri 1) sedalam kepala. Skru terus terletak di dalamnya. Lubang dan skru boleh diubah kemudian pada garis masa.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Bahagian piawai: {0} disisipkan – klik titik lain atau tamatkan.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Bahagian piawai: klik satu titik pada muka rata – lubang dibuat di situ.",
+ "Auf eine ebene Fläche klicken.": "Klik pada muka rata.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Ini muka bulat – sila klik muka rata.",
+ "Unter diesem Punkt liegt kein Material.": "Tiada bahan di bawah titik ini.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Bahagian terlalu nipis untuk benam (kedalaman benam {0} mm, ketebalan {1} mm).",
+ "Bohrung für {0} – Skizze": "Lubang untuk {0} – lakaran",
+ "Bohrung für {0}": "Lubang untuk {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "lubang Ø {0} mm dengan benam silinder Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "lubang Ø {0} mm dengan benam 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "lubang Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Sambungan skru: {0} – {1}; skru terlalu pendek untuk ketebalan apitan {2} mm (diperlukan: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, ketebalan {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Tiada lubang lalu disimpan untuk {0}"
+}

@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Bir yüzeye tıklayın – delik birlikte oluşturulur",
+ "Kopf versenken (Senkbohrung)": "Başı gömmek (havşa deliği)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Bir yüzeye tıklayın: tıklanan her noktada, orada üst üste duran tüm parçalardan geçen cıvata geçiş deliği (ISO 273, orta seri) oluşturulur – havşa başlı cıvatalar için 90° havşa ile, silindirik başlı cıvatalar için isteğe bağlı olarak baş kadar derin havşa (DIN 974-1, seri 1) ile. Cıvata hemen deliğe yerleşir. Delik ve cıvata daha sonra zaman çizelgesinde değiştirilebilir.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Standart parça: {0} eklendi – başka bir noktaya tıklayın veya bitirin.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Standart parça: düz bir yüzeyde bir noktaya tıklayın – delik orada oluşturulur.",
+ "Auf eine ebene Fläche klicken.": "Düz bir yüzeye tıklayın.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Bu yuvarlak bir yüzey – lütfen düz bir yüzeye tıklayın.",
+ "Unter diesem Punkt liegt kein Material.": "Bu noktanın altında malzeme yok.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Parça havşa için çok ince (havşa derinliği {0} mm, kalınlık {1} mm).",
+ "Bohrung für {0} – Skizze": "{0} için delik – eskiz",
+ "Bohrung für {0}": "{0} için delik",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "Ø {0} mm delik, Ø {1} × {2} mm havşalı",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "Ø {0} mm delik, 90° Ø {1} mm havşalı",
+ "Bohrung Ø {0} mm": "Ø {0} mm delik",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Cıvata bağlantısı: {0} – {1}; cıvata {2} mm sıkıştırma kalınlığı için çok kısa (gereken: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, kalınlık {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "{0} için tanımlı geçiş deliği yok"
+}

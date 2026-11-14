@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Noklikšķiniet uz virsmas – caurums rodas vienlaikus",
+ "Kopf versenken (Senkbohrung)": "Iegremdēt galvu (cilindriskā ieslīpuma)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Noklikšķiniet uz virsmas: katrā klikšķa punktā rodas caurejošs caurums skrūvei (ISO 273, vidējā sērija) cauri visām detaļām, kas tur atrodas viena uz otras – skrūvēm ar slēpto galvu ar 90° konisko izurbumu, cilindriskās galvas skrūvēm pēc izvēles ar cilindrisko izurbumu (DIN 974-1, 1. sērija) galvas dziļumā. Skrūve uzreiz ir caurumā. Caurumu un skrūvi pēc tam var mainīt laika joslā.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Standarta detaļa: {0} ievietota – noklikšķiniet uz nākamā punkta vai pabeidziet.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Standarta detaļa: noklikšķiniet uz punkta plakanā virsmā – tur rodas caurums.",
+ "Auf eine ebene Fläche klicken.": "Noklikšķiniet uz plakanas virsmas.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Šī ir apaļa virsma – noklikšķiniet uz plakanas virsmas.",
+ "Unter diesem Punkt liegt kein Material.": "Zem šī punkta nav materiāla.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Detaļa ir par plānu izurbumam (izurbuma dziļums {0} mm, biezums {1} mm).",
+ "Bohrung für {0} – Skizze": "Caurums priekš {0} – skice",
+ "Bohrung für {0}": "Caurums priekš {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "caurums Ø {0} mm ar cilindrisko izurbumu Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "caurums Ø {0} mm ar 90° konisko izurbumu Ø {1} mm",
+ "Bohrung Ø {0} mm": "caurums Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Skrūvsavienojums: {0} – {1}; skrūve ir par īsu saspiešanas biezumam {2} mm (nepieciešams: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, biezums {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Priekš {0} nav saglabāts caurejošs caurums"
+}

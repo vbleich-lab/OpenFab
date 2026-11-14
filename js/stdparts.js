@@ -1,11 +1,13 @@
 // Standard parts ("Normteile"): screws, nuts, washers, pins, keys, retaining rings, bearings, O-rings.
-// Guide dimensions (nominal sizes of the standards, no tolerances); threads are drawn as plain cylinders.
+// Guide dimensions (nominal sizes of the standards, no tolerances). A thread is a step of its own: the cylinder is
+// marked as a thread (drawings show it) or, on request, cut as a real helix.
 //
 // A part is a list of steps around its axis (z along the axis, r away from it; z = 0 is the seat: the face
 // the head, the nut or the washer lies on – a shank runs to −z, into the hole):
 //   { k: 'rev', pts: [[r, z], …], op }             closed outline in the r–z half plane, turned once around
 //   { k: 'ring', r, z, rad, op }                   a circle of radius rad at (r, z), turned once around (torus)
 //   { k: 'prism', shape: 'hex' | 'circle' | 'rect', s | r | w, h, rr, hole, z, dist, op }
+//   { k: 'thread', r, z, size }                    the cylinder face of radius r at height z carries the thread size
 // op: 'new' for the first step, then 'join' or 'cut' (applied to the part itself).
 
 const T30 = Math.tan(Math.PI / 6);
@@ -24,7 +26,20 @@ const M = {
   M20: { d: 20, cap: [30, 20, 17, 10], hex: [30, 12.5], m: 18, mt: 10, ml: 20, csk: [40.32, 10.16, 12], set: 10, w: [21, 37, 3], wl: [60, 4], sp: [20.2, 33.6, 4] },
   M24: { d: 24, cap: [36, 24, 19, 12], hex: [36, 15], m: 21.5, mt: 12, ml: 24, set: 12, w: [25, 44, 4], wl: [72, 5], sp: [24.5, 40, 5] },
 };
+// further series: low head cap screw DIN 7984 (dk, k, s), cap nut DIN 1587 (s, h), small washer ISO 7092 (d2, h)
+const MORE = {
+  M3: { low: [5.5, 2, 2], ws: [6, 0.5] }, M4: { low: [7, 2.8, 2.5], cn: [7, 8], ws: [8, 0.5] }, M5: { low: [8.5, 3.5, 3], cn: [8, 10], ws: [9, 1] }, M6: { low: [10, 4, 4], cn: [10, 12], ws: [11, 1.6] },
+  M8: { low: [13, 5, 5], cn: [13, 15], ws: [15, 1.6] }, M10: { low: [16, 6, 7], cn: [17, 18], ws: [18, 1.6] }, M12: { low: [18, 7, 8], cn: [19, 22], ws: [20, 2] }, M16: { low: [24, 9, 12], cn: [24, 28], ws: [28, 2.5] }, M20: { cn: [30, 34], ws: [34, 3] },
+};
+for (const k of Object.keys(MORE)) Object.assign(M[k], MORE[k]);
+// coarse pitch; the hole of a nut is the minor diameter of its thread
+const PITCH = { M3: 0.5, M4: 0.7, M5: 0.8, M6: 1, M8: 1.25, M10: 1.5, M12: 1.75, M16: 2, M20: 2.5, M24: 3 };
+const core = z => M[z].d - 1.0825 * PITCH[z];
 const mSizes = key => Object.keys(M).filter(k => M[k][key] != null);
+// spring pins ISO 8752: nominal Ø → wall
+const SPRING = { 2: 0.4, 3: 0.6, 4: 0.8, 5: 1, 6: 1.25, 8: 1.5, 10: 2, 12: 2.5, 16: 3, 20: 4 };
+// rotary shaft seals DIN 3760: d × D × b
+const SEALS = { '10×22×7': [10, 22, 7], '12×24×7': [12, 24, 7], '15×30×7': [15, 30, 7], '20×35×7': [20, 35, 7], '25×40×7': [25, 40, 7], '30×47×7': [30, 47, 7], '35×52×7': [35, 52, 7], '40×62×8': [40, 62, 8], '50×72×8': [50, 72, 8] };
 
 // feather keys DIN 6885: b × h
 const KEYS = { '4×4': [4, 4], '5×5': [5, 5], '6×6': [6, 6], '8×7': [8, 7], '10×8': [10, 8], '12×8': [12, 8], '14×9': [14, 9], '16×10': [16, 10], '18×11': [18, 11], '20×12': [20, 12] };
@@ -41,9 +56,13 @@ const PINS = [2, 3, 4, 5, 6, 8, 10, 12, 16, 20];
 const shank = (d, L) => { const c = Math.min(0.1 * d, 0.3 * L); return [[0, -L], [d / 2 - c, -L], [d / 2, -L + c], [d / 2, 0]]; };
 // the corners of a hexagon cut off at 30°: what is left of a turned blank (top = +1: at z, material below)
 const hexChamfer = (s, z, top) => { const r0 = 0.47 * s, r1 = s / Math.sqrt(3) + 0.3, dz = (r1 - r0) * T30 * (top ? -1 : 1); return { k: 'rev', pts: [[r0, z], [r1, z], [r1, z + dz]], op: 'cut' }; };
-const nut = (d, s, m, collar = 0) => [
+const thread = (z, r, at) => ({ k: 'thread', r, z: at, size: z });
+// (z: the size; the hole is the minor diameter and carries the thread)
+const nut = (z, s, m, collar = 0) => { const d = core(z); return [
   { k: 'prism', shape: 'hex', s, hole: d / 2, z: 0, dist: m, op: 'new' }, hexChamfer(s, 0, false), ...(collar ? [] : [hexChamfer(s, m, true)]),
-  ...(collar ? [{ k: 'rev', pts: [[d / 2, m - 0.01], [0.45 * s, m - 0.01], [0.45 * s, m + collar - 0.15 * collar], [0.45 * s - 0.15 * collar, m + collar], [d / 2, m + collar]], op: 'join' }] : [])];
+  ...(collar ? [{ k: 'rev', pts: [[d / 2, m - 0.01], [0.45 * s, m - 0.01], [0.45 * s, m + collar - 0.15 * collar], [0.45 * s - 0.15 * collar, m + collar], [d / 2, m + collar]], op: 'join' }] : []), thread(z, d / 2, m / 2)]; };
+// a dome over a hexagon: quarter circle of radius rd from height z0 up
+const dome = (rd, z0, ri) => { const pts = [[ri, z0 - 0.01], [rd, z0 - 0.01]]; for (let i = 0; i <= 8; i++) { const a = (i * Math.PI) / 16; pts.push([rd * Math.cos(a), z0 + rd * Math.sin(a)]); } pts[pts.length - 1][0] = 0; pts.push([0, z0 + 0.75 * rd], [ri, z0 + 0.75 * rd - 0.577 * ri]); return pts; };
 const washer = (ri, ro, h) => [{ k: 'rev', pts: [[ri, 0], [ro, 0], [ro, h], [ri, h]], op: 'new' }];
 const splitRing = (ri, ro, h, gap) => [...washer(ri, ro, h), { k: 'prism', shape: 'rect', w: ro + 1, h: gap, cx: (ro + 1) / 2, z: -0.5, dist: h + 1, op: 'cut' }];
 
@@ -54,31 +73,39 @@ const splitRing = (ri, ro, h, gap) => [...washer(ri, ro, h), { k: 'prism', shape
  */
 export const STD_FAMILIES = [
   { id: 'iso4762', group: 'Schrauben', name: 'Zylinderschraube mit Innensechskant (ISO 4762)', norm: 'ISO 4762', sizes: () => mSizes('cap'), len: 20, seat: 'in',
-    make: (z, L) => { const [dk, k, s, t] = M[z].cap, d = M[z].d, c = 0.08 * dk; return [{ k: 'rev', pts: [...shank(d, L), [dk / 2, 0], [dk / 2, k - c], [dk / 2 - c, k], [0, k]], op: 'new' }, { k: 'prism', shape: 'hex', s, z: k, dist: -t, op: 'cut' }]; },
+    make: (z, L) => { const [dk, k, s, t] = M[z].cap, d = M[z].d, c = 0.08 * dk; return [{ k: 'rev', pts: [...shank(d, L), [dk / 2, 0], [dk / 2, k - c], [dk / 2 - c, k], [0, k]], op: 'new' }, { k: 'prism', shape: 'hex', s, z: k, dist: -t, op: 'cut' }, thread(z, d / 2, -L / 2)]; },
     dims: z => { const [dk, k, s] = M[z].cap; return `d ${M[z].d} · dk ${dk} · k ${k} · SW ${s}`; } },
+  { id: 'din7984', group: 'Schrauben', name: 'Zylinderschraube mit niedrigem Kopf (DIN 7984)', norm: 'DIN 7984', sizes: () => mSizes('low'), len: 16, seat: 'in',
+    make: (z, L) => { const [dk, k, s] = M[z].low, d = M[z].d, c = 0.08 * dk; return [{ k: 'rev', pts: [...shank(d, L), [dk / 2, 0], [dk / 2, k - c], [dk / 2 - c, k], [0, k]], op: 'new' }, { k: 'prism', shape: 'hex', s, z: k, dist: -0.6 * k, op: 'cut' }, thread(z, d / 2, -L / 2)]; },
+    dims: z => { const [dk, k, s] = M[z].low; return `d ${M[z].d} · dk ${dk} · k ${k} · SW ${s}`; } },
   { id: 'iso4017', group: 'Schrauben', name: 'Sechskantschraube (ISO 4017 / ISO 4014)', norm: 'ISO 4017 / ISO 4014', sizes: () => mSizes('hex'), len: 30, seat: 'in',
-    make: (z, L) => { const [s, k] = M[z].hex, d = M[z].d; return [{ k: 'prism', shape: 'hex', s, z: 0, dist: k, op: 'new' }, { k: 'rev', pts: [...shank(d, L), [0, 0]], op: 'join' }, hexChamfer(s, k, true)]; },
+    make: (z, L) => { const [s, k] = M[z].hex, d = M[z].d; return [{ k: 'prism', shape: 'hex', s, z: 0, dist: k, op: 'new' }, { k: 'rev', pts: [...shank(d, L), [0, 0]], op: 'join' }, hexChamfer(s, k, true), thread(z, d / 2, -L / 2)]; },
     dims: z => `d ${M[z].d} · SW ${M[z].hex[0]} · k ${M[z].hex[1]}` },
   { id: 'iso10642', group: 'Schrauben', name: 'Senkschraube mit Innensechskant (ISO 10642)', norm: 'ISO 10642', sizes: () => mSizes('csk'), len: 20, seat: 'in', lenTotal: true,
-    make: (z, L) => { const [dk, k, s] = M[z].csk, d = M[z].d, LL = Math.max(L, k + 1), c = Math.min(0.1 * d, 0.3 * LL); return [{ k: 'rev', pts: [[0, -LL], [d / 2 - c, -LL], [d / 2, -LL + c], [d / 2, -k], [dk / 2, 0], [0, 0]], op: 'new' }, { k: 'prism', shape: 'hex', s, z: 0, dist: -0.6 * k, op: 'cut' }]; },
+    make: (z, L) => { const [dk, k, s] = M[z].csk, d = M[z].d, LL = Math.max(L, k + 1), c = Math.min(0.1 * d, 0.3 * LL); return [{ k: 'rev', pts: [[0, -LL], [d / 2 - c, -LL], [d / 2, -LL + c], [d / 2, -k], [dk / 2, 0], [0, 0]], op: 'new' }, { k: 'prism', shape: 'hex', s, z: 0, dist: -0.6 * k, op: 'cut' }, thread(z, d / 2, -(LL + k) / 2)]; },
     dims: z => { const [dk, k, s] = M[z].csk; return `d ${M[z].d} · dk ${dk} · k ${k} · SW ${s} · 90°`; } },
   { id: 'iso7380', group: 'Schrauben', name: 'Linsenkopfschraube mit Innensechskant (ISO 7380)', norm: 'ISO 7380', sizes: () => mSizes('btn'), len: 16, seat: 'in',
-    make: (z, L) => { const [dk, k, s] = M[z].btn, d = M[z].d; return [{ k: 'rev', pts: [...shank(d, L), [dk / 2, 0], [dk / 2, 0.25 * k], [0.42 * dk, 0.7 * k], [0.3 * dk, k], [0, k]], op: 'new' }, { k: 'prism', shape: 'hex', s, z: k, dist: -0.55 * k, op: 'cut' }]; },
+    make: (z, L) => { const [dk, k, s] = M[z].btn, d = M[z].d; return [{ k: 'rev', pts: [...shank(d, L), [dk / 2, 0], [dk / 2, 0.25 * k], [0.42 * dk, 0.7 * k], [0.3 * dk, k], [0, k]], op: 'new' }, { k: 'prism', shape: 'hex', s, z: k, dist: -0.55 * k, op: 'cut' }, thread(z, d / 2, -L / 2)]; },
     dims: z => { const [dk, k, s] = M[z].btn; return `d ${M[z].d} · dk ${dk} · k ${k} · SW ${s}`; } },
   { id: 'iso4026', group: 'Schrauben', name: 'Gewindestift mit Innensechskant (ISO 4026)', norm: 'ISO 4026', sizes: () => mSizes('set'), len: 10, seat: 'in',
-    make: (z, L) => { const d = M[z].d, c = Math.min(0.12 * d, 0.3 * L); return [{ k: 'rev', pts: [[0, -L], [d / 2 - c, -L], [d / 2, -L + c], [d / 2, -c], [d / 2 - c, 0], [0, 0]], op: 'new' }, { k: 'prism', shape: 'hex', s: M[z].set, z: 0, dist: -Math.min(0.6 * d, 0.6 * L), op: 'cut' }]; },
+    make: (z, L) => { const d = M[z].d, c = Math.min(0.12 * d, 0.3 * L); return [{ k: 'rev', pts: [[0, -L], [d / 2 - c, -L], [d / 2, -L + c], [d / 2, -c], [d / 2 - c, 0], [0, 0]], op: 'new' }, { k: 'prism', shape: 'hex', s: M[z].set, z: 0, dist: -Math.min(0.6 * d, 0.6 * L), op: 'cut' }, thread(z, d / 2, -L / 2)]; },
     dims: z => `d ${M[z].d} · SW ${M[z].set}` },
   { id: 'din976', group: 'Schrauben', name: 'Gewindestange (DIN 976)', norm: 'DIN 976', sizes: () => Object.keys(M), len: 100, seat: 'in',
-    make: (z, L) => { const d = M[z].d, c = Math.min(0.1 * d, 0.3 * L); return [{ k: 'rev', pts: [[0, -L], [d / 2 - c, -L], [d / 2, -L + c], [d / 2, -c], [d / 2 - c, 0], [0, 0]], op: 'new' }]; },
+    make: (z, L) => { const d = M[z].d, c = Math.min(0.1 * d, 0.3 * L); return [{ k: 'rev', pts: [[0, -L], [d / 2 - c, -L], [d / 2, -L + c], [d / 2, -c], [d / 2 - c, 0], [0, 0]], op: 'new' }, thread(z, d / 2, -L / 2)]; },
     dims: z => `d ${M[z].d}` },
   { id: 'iso4032', group: 'Muttern', name: 'Sechskantmutter (ISO 4032)', norm: 'ISO 4032', sizes: () => mSizes('m'), seat: 'on',
-    make: z => nut(M[z].d, M[z].hex[0], M[z].m), dims: z => `d ${M[z].d} · SW ${M[z].hex[0]} · m ${M[z].m}` },
+    make: z => nut(z, M[z].hex[0], M[z].m), dims: z => `d ${M[z].d} · SW ${M[z].hex[0]} · m ${M[z].m}` },
   { id: 'iso4035', group: 'Muttern', name: 'Sechskantmutter, niedrig (ISO 4035)', norm: 'ISO 4035', sizes: () => mSizes('mt'), seat: 'on',
-    make: z => nut(M[z].d, M[z].hex[0], M[z].mt), dims: z => `d ${M[z].d} · SW ${M[z].hex[0]} · m ${M[z].mt}` },
+    make: z => nut(z, M[z].hex[0], M[z].mt), dims: z => `d ${M[z].d} · SW ${M[z].hex[0]} · m ${M[z].mt}` },
   { id: 'iso10511', group: 'Muttern', name: 'Sicherungsmutter mit Klemmteil (ISO 10511 / DIN 985)', norm: 'ISO 10511 / DIN 985', sizes: () => mSizes('ml'), seat: 'on',
-    make: z => nut(M[z].d, M[z].hex[0], 0.7 * M[z].ml, 0.3 * M[z].ml), dims: z => `d ${M[z].d} · SW ${M[z].hex[0]} · h ${M[z].ml}` },
+    make: z => nut(z, M[z].hex[0], 0.7 * M[z].ml, 0.3 * M[z].ml), dims: z => `d ${M[z].d} · SW ${M[z].hex[0]} · h ${M[z].ml}` },
+  { id: 'din1587', group: 'Muttern', name: 'Hutmutter, hohe Form (DIN 1587)', norm: 'DIN 1587', sizes: () => mSizes('cn'), seat: 'on',
+    make: z => { const [s, hh] = M[z].cn, d = core(z), rd = 0.45 * s, m = hh - rd; return [{ k: 'prism', shape: 'hex', s, hole: d / 2, z: 0, dist: m, op: 'new' }, hexChamfer(s, 0, false), { k: 'rev', pts: dome(rd, m, d / 2), op: 'join' }, thread(z, d / 2, m / 2)]; },
+    dims: z => `d ${M[z].d} · SW ${M[z].cn[0]} · h ${M[z].cn[1]}` },
   { id: 'iso7089', group: 'Scheiben', name: 'Scheibe (ISO 7089)', norm: 'ISO 7089', sizes: () => mSizes('w'), seat: 'on',
     make: z => washer(M[z].w[0] / 2, M[z].w[1] / 2, M[z].w[2]), dims: z => `${M[z].w[0]} × ${M[z].w[1]} × ${M[z].w[2]}` },
+  { id: 'iso7092', group: 'Scheiben', name: 'Scheibe, kleine Reihe (ISO 7092)', norm: 'ISO 7092', sizes: () => mSizes('ws'), seat: 'on',
+    make: z => washer(M[z].w[0] / 2, M[z].ws[0] / 2, M[z].ws[1]), dims: z => `${M[z].w[0]} × ${M[z].ws[0]} × ${M[z].ws[1]}` },
   { id: 'iso7093', group: 'Scheiben', name: 'Scheibe, große Reihe (ISO 7093)', norm: 'ISO 7093', sizes: () => mSizes('wl'), seat: 'on',
     make: z => washer(M[z].w[0] / 2, M[z].wl[0] / 2, M[z].wl[1]), dims: z => `${M[z].w[0]} × ${M[z].wl[0]} × ${M[z].wl[1]}` },
   { id: 'din127', group: 'Scheiben', name: 'Federring (DIN 127)', norm: 'DIN 127', sizes: () => mSizes('sp'), seat: 'on',
@@ -86,8 +113,17 @@ export const STD_FAMILIES = [
   { id: 'iso2338', group: 'Stifte und Passfedern', name: 'Zylinderstift (ISO 2338 / ISO 8734)', norm: 'ISO 2338 / ISO 8734', sizes: () => PINS.map(String), len: 20, seat: 'in',
     make: (z, L) => { const d = +z, c = Math.min(0.15 * d, 0.3 * L); return [{ k: 'rev', pts: [[0, -L], [d / 2 - c, -L], [d / 2, -L + c], [d / 2, -c], [d / 2 - c, 0], [0, 0]], op: 'new' }]; },
     dims: z => `Ø ${z}` },
+  { id: 'iso2339', group: 'Stifte und Passfedern', name: 'Kegelstift 1:50 (ISO 2339)', norm: 'ISO 2339', sizes: () => PINS.map(String), len: 30, seat: 'in',
+    make: (z, L) => { const d = +z; return [{ k: 'rev', pts: [[0, -L], [d / 2, -L], [d / 2 + L / 100, 0], [0, 0]], op: 'new' }]; },
+    dims: z => `Ø ${z} (kleines Ende) · 1:50` },
+  { id: 'iso8752', group: 'Stifte und Passfedern', name: 'Spannstift, geschlitzt (ISO 8752)', norm: 'ISO 8752', sizes: () => Object.keys(SPRING), len: 20, seat: 'in',
+    make: (z, L) => { const d = +z, s = SPRING[z], ro = d / 2, ri = ro - s, c = Math.min(0.5 * s, 0.2 * L); return [{ k: 'rev', pts: [[ri, -L], [ro - c, -L], [ro, -L + c], [ro, -c], [ro - c, 0], [ri, 0]], op: 'new' }, { k: 'prism', shape: 'rect', w: ro + 1, h: 0.25 * d, cx: (ro + 1) / 2, z: -L - 0.5, dist: L + 1, op: 'cut' }]; },
+    dims: z => `Ø ${z} · s ${SPRING[z]}` },
   { id: 'din6885', group: 'Stifte und Passfedern', name: 'Passfeder, Form A (DIN 6885)', norm: 'DIN 6885', sizes: () => Object.keys(KEYS), len: 25, seat: 'mid',
     make: (z, L) => { const [b, hh] = KEYS[z], LL = Math.max(L, b + 0.5); return [{ k: 'prism', shape: 'rect', w: LL, h: b, rr: b / 2, z: 0, dist: hh, op: 'new' }]; },
+    dims: z => `b ${KEYS[z][0]} · h ${KEYS[z][1]}` },
+  { id: 'din6885b', group: 'Stifte und Passfedern', name: 'Passfeder, Form B (DIN 6885)', norm: 'DIN 6885', sizes: () => Object.keys(KEYS), len: 25, seat: 'mid',
+    make: (z, L) => { const [b, hh] = KEYS[z]; return [{ k: 'prism', shape: 'rect', w: Math.max(L, 1), h: b, z: 0, dist: hh, op: 'new' }]; },
     dims: z => `b ${KEYS[z][0]} · h ${KEYS[z][1]}` },
   { id: 'din471', group: 'Sicherungsringe', name: 'Sicherungsring für Wellen (DIN 471)', norm: 'DIN 471', sizes: () => Object.keys(RING_SHAFT), seat: 'mid',
     make: z => { const [s, d3, b] = RING_SHAFT[z]; return splitRing(d3 / 2, d3 / 2 + b, s, 0.25 * d3); },
@@ -102,6 +138,9 @@ export const STD_FAMILIES = [
         { k: 'rev', pts: [[a, -0.01], [b, -0.01], [b, g], [a, g]], op: 'cut' }, { k: 'rev', pts: [[a, B - g], [b, B - g], [b, B + 0.01], [a, B + 0.01]], op: 'cut' }];
     },
     dims: z => `${BEARINGS[z][0]} × ${BEARINGS[z][1]} × ${BEARINGS[z][2]}` },
+  { id: 'din3760', group: 'Lager und Dichtungen', name: 'Wellendichtring (DIN 3760)', norm: 'DIN 3760', sizes: () => Object.keys(SEALS), seat: 'mid',
+    make: z => { const [d, D, b] = SEALS[z], ri = d / 2, ro = D / 2, w = 0.25 * (ro - ri); return [{ k: 'rev', pts: [[ri, 0], [ro, 0], [ro, b], [ro - w, b], [ro - w, 0.35 * b], [ri + w, 0.35 * b], [ri + w, b], [ri, b]], op: 'new' }]; },
+    dims: z => `${SEALS[z][0]} × ${SEALS[z][1]} × ${SEALS[z][2]}` },
   { id: 'iso3601', group: 'Lager und Dichtungen', name: 'O-Ring (ISO 3601)', norm: 'ISO 3601', sizes: () => Object.keys(ORINGS), seat: 'mid',
     make: z => { const [di, cs] = ORINGS[z]; return [{ k: 'ring', r: di / 2 + cs / 2, z: cs / 2, rad: cs / 2, op: 'new' }]; },
     dims: z => `Ø innen ${ORINGS[z][0]} · Schnur ${ORINGS[z][1]}` },
@@ -111,9 +150,49 @@ export const stdFamily = id => STD_FAMILIES.find(f => f.id === id);
 // preferred lengths of screws and pins
 export const STD_LENGTHS = [4, 5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 120, 140, 160, 200];
 
+/** The metric thread that goes through a clearance hole of this diameter (the largest that passes without rattling), or null. */
+export function boltSizeFor(dia, famId = 'iso4762') {
+  const fam = stdFamily(famId), ok = (fam ? fam.sizes() : []).filter(z => M[z] && M[z].d <= dia + 1e-6 && dia <= 1.3 * M[z].d + 0.3);
+  return ok.length ? ok[ok.length - 1] : null;
+}
+
+// clearance holes ISO 273 (medium series) and the counterbores for cap screws DIN 974-1 (series 1), by thread
+const HOLES = { M3: [3.4, 6.5], M4: [4.5, 8], M5: [5.5, 10], M6: [6.6, 11], M8: [9, 15], M10: [11, 18], M12: [13.5, 20], M16: [17.5, 26], M20: [22, 33], M24: [26, 40] };
+
+/**
+ * The hole a screw goes through: { dia, kind: 'simple' | 'cbore' | 'csink', cbDia, cbDepth, csDia, csAngle, seat }.
+ * A countersunk screw gets its 90° countersink (head flush); a cap screw – on request (sink) – a counterbore as
+ * deep as its head. seat: how far below the surface the head rests.
+ */
+export function boltHole(famId, size, sink = false) {
+  const fam = stdFamily(famId), z = String(size), hl = HOLES[z];
+  if (!fam || !M[z]) throw new Error('Diese Größe gibt es in der Norm nicht');
+  if (!hl) throw new Error(`Für ${z} ist keine Durchgangsbohrung hinterlegt`);
+  const out = { dia: hl[0], kind: 'simple', cbDia: hl[1], cbDepth: 0, csDia: 2 * hl[0], csAngle: 90, seat: 0 };
+  if (fam.lenTotal && M[z].csk) return { ...out, kind: 'csink', csDia: M[z].csk[0] };
+  if (sink && (famId === 'iso4762' || famId === 'din7984')) { const s = stdPartSteps(famId, z, 0), k = +s.z1.toFixed(3); return { ...out, kind: 'cbore', cbDepth: k, seat: k }; }
+  return out;
+}
+
+/**
+ * A bolted joint through a hole: screw, washer under the head, washer and nut on the far side. clamp: thickness
+ * of the clamped parts. o: { headWasher, nut, nutWasher } – family ids or ''. Returns the heights of the pieces
+ * and the preferred length that lets the screw look two pitches out of the nut: { len, need, hw, nw, m }.
+ * (A countersunk screw has its head in the part: no washer under it, its length counts from the top of the head.)
+ */
+export function boltStack(famId, size, clamp, o = {}) {
+  const fam = stdFamily(famId), z = String(size);
+  if (!fam || !M[z]) throw new Error('Diese Größe gibt es in der Norm nicht');
+  const hgt = id => { if (!id) return 0; const s = stdPartSteps(id, z, 0); return s.z1 - s.z0; };
+  const hw = fam.lenTotal ? 0 : hgt(o.headWasher), nw = o.nut ? hgt(o.nutWasher) : 0, m = hgt(o.nut);
+  const need = hw + clamp + nw + m + (o.nut ? 2 * PITCH[z] : 0);
+  const len = STD_LENGTHS.find(q => q >= need - 1e-9) ?? Math.ceil(need);
+  return { len, need, hw, nw, m };
+}
+
 /** Short name of a part, e.g. "ISO 4762 M6×20". */
 export function stdPartName(fam, size, len) {
-  const norm = fam.norm.split(' / ')[0];
+  const norm = fam.norm.split(' / ')[0] + (fam.id === 'din6885b' ? ' B' : '');
   return fam.len ? `${norm} ${size}×${len}` : `${norm} ${size}`;
 }
 
@@ -126,7 +205,7 @@ export function stdPartSteps(famId, size, len) {
   const steps = fam.make(String(size), L);
   let z0 = Infinity, z1 = -Infinity, rmax = 0;
   for (const s of steps) {
-    if (s.op === 'cut') continue;
+    if (s.op === 'cut' || s.k === 'thread') continue;
     if (s.k === 'rev') for (const [r, z] of s.pts) { z0 = Math.min(z0, z); z1 = Math.max(z1, z); rmax = Math.max(rmax, r); }
     else if (s.k === 'ring') { z0 = Math.min(z0, s.z - s.rad); z1 = Math.max(z1, s.z + s.rad); rmax = Math.max(rmax, s.r + s.rad); }
     else { z0 = Math.min(z0, s.z, s.z + s.dist); z1 = Math.max(z1, s.z, s.z + s.dist); rmax = Math.max(rmax, s.shape === 'hex' ? s.s / Math.sqrt(3) : s.shape === 'rect' ? Math.hypot(s.w, s.h) / 2 + Math.abs(s.cx || 0) : s.r); }
@@ -138,6 +217,7 @@ export function stdPartSteps(famId, size, len) {
 export function stdPartVolume(steps) {
   let v = 0;
   for (const s of steps) {
+    if (s.k === 'thread') continue;
     let q = 0;
     if (s.k === 'rev') { // Pappus: area × path of the centroid
       let a = 0, cx = 0;

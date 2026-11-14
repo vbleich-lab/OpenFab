@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "ללא אום",
+ "Durchgangsbohrung durch alle Teile": "חור מעבר דרך כל החלקים",
+ "Gewindebohrung im untersten Teil": "חור הברגה בחלק התחתון",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "חור הברגה בחלק התחתון: חור המעבר מסתיים היכן שהחלק התחתון מתחיל; שם נוצר קדח ההכנה להברגה עם הברגה – עמוק בשלושה סיבובי הברגה מהמקום שאליו מגיע הבורג, או דרך כל החלק. אם מתחת לנקודה יש חלק אחד בלבד, הוא מקבל את ההברגה החל מהפאה.",
+ "Für {0} ist kein Gewinde hinterlegt.": "עבור {0} לא הוגדרה הברגה.",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "הבורג אינו מגיע עד החלק התחתון (אורך {0} mm, מעליו {1} mm).",
+ "Gewindebohrung für {0} – Skizze": "חור הברגה עבור {0} – סקיצה",
+ "Gewindebohrung für {0}": "חור הברגה עבור {0}",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "חור הברגה {0} – עומק הברגה {1} mm בלבד",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "חור הברגה {0}, עומק הברגה {1} mm"
+}

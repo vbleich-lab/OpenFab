@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "Sin tuerca",
+ "Durchgangsbohrung durch alle Teile": "Agujero pasante a través de todas las piezas",
+ "Gewindebohrung im untersten Teil": "Agujero roscado en la pieza inferior",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "Agujero roscado en la pieza inferior: el agujero pasante termina donde empieza la pieza inferior; allí se crea el agujero de macho con rosca, tres pasos de rosca más profundo de lo que llega el tornillo, o a través de toda la pieza. Si solo hay una pieza bajo el punto, la rosca empieza desde su cara.",
+ "Für {0} ist kein Gewinde hinterlegt.": "No hay ninguna rosca definida para {0}.",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "El tornillo no llega hasta la pieza inferior (longitud {0} mm, {1} mm por encima).",
+ "Gewindebohrung für {0} – Skizze": "Agujero roscado para {0} – boceto",
+ "Gewindebohrung für {0}": "Agujero roscado para {0}",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "agujero roscado {0} – profundidad de enrosque de solo {1} mm",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "agujero roscado {0}, profundidad de enrosque {1} mm"
+}

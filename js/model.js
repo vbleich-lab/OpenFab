@@ -903,7 +903,8 @@ export function threadSpec(f, cyl) {
 function applyThread(f, ctx) {
   const p = (f.faces || [])[f.faces?.length - 1];
   if (!p) fail('Zylinderfläche wählen (Bohrung oder Bolzen)');
-  const cyl = cylinderAt(ctx.bodies, p);
+  // (f.body: the thread of a standard part – its shank may lie in a hole of the same diameter)
+  const cyl = cylinderAt(f.body ? ctx.bodies.filter(b => b.id === f.body) : ctx.bodies, p);
   if (!cyl) fail('Gewählte Fläche ist keine Zylinderfläche');
   const { name, D, P } = threadSpec(f, cyl);
   const span = cyl.t1 - cyl.t0;
@@ -1007,7 +1008,7 @@ export function sheetBase(sk, f = null, findSketch = null) {
   const lines = sk.entities.filter(e => e.type === 'poly' && !e.closed && !e.curve && e.pts?.length === 2 && Math.hypot(e.pts[1][0] - e.pts[0][0], e.pts[1][1] - e.pts[0][1]) > 1e-6
     && !onProfile([(e.pts[0][0] + e.pts[1][0]) / 2, (e.pts[0][1] + e.pts[1][1]) / 2])).map(e => { const [a, c] = world(e.pts); return { id: e.id, a, b: c }; });
   if (rf && ((rf.lines || []).length || (rf.collars || []).length)) {
-    const kindOf = q => (q.on === false ? '' : q.kind || 'collar'), pick = k => (rf.collars || []).filter(q => kindOf(q) === k && +q.h && holeIds.includes(q.id)).map(q => ({ hole: holeIds.indexOf(q.id), h: +q.h }));
+    const kindOf = q => (q.on === false ? '' : q.kind || 'collar'), pick = k => (rf.collars || []).filter(q => kindOf(q) === k && +q.h && holeIds.includes(q.id)).map(q => ({ hole: holeIds.indexOf(q.id), h: +q.h, wall: +q.wall || 0 }));
     const L = id => lines.find(l => l.id === id);
     rf = { ...rf,
       folds: (rf.lines || []).filter(q => q.kind === 'bend' && L(q.id)).map(q => ({ a: L(q.id).a, b: L(q.id).b, angle: +q.angle || 90 })),

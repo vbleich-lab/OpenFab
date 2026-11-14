@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Kliknite površinu – rupa nastaje istovremeno",
+ "Kopf versenken (Senkbohrung)": "Upustiti glavu (cilindrično upuštanje)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Kliknite površinu: u svakoj tački klika nastaje prolazna rupa za vijak (ISO 273, srednji niz) kroz sve dijelove koji tamo leže jedan na drugom – za vijke s upuštenom glavom s 90° konusnim upuštanjem, za vijke s cilindričnom glavom po želji s cilindričnim upuštanjem (DIN 974-1, niz 1) dubokim koliko i glava. Vijak odmah sjedi u rupi. Rupa i vijak se poslije mogu mijenjati na vremenskoj liniji.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Standardni dio: {0} umetnut – kliknite sljedeću tačku ili završite.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Standardni dio: kliknite tačku na ravnoj površini – tamo nastaje rupa.",
+ "Auf eine ebene Fläche klicken.": "Kliknite ravnu površinu.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Ovo je okrugla površina – kliknite ravnu površinu.",
+ "Unter diesem Punkt liegt kein Material.": "Ispod ove tačke nema materijala.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Dio je pretanak za upuštanje (dubina upuštanja {0} mm, debljina {1} mm).",
+ "Bohrung für {0} – Skizze": "Rupa za {0} – skica",
+ "Bohrung für {0}": "Rupa za {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "rupa Ø {0} mm s cilindričnim upuštanjem Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "rupa Ø {0} mm s 90° konusnim upuštanjem Ø {1} mm",
+ "Bohrung Ø {0} mm": "rupa Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Vijčani spoj: {0} – {1}; vijak je prekratak za debljinu stezanja {2} mm (potrebno: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, debljina {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Za {0} nije pohranjena prolazna rupa"
+}

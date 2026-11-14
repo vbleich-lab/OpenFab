@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Klik een vlak aan – het gat wordt meteen gemaakt",
+ "Kopf versenken (Senkbohrung)": "Kop verzinken (gat met verdiept kopgat)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Klik een vlak aan: op elk aangeklikt punt ontstaat het doorgaande gat voor de schroef (ISO 273, reeks middel) door alle delen die daar op elkaar liggen – voor verzonken schroeven met 90°-verzinking, voor cilinderkopschroeven op verzoek met een verdiept kopgat (DIN 974-1, reeks 1) zo diep als de kop. De schroef zit meteen in het gat. Gat en schroef kunnen daarna in de tijdlijn worden gewijzigd.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Normdeel: {0} ingevoegd – klik nog een punt aan of beëindig.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Normdeel: klik een punt op een vlak oppervlak aan – daar wordt het gat gemaakt.",
+ "Auf eine ebene Fläche klicken.": "Klik op een vlak oppervlak.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Dit is een rond vlak – klik een vlak oppervlak aan.",
+ "Unter diesem Punkt liegt kein Material.": "Onder dit punt bevindt zich geen materiaal.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Het deel is te dun voor de verdieping (diepte {0} mm, dikte {1} mm).",
+ "Bohrung für {0} – Skizze": "Gat voor {0} – schets",
+ "Bohrung für {0}": "Gat voor {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "Gat Ø {0} mm met verdieping Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "Gat Ø {0} mm met verzinking 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "Gat Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Schroefverbinding: {0} – {1}; de schroef is te kort voor de klemdikte van {2} mm (nodig: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, dikte {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Voor {0} is geen doorgaand gat vastgelegd"
+}

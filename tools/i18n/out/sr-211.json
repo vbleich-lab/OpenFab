@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "Без матице",
+ "Durchgangsbohrung durch alle Teile": "Пролазна рупа кроз све делове",
+ "Gewindebohrung im untersten Teil": "Рупа са навојем у најдоњем делу",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "Рупа са навојем у најдоњем делу: пролазна рупа се завршава тамо где почиње најдоњи део; ту настаје рупа за навој са навојем – три навоја дубље него што досеже шраф или кроз цео део. Ако се испод тачке налази само један део, навој добија од површи надаље.",
+ "Für {0} ist kein Gewinde hinterlegt.": "За {0} није сачуван навој.",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "Шраф не досеже до најдоњег дела (дужина {0} mm, изнад њега {1} mm).",
+ "Gewindebohrung für {0} – Skizze": "Рупа са навојем за {0} – скица",
+ "Gewindebohrung für {0}": "Рупа са навојем за {0}",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "рупа са навојем {0} – дубина увртања само {1} mm",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "рупа са навојем {0}, дубина увртања {1} mm"
+}

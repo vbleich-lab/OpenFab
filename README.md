@@ -1,5 +1,7 @@
 # WerkFab
 
+<a href="https://paypal.me/VitalijBleich"><img src="docs/media/kaffee-button.svg" alt="Buy me a coffee (PayPal)" height="48"></a> &nbsp; **[Support WerkFab with a coffee → paypal.me/VitalijBleich](https://paypal.me/VitalijBleich)**
+
 **English** · [Deutsch](README.de.md)
 
 **Free, open-source CAD/CAM for design and CNC machining – runs completely offline, in the browser or as an app for Windows, Linux and macOS.**
@@ -11,7 +13,7 @@ WerkFab is a parametric 3D CAD program with integrated CAM. Parts are designed w
 > [!CAUTION]
 > **Every NC program must be verified before it runs on a machine for the first time – in a dry run on the machine (single block, reduced rapid, in the air or with a safe Z offset) or in an external NC simulator.** The simulation inside WerkFab does not replace this check. WerkFab is free software and comes with no warranty of any kind; there is no liability for damage to machines, tools, workpieces or people. See [Safety](#safety-always-simulate-nc-programs-first).
 
-> **Status: Release Candidate 10 (v1.0.0-rc.10).** Feature complete for 1.0.
+> **Status: Release Candidate 11 (v1.0.0-rc.11).** Feature complete for 1.0.
 
 ![Designing a part on the timeline, then toolpaths and a simulation with stock removal](docs/media/demo.gif)
 

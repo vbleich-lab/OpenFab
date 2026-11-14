@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "ナットなし",
+ "Durchgangsbohrung durch alle Teile": "すべての部品を貫通する通し穴",
+ "Gewindebohrung im untersten Teil": "最下部の部品にねじ穴",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "最下部の部品にねじ穴:通し穴は最下部の部品が始まる位置で終わり、そこから先にねじ付きの下穴が作成されます。深さはボルトが届く位置より3山分深くするか、部品を貫通させます。点の下に部品が1つだけの場合は、その面からねじが切られます。",
+ "Für {0} ist kein Gewinde hinterlegt.": "{0}にはねじが登録されていません。",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "ボルトが最下部の部品まで届きません(長さ{0} mm、その上に{1} mm)。",
+ "Gewindebohrung für {0} – Skizze": "{0}用ねじ穴 – スケッチ",
+ "Gewindebohrung für {0}": "{0}用ねじ穴",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "ねじ穴{0} – ねじ込み深さは{1} mmのみ",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "ねじ穴{0}、ねじ込み深さ{1} mm"
+}

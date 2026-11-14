@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Fare clic su una faccia – il foro viene creato insieme",
+ "Kopf versenken (Senkbohrung)": "Incassare la testa (foro con lamatura)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Fare clic su una faccia: in ogni punto selezionato viene creato il foro passante per la vite (ISO 273, serie media) attraverso tutti i pezzi sovrapposti in quel punto – con svasatura a 90° per le viti a testa svasata e, su richiesta, con lamatura (DIN 974-1, serie 1) profonda quanto la testa per le viti a testa cilindrica. La vite viene inserita subito nel foro. Foro e vite possono poi essere modificati nella timeline.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Componente normalizzato: {0} inserito – fare clic su un altro punto o terminare.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Componente normalizzato: fare clic su un punto di una faccia piana – lì viene creato il foro.",
+ "Auf eine ebene Fläche klicken.": "Fare clic su una faccia piana.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Questa è una faccia tonda – fare clic su una faccia piana.",
+ "Unter diesem Punkt liegt kein Material.": "Sotto questo punto non c'è materiale.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Il pezzo è troppo sottile per la lamatura (profondità {0} mm, spessore {1} mm).",
+ "Bohrung für {0} – Skizze": "Foro per {0} – schizzo",
+ "Bohrung für {0}": "Foro per {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "Foro Ø {0} mm con lamatura Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "Foro Ø {0} mm con svasatura 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "Foro Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Collegamento a vite: {0} – {1}; la vite è troppo corta per lo spessore serrato di {2} mm (necessario: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, spessore {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Per {0} non è definito alcun foro passante"
+}

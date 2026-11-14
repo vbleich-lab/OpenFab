@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "بدون صامولة",
+ "Durchgangsbohrung durch alle Teile": "ثقب عبور عبر جميع الأجزاء",
+ "Gewindebohrung im untersten Teil": "ثقب لولبي في الجزء الأسفل",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "ثقب لولبي في الجزء الأسفل: ينتهي ثقب العبور حيث يبدأ الجزء الأسفل؛ وهناك يُنشأ ثقب التحضير للولبة مع السن – أعمق بثلاث لفات من وصول البرغي، أو عبر الجزء بأكمله. إذا كان تحت النقطة جزء واحد فقط، فيحصل على السن ابتداءً من الوجه.",
+ "Für {0} ist kein Gewinde hinterlegt.": "لا يوجد سن لولب مخزّن لـ {0}.",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "لا يصل البرغي إلى الجزء الأسفل (الطول {0} mm، الأجزاء الأعلى {1} mm).",
+ "Gewindebohrung für {0} – Skizze": "ثقب لولبي لـ {0} – رسم تخطيطي",
+ "Gewindebohrung für {0}": "ثقب لولبي لـ {0}",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "ثقب لولبي {0} – عمق تعشيق اللولب {1} mm فقط",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "ثقب لولبي {0}، عمق تعشيق اللولب {1} mm"
+}

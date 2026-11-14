@@ -2,7 +2,7 @@
 // Fusion .cps post-processors (converted into an editable WerkFab template).
 import { R } from './kernel.js';
 import { BUILTIN_POSTS, copyPost } from './post.js';
-import { collapseNeedles, findCylinders } from './mesh.js';
+import { collapseNeedles, findCylinders, findRound, standIn, arcOnTorus } from './mesh.js';
 
 // ---------- imported files (kept in IndexedDB, too big for localStorage) ----------
 const mem = new Map();
@@ -123,10 +123,36 @@ function regionFaces(m) {
 }
 
 // round = { cones, spheres } (from findRound): countersinks, tapers and cone tips become true cones (a ring turned
-// around the axis), balls, domes and rounded corners true spheres – where the whole sphere fits the part.
-export async function meshToStep(m0, cyls = [], round = {}) {
+// around the axis), balls, domes and rounded corners true spheres – where the whole sphere fits the part; round.tori:
+// fillets round a round edge become true tori (a thin shell of the tube, turned around the axis).
+export async function meshToStep(m0, cyls = [], round = {}, noStand = null, noTori = false) {
+  const cyls0 = cyls, round0 = round;
   // (needles would leave gaps in the solid: every later cut would silently do nothing)
-  const m = collapseNeedles(m0);
+  const mc = collapseNeedles(m0);
+  // tori and the caps of spheres: their many facets give way to a few large ones first (their triangles are
+  // counted in the mesh they were found in)
+  const rnd = mc === m0 ? round : (() => { try { const r = findRound(mc); return { ...round, tori: r.tori, spheres: r.spheres }; } catch { return { ...round, tori: [], spheres: (round.spheres || []).map(s => ({ ...s, ti: null })) }; } })();
+  round = noTori ? { ...rnd, tori: [] } : rnd;
+  // a ring on its own (an O-ring) and nothing else: the torus itself
+  {
+    const t = (round.tori || []).find(x => x.whole && x.ti && x.ti.length === mc.idx.length / 3);
+    if (t) {
+      const o = t.c.map(x => Math.round(x * 1e5) / 1e5), ux = Math.abs(t.d[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = ux[0] * t.d[0] + ux[1] * t.d[1] + ux[2] * t.d[2];
+      let u = [ux[0] - t.d[0] * dd, ux[1] - t.d[1] * dd, ux[2] - t.d[2] * dd];
+      const ul = Math.hypot(...u); u = u.map(x => x / ul);
+      const nrm = [u[1] * t.d[2] - u[2] * t.d[1], u[2] * t.d[0] - u[0] * t.d[2], u[0] * t.d[1] - u[1] * t.d[0]];
+      const ring = R.drawCircle(Math.round(t.r * 1e4) / 1e4).translate(Math.round(t.R * 1e4) / 1e4, 0).sketchOnPlane(new R.Plane(o, u, nrm)).revolve(t.d, { origin: o, angle: 360 });
+      return { text: await ring.blobSTEP().text(), cylinders: 0, arcs: 0, cones: 0, spheres: 0, tori: 1 };
+    }
+  }
+  const skipKeys = noStand || new Set(), keyOf = new Map();
+  (round.tori || []).forEach((t, i) => keyOf.set(t, 't' + i)); (round.spheres || []).forEach((s, i) => keyOf.set(s, 's' + i));
+  let stand = { m: mc, tori: [], spheres: [] };
+  try { stand = standIn(mc, (round.tori || []).filter(t => !skipKeys.has(keyOf.get(t))), (round.spheres || []).filter(s => !skipKeys.has(keyOf.get(s)))); } catch { /* facet by facet */ }
+  const m = stand.m, stood = new Map([...stand.tori, ...stand.spheres].map(x => [x.src, x])), standOk = new Set();
+  // (without the facets of a fillet next to it a cylinder shows whole)
+  // (and the rows of facets of a torus that stays faceted are no pieces of cylinders)
+  if (stood.size) { try { cyls = findCylinders(m).filter(c => !arcOnTorus(c, round.tori || [])); } catch { /* as they were found */ } }
   const triFaces = () => { const faces = [], P = m.pos; for (let t = 0; t < m.idx.length; t += 3) {
     const [a, b, c] = [m.idx[t], m.idx[t + 1], m.idx[t + 2]].map(i => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]]);
     try { faces.push(R.makePolygon([a, b, c])); } catch { /* degenerate triangle */ }
@@ -139,20 +165,30 @@ export async function meshToStep(m0, cyls = [], round = {}) {
     if (rf.merged && rf.faces.length >= 4) { const s1 = R.makeSolid(rf.faces), v1 = R.measureVolume(s1), vm = meshVolume(m); if (Number.isFinite(v1) && Math.abs(Math.abs(v1) - Math.abs(vm)) <= 1e-4 * Math.abs(vm) + 1e-6) solid = s1; }
   } catch { /* triangle by triangle */ }
   if (!solid) { const faces = triFaces(); if (faces.length < 4) throw new Error('Zu wenige Dreiecke für einen Körper'); solid = R.makeSolid(faces); }
-  try { const s = solid.simplify?.(); if (s) solid = s; } catch { /* stays faceted */ }
-  let made = 0, arcs = 0, cones = 0, spheres = 0;
+  try { const s = solid.simplify?.(), v = R.measureVolume(solid); if (s && Math.abs(R.measureVolume(s) - v) <= 1e-6 * Math.abs(v) + 1e-9) solid = s; } catch { /* stays faceted */ }
+  const base = solid;
+  let made = 0, arcs = 0, cones = 0, spheres = 0, tori = 0;
   const vol = s => { try { return R.measureVolume(s); } catch { return NaN; } };
+  // tidying up must not change the body (a ring all on its own comes out of it empty)
+  const simp = s => { try { const q = s.simplify?.(), v = vol(s); if (q && Math.abs(vol(q) - v) <= 1e-6 * Math.abs(v) + 1e-9) return q; } catch { /* as it is */ } return s; };
   // First every round face once, quickly: its tool 0.1 µm larger than fitted, one boolean, one look at the volume.
   // What does not pass that way is then tried at leisure as below (other sizes, tidied up in between).
   let collect = null;
   const done = new Set();
   const one = x => (x && x.solids && x.solids.length === 1 ? x.solids[0] : x);
   const collector = () => ({ items: [], add(tool, sliver, hole, slack, kind, src) { this.items.push({ tool, sliver, hole, slack, kind, src }); } });
-  for (const pass of [0, 1]) {
-  collect = pass ? null : collector();
+  // where a straight fillet ends at a corner that stands in for a torus, the flat end of its tool would lie in
+  // the face between the two, slivers apart: there the tool reaches a little into the corner
+  // (does this piece of a cylinder end where the tube of this part of a torus ends, with the same radius?)
+  const meets = (c, t, z) => !!t.sweep && Math.abs(c.r - t.r) <= 2e-3 && [t.a0, t.a0 + t.sweep].some(ang => Math.hypot(...[0, 1, 2].map(i => c.c[i] + c.d[i] * z - t.c[i] - t.R * (t.u[i] * Math.cos(ang) + t.w[i] * Math.sin(ang)))) < 0.02);
+  // (where the torus is there already, only a hair: it bends away from the straight fillet)
+  const endExt = (c, z) => {
+    for (const [t, st] of stood) if (st.corner && meets(c, t, z)) return standOk.has(t) ? Math.max(5e-4, Math.sqrt(2e-7 * t.R)) : Math.min(0.02, 0.5 * Math.sqrt(2e-4 * t.R));
+    return 0;
+  };
   // (an arc is tried with its exact radius too – where it ends in a face across, that is the cleaner cut – and
   // the result with fewer faces is taken)
-  for (const c0 of cyls.slice(0, 80)) { if (done.has(c0)) continue; let best = null; for (const grow of c0.full === false ? [0, 1e-4, 1e-3] : [1e-4, 1e-3]) {
+  const doCyl = c0 => { let best = null; for (const grow of c0.full === false ? [0, 1e-4, 1e-3] : [1e-4, 1e-3]) {
     if (best && (c0.full !== false || grow > 1e-4)) break;
     // the fitted values carry the noise of single-precision points, so they are rounded. A cylinder exactly
     // through the corner points leaves shreds of the facets behind (edges lying in its surface): it is made
@@ -163,9 +199,9 @@ export async function meshToStep(m0, cyls = [], round = {}) {
       let tool;
       if (c.full === false) {
         // a band between the circle and a smaller one inside the chords, from the first to the last corner
-        const ri = c.r * Math.cos(Math.PI / c.n) * 0.9, at = (rr, a) => [rr * Math.cos(a), rr * Math.sin(a)], a1 = c.a0 + c.sweep, am = c.a0 + c.sweep / 2;
+        const e0 = endExt(c, 0), ri = c.r * Math.cos(Math.PI / c.n) * 0.9, at = (rr, a) => [rr * Math.cos(a), rr * Math.sin(a)], a1 = c.a0 + c.sweep, am = c.a0 + c.sweep / 2;
         const band = R.draw(at(c.r, c.a0)).threePointsArcTo(at(c.r, a1), at(c.r, am)).lineTo(at(ri, a1)).threePointsArcTo(at(ri, c.a0), at(ri, am)).close()
-          .sketchOnPlane(new R.Plane(c.c, c.u, c.d)).extrude(c.h);
+          .sketchOnPlane(new R.Plane(c.c.map((x, i) => x - c.d[i] * e0), c.u, c.d)).extrude(c.h + e0 + endExt(c, c.h));
         tool = band;
       } else if (c.hole) tool = R.makeCylinder(c.r, c.h, c.c, c.d);
       else {
@@ -178,12 +214,43 @@ export async function meshToStep(m0, cyls = [], round = {}) {
       const dv = vol(next) - v0;
       if (!Number.isFinite(dv) || Math.abs(Math.abs(dv) - sliver) > 0.05 * sliver + 0.01 * c.r * c.h + 1e-3 || (dv < 0) !== c.hole) continue;
       // (the next boolean works on clean faces only)
-      try { const q = next.simplify?.(); if (q) next = q; } catch { /* as it is */ }
+      next = simp(next);
       if (!best || next.faces.length < best.faces.length) best = next;
     } catch { /* stays faceted there */ }
   }
-    if (best) { solid = best; made++; if (c0.full === false) arcs++; }
+    if (best) { solid = best; made++; if (c0.full === false) arcs++; done.add(c0); }
+  };
+  // A part of a ring on the outside (the rounded edge of a plate with round corners), a sharp corner standing in:
+  // first of all, while the straight fillets next to it are still facets – the tool reaches a little past both
+  // ends, over those facets (it bends away from them by less than it is larger than the tube), so its flat ends
+  // lie in no face of the body.
+  for (const [t, st] of stood) {
+    if (!st.corner || !t.sweep || t.inner) continue;
+    const o = t.c.map(x => Math.round(x * 1e5) / 1e5), Rm = Math.round(t.R * 1e4) / 1e4, r = Math.round(t.r * 1e4) / 1e4;
+    const da = Math.min(0.02, 0.5 * Math.sqrt(2e-4 * Rm)) / Rm, u = t.u.map((x, i) => x * Math.cos(t.a0 - da) + t.w[i] * Math.sin(t.a0 - da));
+    const nrm = [u[1] * t.d[2] - u[2] * t.d[1], u[2] * t.d[0] - u[0] * t.d[2], u[0] * t.d[1] - u[1] * t.d[0]];
+    const P = (rad, a) => [Rm + rad * Math.cos(a), rad * Math.sin(a)], sm = (t.s0 + t.s1) / 2, rb = r + 1.05 * st.dout + 2e-3;
+    // (the cylinder the corner stands on comes first: its tool is as high as the corner)
+    for (const c0 of cyls) {
+      if (done.has(c0) || Math.abs(c0.r - (t.R + t.r)) > 2e-3 || Math.abs(c0.d[0] * t.d[0] + c0.d[1] * t.d[1] + c0.d[2] * t.d[2]) < 0.9999) continue;
+      const v = [t.c[0] - c0.c[0], t.c[1] - c0.c[1], t.c[2] - c0.c[2]], k = v[0] * c0.d[0] + v[1] * c0.d[1] + v[2] * c0.d[2];
+      if (Math.hypot(v[0] - c0.d[0] * k, v[1] - c0.d[1] * k, v[2] - c0.d[2] * k) < 0.02) doCyl(c0);
+    }
+    for (const grow of [1e-4, 0, 1e-3]) {
+      try {
+        const ra = r + (t.hole ? -grow : grow);
+        const tool = R.draw(P(ra, t.s0)).lineTo(P(rb, t.s0)).threePointsArcTo(P(rb, t.s1), P(rb, sm)).lineTo(P(ra, t.s1)).threePointsArcTo(P(ra, t.s0), P(ra, sm)).close()
+          .sketchOnPlane(new R.Plane(o, u, nrm)).revolve(t.d, { origin: o, angle: ((t.sweep + 2 * da) * 180) / Math.PI });
+        const v0 = vol(solid), next = one(t.hole ? solid.fuse(tool) : solid.cut(tool)), dv = vol(next) - v0;
+        if (!Number.isFinite(dv) || typeof next.fuse !== 'function' || Math.abs(Math.abs(dv) - st.vol) > 0.05 * st.vol + 0.002 * r * r + 1e-3 || (dv < 0) === !!t.hole) continue;
+        solid = next; tori++; standOk.add(t); done.add(t);
+        break;
+      } catch { /* later, with the others */ }
+    }
   }
+  for (const pass of [0, 1]) {
+  collect = pass ? null : collector();
+  for (const c0 of cyls.slice(0, 80)) if (!done.has(c0)) doCyl(c0);
   // cones and spheres: the same way – only the volume between the facets and the true face may change
   const tryTools = (mk, sliver, hole, slack, kind, src) => {
     if (collect) { try { collect.add(mk(1e-4), sliver, !!hole, slack, kind, src); } catch { /* not this one */ } return false; }
@@ -195,12 +262,13 @@ export async function meshToStep(m0, cyls = [], round = {}) {
         let next = hole ? solid.cut(tool) : solid.fuse(tool);
         const dv = vol(next) - v0;
         if (!Number.isFinite(dv) || Math.abs(Math.abs(dv) - sliver) > 0.05 * sliver + slack + 1e-3 || (dv < 0) !== hole) continue;
-        try { const q = next.simplify?.(); if (q) next = q; } catch { /* as it is */ }
+        next = simp(next);
         if (!best || next.faces.length < best.faces.length) best = next;
         if (best.faces.length < solid.faces.length - 2) break;
       } catch { /* stays faceted there */ }
     }
     if (best) solid = best;
+    if (best && stood.has(src)) standOk.add(src);
     return !!best;
   };
   for (const c of (round.cones || []).slice(0, 60)) {
@@ -231,8 +299,21 @@ export async function meshToStep(m0, cyls = [], round = {}) {
     if (tryTools(mk, sliver, c.hole, 0.01 * c.r1 * h, 'cone', c)) cones++;
   }
   for (const s of (round.spheres || []).slice(0, 60)) {
-    if (done.has(s)) continue;
+    if (done.has(s) || standOk.has(s)) continue;
     const c = s.c.map(x => Math.round(x * 1e5) / 1e5);
+    if (stood.has(s)) {
+      // a flat lid stands in for the cap: the true cap goes on it (or, for a hollow, is cut out of it)
+      const st = stood.get(s), sax = st.ax, ux = Math.abs(sax[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = ux[0] * sax[0] + ux[1] * sax[1] + ux[2] * sax[2];
+      let u = [ux[0] - sax[0] * dd, ux[1] - sax[1] * dd, ux[2] - sax[2] * dd];
+      const ul = Math.hypot(...u); u = u.map(x => x / ul);
+      const nrm = [u[1] * sax[2] - u[2] * sax[1], u[2] * sax[0] - u[0] * sax[2], u[0] * sax[1] - u[1] * sax[0]];
+      const cap = grow => {
+        const ro = Math.round(s.r * 1e4) / 1e4 + grow, h0 = Math.round(st.h0 * 1e5) / 1e5, rb = Math.sqrt(ro * ro - h0 * h0), am = Math.acos(h0 / ro) / 2;
+        return R.draw([0, h0]).lineTo([rb, h0]).threePointsArcTo([0, ro], [ro * Math.sin(am), ro * Math.cos(am)]).close().sketchOnPlane(new R.Plane(c, u, nrm)).revolve(sax, { origin: c, angle: 360 });
+      };
+      tryTools(cap, st.vol, s.hole, 0.02 * st.vol + 0.002 * s.r * s.r, 'sphere', s) && spheres++;
+      continue;
+    }
     const full = grow => R.makeSphere(Math.round(s.r * 1e4) / 1e4 + grow).translate(c[0], c[1], c[2]);
     // where the whole sphere does not fit the part (a dome on a plate, the rounded corner of a pocket): only the
     // shell between the facets and the sphere, as far as the patch reaches
@@ -252,6 +333,41 @@ export async function meshToStep(m0, cyls = [], round = {}) {
     if (collect) { tryTools(patch && s.alpha < 1.7 ? shell : full, s.vol, s.hole, slack, 'sphere', s); continue; }
     if (tryTools(full, s.vol, s.hole, slack, 'sphere') || (patch && tryTools(shell, s.vol, s.hole, slack, 'sphere'))) spheres++;
   }
+  for (const t of (round.tori || []).slice(0, 60)) {
+    // (the half of a tube that looks to the axis – the rounded rim of a hole, the fillet at the foot of a boss –
+    // has its facets on both sides of the true face: it is done only where a sharp corner stands in for it)
+    if (done.has(t) || (t.inner && !stood.has(t))) continue;
+    const o = t.c.map(x => Math.round(x * 1e5) / 1e5), Rm = Math.round(t.R * 1e4) / 1e4, r = Math.round(t.r * 1e4) / 1e4, sg = t.inner ? -1 : 1;
+    const ux = Math.abs(t.d[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = ux[0] * t.d[0] + ux[1] * t.d[1] + ux[2] * t.d[2];
+    let u = [ux[0] - t.d[0] * dd, ux[1] - t.d[1] * dd, ux[2] - t.d[2] * dd];
+    const ul = Math.hypot(...u); u = u.map(x => x / ul);
+    if (t.sweep) u = t.u.map((x, i) => x * Math.cos(t.a0) + t.w[i] * Math.sin(t.a0));
+    const nrm = [u[1] * t.d[2] - u[2] * t.d[1], u[2] * t.d[0] - u[0] * t.d[2], u[0] * t.d[1] - u[1] * t.d[0]];
+    // a shell of the tube between two radii, in the plane through the axis (x away from it, y along it)
+    // (where the tube ends square to the axis – on a flat face – the ring of corners there is a polygon inside its
+    // circle: the shell reaches a little further along that face, over the slivers between the two)
+    const flatEnd = s => !t.inner && Math.abs(Math.cos(s)) < 1e-6, ext = Math.min(0.5 * Rm, 1.5 * Rm * (1 - Math.cos(Math.PI / Math.max(8, t.n))) + 2e-3);
+    const shell = (ra, rb, wide = false) => {
+      const P = (rad, s) => [Rm + sg * rad * Math.cos(s), rad * Math.sin(s)], sm = (t.s0 + t.s1) / 2;
+      let dr = R.draw(P(ra, t.s0));
+      if (wide && flatEnd(t.s0)) dr = dr.lineTo([Rm - ext, ra * Math.sin(t.s0)]).lineTo([Rm - ext, rb * Math.sin(t.s0)]);
+      dr = dr.lineTo(P(rb, t.s0)).threePointsArcTo(P(rb, t.s1), P(rb, sm));
+      if (wide && flatEnd(t.s1)) dr = dr.lineTo([Rm - ext, rb * Math.sin(t.s1)]).lineTo([Rm - ext, ra * Math.sin(t.s1)]);
+      return dr.lineTo(P(ra, t.s1)).threePointsArcTo(P(ra, t.s0), P(ra, sm)).close()
+        .sketchOnPlane(new R.Plane(o, u, nrm)).revolve(t.d, { origin: o, angle: t.sweep ? (t.sweep * 180) / Math.PI : 360 });
+    };
+    // (a torus with thousands of facets that has not been given large ones: too slow, it stays faceted)
+    const st = stood.get(t);
+    if (standOk.has(t) || (!st && t.tris > 400)) continue;
+    if (t.whole) continue;
+    const din = Math.min(0.9 * r, (st ? 1.15 * st.din : 1.5 * t.din) + 2e-3), dout = (st ? 1.3 * st.dout : 1.5 * t.dout) + 2e-3, tv = st ? st.vol : t.vol;
+    const inside = grow => shell(r - din, r + grow, true), outside = grow => shell(r + grow, r + dout);
+    if (!st || !st.corner) { if (tryTools(inside, tv, t.hole, 0.02 * tv + 0.002 * r * r, 'torus', t)) tori++; continue; }
+    // a sharp corner stands in: what lies beyond the tube is cut away (a rounded edge, the rim of a hole), or the
+    // corner is filled up to the tube (the fillet of a pocket floor, the foot of a boss)
+    const beyond = grow => shell(r + (t.hole ? -grow : grow), r + 1.05 * st.dout + 2e-3);
+    if (tryTools(beyond, tv, !t.hole, 0.03 * tv + 0.002 * r * r, 'torus', t)) tori++;
+  }
   if (!collect) break;
   {
     const C = collect;
@@ -263,14 +379,27 @@ export async function meshToStep(m0, cyls = [], round = {}) {
         if (!Number.isFinite(dv) || typeof n2.fuse !== 'function' || Math.abs(Math.abs(dv) - it.sliver) > 0.05 * it.sliver + it.slack + 1e-3 || (dv < 0) !== it.hole) continue;
         next = n2;
         done.add(it.src);
-        if (it.kind === 'cone') cones++; else if (it.kind === 'sphere') spheres++; else { made++; if (it.kind === 'arc') arcs++; }
+        if (stood.has(it.src)) standOk.add(it.src);
+        if (it.kind === 'cone') cones++; else if (it.kind === 'sphere') spheres++; else if (it.kind === 'torus') tori++; else { made++; if (it.kind === 'arc') arcs++; }
       } catch { /* later, on its own */ }
     }
-    if (done.size) { try { const q = next.simplify?.(); if (q) next = q; } catch { /* as it is */ } solid = next; }
+    if (done.size) { next = simp(next); solid = next; }
   }
   }
-  if (made || cones || spheres) { try { const s = solid.simplify?.(); if (s) solid = s; } catch { /* as it is */ } }
-  return { text: await solid.blobSTEP().text(), cylinders: made, arcs, cones, spheres };
+  // a stand-in whose true face did not come about has changed the shape: once more without it
+  const failed = [...stood.keys()].filter(x => !standOk.has(x));
+  if (failed.length) { const no = new Set(skipKeys); for (const x of failed) no.add(keyOf.get(x)); return meshToStep(m0, cyls0, round0, no, noTori); }
+  if (made || cones || spheres || tori) { solid = simp(solid); }
+  const text = await solid.blobSTEP().text();
+  // what is written must read back as the same body (a face that lost its outline comes back endless): if it
+  // does not, once more without the tori, and in the end the facets as they are
+  if (made || cones || spheres || tori) {
+    let same = false;
+    try { const b = await R.importSTEP(new Blob([text])), v = vol(solid); same = Math.abs(vol(b) - v) <= 1e-3 * Math.abs(v) + 1e-6; } catch { /* not the same */ }
+    if (!same && !noTori && (round.tori || []).length) return meshToStep(m0, cyls0, round0, noStand, true);
+    if (!same) return { text: await base.blobSTEP().text(), cylinders: 0, arcs: 0, cones: 0, spheres: 0, tori: 0 };
+  }
+  return { text, cylinders: made, arcs, cones, spheres, tori };
 }
 
 // ---------- STEP / IGES ----------

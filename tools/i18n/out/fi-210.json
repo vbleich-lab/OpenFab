@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Napsauta pintaa – reikä syntyy samalla",
+ "Kopf versenken (Senkbohrung)": "Upota kanta (lieriöporaus)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Napsauta pintaa: jokaiseen napsautuskohtaan syntyy ruuvin läpimenoreikä (ISO 273, keskisarja) kaikkien siinä päällekkäin olevien osien läpi – uppokantaruuveille 90°:n kartiouppo, lieriökantaruuveille halutessa lieriöuppo (DIN 974-1, sarja 1) kannan korkuisena. Ruuvi on heti paikallaan reiässä. Reikää ja ruuvia voi sen jälkeen muuttaa aikajanalla.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Standardiosa: {0} lisätty – napsauta toista pistettä tai lopeta.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Standardiosa: napsauta pistettä tasaisella pinnalla – siihen syntyy reikä.",
+ "Auf eine ebene Fläche klicken.": "Napsauta tasaista pintaa.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Tämä on pyöreä pinta – napsauta tasaista pintaa.",
+ "Unter diesem Punkt liegt kein Material.": "Tämän pisteen alla ei ole materiaalia.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Osa on liian ohut upotukselle (upotussyvyys {0} mm, paksuus {1} mm).",
+ "Bohrung für {0} – Skizze": "Reikä: {0} – luonnos",
+ "Bohrung für {0}": "Reikä: {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "reikä Ø {0} mm ja lieriöuppo Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "reikä Ø {0} mm ja 90°:n kartiouppo Ø {1} mm",
+ "Bohrung Ø {0} mm": "reikä Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Ruuviliitos: {0} – {1}; ruuvi on liian lyhyt puristuspaksuudelle {2} mm (tarvitaan: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, paksuus {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Kohteelle {0} ei ole tallennettu läpimenoreikää"
+}

@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "면을 클릭하세요 – 구멍이 함께 만들어집니다",
+ "Kopf versenken (Senkbohrung)": "머리 묻기(카운터보어 구멍)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "면을 클릭하세요. 클릭한 각 지점에 그 위치에서 겹쳐 있는 모든 부품을 관통하는 나사용 통과 구멍(ISO 273, 중간급)이 만들어집니다. 접시머리 나사에는 90° 카운터싱크가, 원통머리 나사에는 선택에 따라 머리 깊이만큼의 카운터보어(DIN 974-1, 1열)가 적용됩니다. 나사는 바로 구멍에 끼워집니다. 구멍과 나사는 이후 타임라인에서 변경할 수 있습니다.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "규격 부품: {0} 삽입됨 – 다른 지점을 클릭하거나 종료하세요.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "규격 부품: 평면 위의 한 지점을 클릭하세요 – 그곳에 구멍이 만들어집니다.",
+ "Auf eine ebene Fläche klicken.": "평면을 클릭하세요.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "둥근 면입니다 – 평면을 클릭하세요.",
+ "Unter diesem Punkt liegt kein Material.": "이 지점 아래에는 재료가 없습니다.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "부품이 너무 얇아 카운터보어를 만들 수 없습니다(깊이 {0} mm, 두께 {1} mm).",
+ "Bohrung für {0} – Skizze": "{0}용 구멍 – 스케치",
+ "Bohrung für {0}": "{0}용 구멍",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "구멍 Ø {0} mm, 카운터보어 Ø {1} × {2} mm 포함",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "구멍 Ø {0} mm, 90° 카운터싱크 Ø {1} mm 포함",
+ "Bohrung Ø {0} mm": "구멍 Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "나사 체결: {0} – {1}; 체결 두께 {2} mm에 비해 나사가 너무 짧습니다 (필요: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, 두께 {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "{0}용 통과 구멍이 등록되어 있지 않습니다"
+}

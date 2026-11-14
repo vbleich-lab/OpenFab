@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Kliknąć ścianę – otwór powstaje razem z nią",
+ "Kopf versenken (Senkbohrung)": "Zagłębić łeb (pogłębienie walcowe)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Kliknąć ścianę: w każdym klikniętym punkcie powstaje otwór przelotowy pod śrubę (ISO 273, szereg średni) przez wszystkie leżące tam na sobie części – dla śrub z łbem stożkowym z pogłębieniem 90°, dla śrub z łbem walcowym opcjonalnie z pogłębieniem walcowym (DIN 974-1, szereg 1) o głębokości równej wysokości łba. Śruba od razu się w nim znajduje. Otwór i śrubę można potem zmienić na osi czasu.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Część znormalizowana: wstawiono {0} – kliknąć kolejny punkt lub zakończyć.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Część znormalizowana: kliknąć punkt na płaskiej ścianie – tam powstanie otwór.",
+ "Auf eine ebene Fläche klicken.": "Kliknąć płaską ścianę.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "To jest ściana okrągła – kliknąć płaską ścianę.",
+ "Unter diesem Punkt liegt kein Material.": "Pod tym punktem nie ma materiału.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Część jest zbyt cienka na pogłębienie (głębokość pogłębienia {0} mm, grubość {1} mm).",
+ "Bohrung für {0} – Skizze": "Otwór dla {0} – szkic",
+ "Bohrung für {0}": "Otwór dla {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "Otwór Ø {0} mm z pogłębieniem Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "Otwór Ø {0} mm z pogłębieniem stożkowym 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "Otwór Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Połączenie śrubowe: {0} – {1}; śruba jest za krótka dla grubości zaciskanej {2} mm (wymagane: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, grubość {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Dla {0} nie zdefiniowano otworu przelotowego"
+}

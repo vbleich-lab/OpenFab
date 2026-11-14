@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Prema nunha cara – o burato créase á vez",
+ "Kopf versenken (Senkbohrung)": "Afundir a cabeza (abuxardado cilíndrico)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Prema nunha cara: en cada punto premido créase o burato pasante para o parafuso (ISO 273, serie media) a través de todas as pezas que están alí unhas sobre outras – para parafusos avellanados con avellanado de 90°, para parafusos de cabeza cilíndrica, se se desexa, con abuxardado cilíndrico (DIN 974-1, serie 1) tan profundo como a cabeza. O parafuso queda aloxado de seguido no burato. O burato e o parafuso pódense cambiar despois na liña do tempo.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Peza normalizada: {0} inserido – prema outro punto ou remate.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Peza normalizada: prema un punto nunha cara plana – alí créase o burato.",
+ "Auf eine ebene Fläche klicken.": "Prema nunha cara plana.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Esta é unha cara redonda – prema nunha cara plana.",
+ "Unter diesem Punkt liegt kein Material.": "Baixo este punto non hai material.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "A peza é demasiado fina para o abuxardado (profundidade {0} mm, espesor {1} mm).",
+ "Bohrung für {0} – Skizze": "Burato para {0} – esbozo",
+ "Bohrung für {0}": "Burato para {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "burato Ø {0} mm con abuxardado cilíndrico Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "burato Ø {0} mm con avellanado de 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "burato Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Unión parafusada: {0} – {1}; o parafuso é demasiado curto para o espesor de suxeición {2} mm (necesario: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, espesor {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Non hai ningún burato pasante gardado para {0}"
+}

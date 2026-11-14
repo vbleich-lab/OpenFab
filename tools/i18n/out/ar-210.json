@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "انقر على وجه – يُنشأ الثقب معه",
+ "Kopf versenken (Senkbohrung)": "تغطيس الرأس (ثقب مغطس)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "انقر على وجه: عند كل نقطة نقر يُنشأ ثقب العبور للبرغي (ISO 273، السلسلة المتوسطة) عبر جميع الأجزاء المتراكبة هناك – للبراغي المخروطية الرأس بتغطيس مخروطي 90°، وللبراغي الأسطوانية الرأس عند الرغبة بثقب مغطس (DIN 974-1، السلسلة 1) بعمق الرأس. ويستقر البرغي فيه مباشرة. ويمكن بعد ذلك تعديل الثقب والبرغي في الخط الزمني.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "قطعة قياسية: تم إدراج {0} – انقر على نقطة أخرى أو أنهِ الأمر.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "قطعة قياسية: انقر على نقطة على وجه مستوٍ – يُنشأ الثقب هناك.",
+ "Auf eine ebene Fläche klicken.": "انقر على وجه مستوٍ.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "هذا وجه مستدير – يُرجى النقر على وجه مستوٍ.",
+ "Unter diesem Punkt liegt kein Material.": "لا توجد مادة تحت هذه النقطة.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "الجزء رقيق جداً للتغطيس (عمق التغطيس {0} mm، السماكة {1} mm).",
+ "Bohrung für {0} – Skizze": "ثقب لـ {0} – رسم تخطيطي",
+ "Bohrung für {0}": "ثقب لـ {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "ثقب Ø {0} mm مع تغطيس أسطواني Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "ثقب Ø {0} mm مع تغطيس مخروطي 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "ثقب Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "وصلة براغي: {0} – {1}؛ البرغي أقصر من اللازم لسماكة الشد {2} mm (المطلوب: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}، السماكة {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "لا يوجد ثقب عبور مخزّن لـ {0}"
+}

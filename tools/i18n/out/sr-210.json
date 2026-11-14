@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Кликните површ – рупа настаје истовремено",
+ "Kopf versenken (Senkbohrung)": "Упустити главу (цилиндрично упуштање)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Кликните површ: у свакој тачки клика настаје пролазна рупа за шраф (ISO 273, средњи низ) кроз све делове који тамо леже један на другом – за шрафове са упуштеном главом са 90° конусним упуштањем, за шрафове са цилиндричном главом по жељи са цилиндричним упуштањем (DIN 974-1, низ 1) дубоким колико и глава. Шраф одмах седи у рупи. Рупа и шраф се после могу мењати на временској линији.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Стандардни део: {0} уметнут – кликните следећу тачку или завршите.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Стандардни део: кликните тачку на равној површи – тамо настаје рупа.",
+ "Auf eine ebene Fläche klicken.": "Кликните равну површ.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Ово је округла површ – кликните равну површ.",
+ "Unter diesem Punkt liegt kein Material.": "Испод ове тачке нема материјала.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Део је претанак за упуштање (дубина упуштања {0} mm, дебљина {1} mm).",
+ "Bohrung für {0} – Skizze": "Рупа за {0} – скица",
+ "Bohrung für {0}": "Рупа за {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "рупа Ø {0} mm са цилиндричним упуштањем Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "рупа Ø {0} mm са 90° конусним упуштањем Ø {1} mm",
+ "Bohrung Ø {0} mm": "рупа Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Шрафовски спој: {0} – {1}; шраф је прекратак за дебљину стезања {2} mm (потребно: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, дебљина {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "За {0} није похрањена пролазна рупа"
+}

@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "לחצו על פאה – החור נוצר יחד עם זה",
+ "Kopf versenken (Senkbohrung)": "שיקוע הראש (קדח שקוע גלילי)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "לחצו על פאה: בכל נקודת לחיצה נוצר חור מעבר לבורג (ISO 273, סדרה בינונית) דרך כל החלקים הנמצאים שם זה על זה – לברגים שקועים עם שיקוע קוני של 90°, ולברגים גליליים לפי בחירה עם חור שקוע (DIN 974-1, סדרה 1) בעומק הראש. הבורג מונח בו מיד. אפשר לשנות את החור והבורג לאחר מכן בציר הזמן.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "חלק תקני: {0} נוסף – לחצו על נקודה נוספת או סיימו.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "חלק תקני: לחצו על נקודה על פאה שטוחה – שם ייווצר החור.",
+ "Auf eine ebene Fläche klicken.": "יש ללחוץ על פאה שטוחה.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "זו פאה עגולה – יש ללחוץ על פאה שטוחה.",
+ "Unter diesem Punkt liegt kein Material.": "אין חומר מתחת לנקודה זו.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "החלק דק מדי לשיקוע (עומק השיקוע {0} mm, עובי {1} mm).",
+ "Bohrung für {0} – Skizze": "חור עבור {0} – סקיצה",
+ "Bohrung für {0}": "חור עבור {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "חור Ø {0} mm עם שיקוע גלילי Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "חור Ø {0} mm עם שיקוע קוני 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "חור Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "חיבור בורגים: {0} – {1}; הבורג קצר מדי לעובי הידוק של {2} mm (נדרש: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, עובי {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "עבור {0} לא הוגדר חור מעבר"
+}

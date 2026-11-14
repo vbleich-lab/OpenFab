@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Cliquer sur une face – le perçage est créé en même temps",
+ "Kopf versenken (Senkbohrung)": "Noyer la tête (lamage)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Cliquer sur une face : à chaque point cliqué, le perçage de passage pour la vis (ISO 273, série moyenne) est créé à travers toutes les pièces superposées à cet endroit – avec fraisage à 90° pour les vis à tête fraisée, et sur demande avec lamage (DIN 974-1, série 1) aussi profond que la tête pour les vis à tête cylindrique. La vis y est placée directement. Le perçage et la vis peuvent ensuite être modifiés dans la chronologie.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Pièce normalisée : {0} insérée – cliquer sur un autre point ou terminer.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Pièce normalisée : cliquer sur un point d'une face plane – le perçage y est créé.",
+ "Auf eine ebene Fläche klicken.": "Cliquer sur une face plane.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Il s'agit d'une face ronde – veuillez cliquer sur une face plane.",
+ "Unter diesem Punkt liegt kein Material.": "Il n'y a pas de matière sous ce point.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "La pièce est trop mince pour le lamage (profondeur {0} mm, épaisseur {1} mm).",
+ "Bohrung für {0} – Skizze": "Perçage pour {0} – esquisse",
+ "Bohrung für {0}": "Perçage pour {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "Perçage Ø {0} mm avec lamage Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "Perçage Ø {0} mm avec fraisage 90° Ø {1} mm",
+ "Bohrung Ø {0} mm": "Perçage Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Assemblage vissé : {0} – {1} ; la vis est trop courte pour l'épaisseur serrée de {2} mm (nécessaire : {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, épaisseur {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Aucun perçage de passage n'est défini pour {0}"
+}

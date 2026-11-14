@@ -153,14 +153,19 @@ export function flangeChain(fl) {
 // flange a straight piece of length h; the section is the strip ±t/2 around it (top side out, bottom side back).
 function chainSection(t, r, chain) {
   let pos = [0, t / 2], dir = [1, 0];
-  const L = [[0, t]], Rt = [[0, 0]];
+  const L = [[0, t]], Rt = [[0, 0]], runs = [];
   const nl = d => [-d[1], d[0]];
   const add = (p, d) => { const n = nl(d); L.push([p[0] + n[0] * t / 2, p[1] + n[1] * t / 2]); Rt.push([p[0] - n[0] * t / 2, p[1] - n[1] * t / 2]); };
   for (const b of chain) {
     const th = b.angle * DEG, sgn = Math.sign(th) || 1, rm = r + t / 2, n0 = nl(dir);
     const C = [pos[0] + n0[0] * sgn * rm, pos[1] + n0[1] * sgn * rm];
     const k = Math.max(4, Math.ceil(Math.abs(b.angle) / 6));
-    const p0 = [pos[0] - C[0], pos[1] - C[1]];
+    const p0 = [pos[0] - C[0], pos[1] - C[1]], i0 = L.length - 1;
+    {
+      // (the middle of the bend on both faces: the bend is drawn as a true arc through it)
+      const a = th / 2, c = Math.cos(a), s = Math.sin(a), d = [dir[0] * c - dir[1] * s, dir[0] * s + dir[1] * c], n = nl(d), p = [C[0] + p0[0] * c - p0[1] * s, C[1] + p0[0] * s + p0[1] * c];
+      runs.push({ i0, k, mL: [p[0] + n[0] * t / 2, p[1] + n[1] * t / 2], mR: [p[0] - n[0] * t / 2, p[1] - n[1] * t / 2] });
+    }
     for (let i = 1; i <= k; i++) {
       const a = (th * i) / k, c = Math.cos(a), s = Math.sin(a);
       const p = [C[0] + p0[0] * c - p0[1] * s, C[1] + p0[0] * s + p0[1] * c];
@@ -171,10 +176,28 @@ function chainSection(t, r, chain) {
     dir = [dir[0] * c - dir[1] * s, dir[0] * s + dir[1] * c];
     if (b.h > 1e-6) { pos = [pos[0] + dir[0] * b.h, pos[1] + dir[1] * b.h]; add(pos, dir); }
   }
-  const pts = [...L, ...Rt.reverse()];
+  const nL = L.length, pts = [...L, ...Rt.reverse()];
   // nudge the start back by a hair so the flange fuses with the plate
-  return pts.map(([u, w], i) => [u - 1e-3 * (i === 0 || i === pts.length - 1 ? 1 : 0), w]);
+  const out = pts.map(([u, w], i) => [u - 1e-3 * (i === 0 || i === pts.length - 1 ? 1 : 0), w]);
+  // where the outline runs along a bend: from corner → { to, mid }
+  out.arcs = new Map();
+  for (const q of runs) {
+    // (a face with no radius – the inside of a sharp bend – stays a corner)
+    if (Math.hypot(L[q.i0][0] - q.mL[0], L[q.i0][1] - q.mL[1]) > 1e-4) out.arcs.set(q.i0, { to: q.i0 + q.k, mid: q.mL });
+    if (Math.hypot(pts[2 * nL - 1 - q.i0][0] - q.mR[0], pts[2 * nL - 1 - q.i0][1] - q.mR[1]) > 1e-4) out.arcs.set(2 * nL - 1 - q.i0 - q.k, { to: 2 * nL - 1 - q.i0, mid: q.mR });
+  }
+  return out;
 }
+// the section as a drawing: bends as true arcs (cylinder faces), flanges straight
+const sectionDrawing = (R, sec) => {
+  if (!sec.arcs?.size) return polyDrawing(R, sec);
+  let d = R.draw(sec[0]), at = sec[0];
+  for (let i = 0; i < sec.length - 1;) {
+    const a = sec.arcs.get(i);
+    if (a) { d = d.threePointsArcTo(sec[a.to], a.mid); i = a.to; at = sec[i]; } else { i++; if (Math.hypot(sec[i][0] - at[0], sec[i][1] - at[1]) > 1e-7) { d = d.lineTo(sec[i]); at = sec[i]; } }
+  }
+  return d.close();
+};
 
 // Mid-surface of a bend chain as (d, u) pairs: d = developed length from the plate edge (bend zones count with
 // their allowance), u = how far the sheet is out from the plate edge in plan at that point.
@@ -349,6 +372,46 @@ function bendSlice(t, r, angleDeg, ba, d0, d1) {
   return [...inner, ...outer.reverse()];
 }
 
+// The corner relief as one tool that follows the first bend: the relief of the flat pattern (poly, convex) wound
+// round the bend. Straight sides along the edge: a piece of the bend zone with true arcs. A round relief: drawn
+// smoothly through nine sections across the bend. null where the relief does not cross the whole bend zone.
+function reliefTool(R, { t, r, ang, ba, end, ed, z0, poly }) {
+  const NS = 8, th = ang * DEG, sgn = Math.sign(th) || 1, C = [0, t / 2 + sgn * (r + t / 2)], g = 0.05, rg = [];
+  // (at a corner that is no right angle the relief does not lie across the whole bend: the stretch of the bend
+  // it does lie across, a hair's breadth short of where it runs out to a point)
+  const at = dd => { const x = lineInConvex(poly, [end.V[0] + ed.n[0] * dd, end.V[1] + ed.n[1] * dd], end.out); return x && x[1] > x[0] + 0.02 ? x : null; };
+  let d0 = 0, d1 = ba;
+  if (!at(0) || !at(ba)) {
+    const M = 96, run = [];
+    let best = null;
+    for (let q = 0; q <= M; q++) { if (at((ba * q) / M)) { run.push(q); if (!best || run.length > best.length) best = run.slice(); } else run.length = 0; }
+    if (!best || best.length < 4) return null;
+    d0 = (ba * best[0]) / M; d1 = (ba * best[best.length - 1]) / M;
+  }
+  for (let q = 0; q <= NS; q++) {
+    const x = at(d0 + ((d1 - d0) * q) / NS);
+    if (!x) return null;
+    rg.push(x);
+  }
+  const a0 = (th * d0) / ba, a1 = (th * d1) / ba;
+  // (u out, v up) at the angle a of the bend, rho away from its axis
+  const rad = a => [sgn * Math.sin(a), -sgn * Math.cos(a)], uv = (a, rho) => { const q = rad(a); return [C[0] + rho * q[0], C[1] + rho * q[1]]; };
+  const ri = r - g, ro = r + t + g;
+  if (!(ri > 0.01)) return null;
+  if (d0 === 0 && d1 === ba && rg.every(x => Math.abs(x[0] - rg[0][0]) < 1e-6 && Math.abs(x[1] - rg[0][1]) < 1e-6)) {
+    const [lo, hi] = rg[0], nrm = [-end.out[0], -end.out[1], 0], up = nrm[0] * ed.n[1] - nrm[1] * ed.n[0] < 0 ? -1 : 1, f = p => [p[0], up * p[1]];
+    const pl = new R.Plane([end.V[0] + end.out[0] * hi, end.V[1] + end.out[1] * hi, z0], [ed.n[0], ed.n[1], 0], nrm);
+    return R.draw(f(uv(0, ri))).threePointsArcTo(f(uv(th, ri)), f(uv(th / 2, ri))).lineTo(f(uv(th, ro))).threePointsArcTo(f(uv(0, ro)), f(uv(th / 2, ro))).close().sketchOnPlane(pl).extrude(hi - lo);
+  }
+  const sk = rg.map(([lo, hi], q) => {
+    const a = a0 + ((a1 - a0) * q) / NS, p = uv(a, ri), d = rad(a), x = [end.out[0], end.out[1], 0], y = [ed.n[0] * d[0], ed.n[1] * d[0], d[1]];
+    const pl = new R.Plane([end.V[0] + ed.n[0] * p[0], end.V[1] + ed.n[1] * p[0], z0 + p[1]], x, [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]]);
+    return R.draw([lo, 0]).lineTo([hi, 0]).lineTo([hi, ro - ri]).lineTo([lo, ro - ri]).close().sketchOnPlane(pl);
+  });
+  // (a relief with straight sides keeps them straight from section to section)
+  return sk[0].loftWith(sk.slice(1), { ruled: poly.length === 4 });
+}
+
 const polyDrawing = (R, p) => { let d = R.draw(p[0]); for (let i = 1; i < p.length; i++) d = d.lineTo(p[i]); return d.close(); };
 // outline of the plate with true arcs where a flange stands on a curved edge (runs: those arcs)
 function plateDrawing(R, P, runs) {
@@ -404,10 +467,11 @@ export function sheetSolid(R, poly, z0, f, holes = []) {
     const ZB = Math.max(BIG, 1000);
     return solid.cut(polyDrawing(R, ensureCCW(quad)).sketchOnPlane('XY', z0 - ZB).extrude(2 * ZB));
   };
-  let shape = plateDrawing(R, ensureCCW(poly), (f.flanges || []).filter(fl => fl.on && arcs.has(fl.edge)).map(fl => arcs.get(fl.edge)).filter((a, i, l) => l.indexOf(a) === i)).sketchOnPlane('XY', z0).extrude(t);
+  // (every arc of the sketch is a true arc: round corners and holes are cylinder faces, so holes are found as holes)
+  let shape = plateDrawing(R, ensureCCW(poly), [...arcs.values()]).sketchOnPlane('XY', z0).extrude(t);
   // cut-outs: the other closed profiles of the sketch, through the plate
   const collars = collarPlan(holes, f), pressed = pressPlan(holes, f);
-  holes.forEach((hp, i) => { if (hp.length >= 3 && !collars.has(i) && !pressed.has(i)) shape = shape.cut(polyDrawing(R, ensureCCW(hp)).sketchOnPlane('XY', z0 - 1).extrude(t + 2)); });
+  holes.forEach((hp, i) => { if (hp.length >= 3 && !collars.has(i) && !pressed.has(i)) shape = shape.cut(plateDrawing(R, ensureCCW(hp), [...polyArcs(hp).values()]).sketchOnPlane('XY', z0 - 1).extrude(t + 2)); });
   for (const c of collars.values()) shape = collarSolid(R, shape, z0, t, r, c);
   for (const [i, p] of pressed) shape = p.kind === 'dimple' ? dimpleSolid(R, shape, z0, t, p) : embossSolid(R, shape, z0, t, holes[i], p, i);
   (f.louvers || []).forEach((lv, i) => { shape = louverSolid(R, shape, z0, t, lv, i); });
@@ -422,14 +486,16 @@ export function sheetSolid(R, poly, z0, f, holes = []) {
       // a curved edge: the section turned around the centre of the arc (out = away from the plate)
       const a = arcs.get(fl.edge), en = ends[fl.edge], jn = joins.get(fl.edge) || {}, sp = arcSpan(a, fl, gap, { a: jn.a || !!en.a, b: jn.b || !!en.b });
       if (sp.len <= 0.1) throw new Error(`Kante ${fl.edge + 1} ist zu kurz für eine Lasche`);
-      const prof = sec.map(([u, v]) => [a.convex ? a.R + u : a.R - u, v]);
+      const ru = u => (a.convex ? a.R + u : a.R - u), prof = sec.map(([u, v]) => [ru(u), v]);
+      // (the bends stay true arcs: turned around the centre they are faces of a torus)
+      prof.arcs = new Map([...(sec.arcs || [])].map(([i, q]) => [i, { to: q.to, mid: [ru(q.mid[0]), q.mid[1]] }]));
       if (prof.some(p => p[0] < 0.05)) throw new Error(`Kante ${fl.edge + 1}: der Bogen ist zu eng für diese Lasche`);
       // a mitred corner: on past the corner, the cut along the plane of the corner trims it back
       const over = Math.max(...sec.map(p => Math.abs(p[0]))) + t + 1, sg = Math.sign(a.sweep);
       const room = Math.max(0, (2 * Math.PI - Math.abs(sp.th1 - sp.th0) - 0.05) / 2), ext = Math.min(over / Math.max(1e-6, Math.min(...prof.map(p => p[0]))), 1, room);
       const tA = sp.th0 - (en.a ? sg * ext : 0), tB = sp.th1 + (en.b ? sg * ext : 0);
       const lo = Math.min(tA, tB), x = [Math.cos(lo), Math.sin(lo), 0], o = [a.c[0], a.c[1], z0];
-      let ring = polyDrawing(R, prof).sketchOnPlane(new R.Plane(o, x, [x[1], -x[0], 0])).revolve([0, 0, 1], { origin: o, angle: a.full ? 360 : (Math.abs(tB - tA) * 180) / Math.PI });
+      let ring = sectionDrawing(R, prof).sketchOnPlane(new R.Plane(o, x, [x[1], -x[0], 0])).revolve([0, 0, 1], { origin: o, angle: a.full ? 360 : (Math.abs(tB - tA) * 180) / Math.PI });
       // (only next to the corner: further on, the plane of the corner may pass through the ring again)
       for (const end of [en.a, en.b]) if (end) ring = mitreCut(ring, end, 1.5 * over * (1 + ext) + 2);
       for (const q of flangeHoles(fl)) {
@@ -452,7 +518,7 @@ export function sheetSolid(R, poly, z0, f, holes = []) {
     // plane: x = outward normal, y = +Z, normal = n × Z = -e (extrusion runs back along the edge)
     const origin = [ed.b[0] - ed.e[0] * gB, ed.b[1] - ed.e[1] * gB, z0];
     const pl = new R.Plane(origin, [ed.n[0], ed.n[1], 0], [-ed.e[0], -ed.e[1], 0]);
-    let solid = polyDrawing(R, sec).sketchOnPlane(pl).extrude(len);
+    let solid = sectionDrawing(R, sec).sketchOnPlane(pl).extrude(len);
     for (const end of [en.a, en.b]) if (end) solid = mitreCut(solid, end, 10 * (over + ed.L));
     // corner relief in the folded part: the flat relief mapped back onto the first bend. The bend zone is cut in
     // slices of developed length; each slice loses the stretch along the edge that lies inside the relief there.
@@ -460,6 +526,11 @@ export function sheetSolid(R, poly, z0, f, holes = []) {
       const end = rl.i === fl.edge ? en.b : rl.j === fl.edge ? en.a : null;
       if (!end) continue;
       const ba = firstBA[fl.edge], ang = firstAng[fl.edge], NS = 6;
+      // in one smooth cut where that works (the body must stay one piece and may only lose material) …
+      try {
+        const tool = reliefTool(R, { t, r, ang, ba, end, ed, z0, poly: rl.poly });
+        if (tool) { const v0 = R.measureVolume(solid), cut = one(solid.cut(tool)), v1 = R.measureVolume(cut); if (Number.isFinite(v1) && typeof cut.fuse === 'function' && v1 < v0 - 1e-9 && v1 > 0.3 * v0) { solid = cut; continue; } }
+      } catch { /* … else in steps */ }
       for (let q = 0; q < NS; q++) {
         const d0 = (ba * q) / NS, d1 = (ba * (q + 1)) / NS;
         let lo = Infinity, hi = -Infinity;
@@ -705,14 +776,15 @@ export function collarPlan(holes, f) {
 
 /**
  * Pressed shapes in cut-outs of the sketch: f.embosses = [{ hole, h }] – the outline is not cut but pressed out of
- * the plate by h (h < 0: downwards), the sheet keeps its thickness; f.dimples = [{ hole, h }] – a round hole with
+ * the plate by h (h < 0: downwards), the sheet keeps its thickness; wall: how far the wall leans inwards from the
+ * vertical (°, 0 … 60 – the outline of the sketch is where the wall leaves the plate); f.dimples = [{ hole, h }] – a round hole with
  * its rim pressed into a 90° cone, h deep (for countersunk screws in thin sheet). Map hole → { kind, h, … }.
  */
 export function pressPlan(holes, f) {
   const t = +f.thickness, out = new Map();
   for (const q of f.embosses || []) {
     if (!q || !+q.h || !(holes[q.hole]?.length >= 3)) continue;
-    out.set(q.hole, { kind: 'emboss', h: +q.h });
+    out.set(q.hole, { kind: 'emboss', h: +q.h, wall: Math.max(0, Math.min(60, +q.wall || 0)) });
   }
   for (const q of f.dimples || []) {
     const ci = q && +q.h ? holeCircle(holes[q.hole]) : null;
@@ -731,10 +803,28 @@ function insetLoops(hp, d) {
 }
 
 function embossSolid(R, shape, z0, t, hp, p, idx) {
-  const H = Math.abs(p.h), up = p.h > 0;
-  const boss = polyDrawing(R, ensureCCW(hp)).sketchOnPlane('XY', up ? z0 + t - 1e-3 : z0 - H).extrude(H + 1e-3);
+  const H = Math.abs(p.h), up = p.h > 0, a = (p.wall || 0) * DEG;
+  // a leaning wall: the straight prism, its side faces tilted about the level where the wall leaves the plate
+  // (the kernel's sign depends on the pulling direction: the volume tells which way it went)
+  const lean = (dr, zs, len, zn, dir, over) => {
+    const prism = dr.clone().sketchOnPlane('XY', zs).extrude(len);
+    if (!a) return prism;
+    const pl = new R.Plane([0, 0, zn], [1, 0, 0], [0, 0, 1]), v0 = R.measureVolume(prism);
+    for (const ang of [p.wall, -p.wall]) {
+      try { const out = prism.clone().draft(ang, ff => ff.not(x => x.parallelTo(pl)), pl); if (out && R.measureVolume(out) < v0 - 1e-6) return out; } catch { /* the other way */ }
+    }
+    // round outlines: straight walls from the outline to its offset at the far end (a cone for a circle)
+    try {
+      const ta = Math.tan(a), out = dr.clone().offset(over * ta).sketchOnPlane('XY', zn - dir * over).loftWith([dr.clone().offset(-H * ta).sketchOnPlane('XY', zn + dir * H)], { ruled: true });
+      if (out && R.measureVolume(out) < v0 - 1e-6) return out;
+    } catch { /* said below */ }
+    throw new Error(`Prägung ${idx + 1}: mit dieser Wandschräge lässt sie sich nicht formen`);
+  };
+  const dir = up ? 1 : -1;
+  const boss = lean(plateDrawing(R, ensureCCW(hp), [...polyArcs(hp).values()]), up ? z0 + t - 1e-3 : z0 - H, H + 1e-3, up ? z0 + t : z0, dir, 1e-3);
   let next = one(shape.fuse(boss));
-  for (const lp of insetLoops(hp, t)) next = one(next.cut(polyDrawing(R, ensureCCW(lp)).sketchOnPlane('XY', up ? z0 - 0.01 : z0 - H + t).extrude(H + 0.01)));
+  // the hollow: the wall keeps the sheet thickness square to itself
+  for (const lp of insetLoops(hp, a ? (t * (1 - Math.sin(a))) / Math.cos(a) : t)) next = one(next.cut(lean(a ? plateDrawing(R, ensureCCW(lp), [...polyArcs(lp).values()]) : polyDrawing(R, ensureCCW(lp)), up ? z0 - 0.01 : z0 - H + t, H + 0.01, up ? z0 : z0 + t, dir, 0.01)));
   if (typeof next.fuse !== 'function') throw new Error(`Prägung ${idx + 1}: lässt sich so nicht formen`);
   return next;
 }
@@ -1038,7 +1128,7 @@ export function sheetChecks(poly, holes, f, fp) {
     if (near - c.Rb < 2 * t - 1e-9) out.push({ level: 'warn', text: `Durchzug ${i + 1}: liegt ${n2(Math.max(0, near - c.Rb))} mm neben dem Rand (weniger als 2 × Blechdicke) – der Rand beult aus.` });
   }
   for (const [i, p] of pressPlan(holes, f)) {
-    if (p.kind === 'emboss' && Math.abs(p.h) > 3 * t + 1e-9) out.push({ level: 'warn', text: `Prägung ${i + 1}: ${n2(Math.abs(p.h))} mm ist höher als 3 × Blechdicke – mit senkrechter Wand reißt das Blech.` });
+    if (p.kind === 'emboss' && !(p.wall >= 20) && Math.abs(p.h) > 3 * t + 1e-9) out.push({ level: 'warn', text: `Prägung ${i + 1}: ${n2(Math.abs(p.h))} mm ist höher als 3 × Blechdicke – mit senkrechter Wand reißt das Blech.` });
     if (p.kind === 'emboss' && !insetLoops(holes[i], t).length) out.push({ level: 'warn', text: `Prägung ${i + 1}: die Kontur ist schmaler als 2 × Blechdicke – es bleibt kein Hohlraum.` });
     if (p.kind === 'dimple' && Math.abs(p.h) > 2 * t + 1e-9) out.push({ level: 'warn', text: `Senkprägung ${i + 1}: ${n2(Math.abs(p.h))} mm ist tiefer als 2 × Blechdicke.` });
   }
@@ -1194,7 +1284,8 @@ function nestTight(parts, W, H, gap, rotate) {
         if (s5) sh.g[iy + j][wi + q + 1] |= v >>> (32 - s5);
       }
       const tx = gap / 2 - e + ix * cell - m.x0, ty = gap / 2 - e + iy * cell - m.y0;
-      placed.push({ id: it.p.id, sheet: si, loops: it.p.outline.map(l => l.map(p => { const q = turn(k, p); return [q[0] + tx, q[1] + ty]; })), rot: k % 2 === 1, turn: k * 90 });
+      const put = l => l.map(p => { const q = turn(k, p); return [q[0] + tx, q[1] + ty]; });
+      placed.push({ id: it.p.id, sheet: si, loops: it.p.outline.map(put), open: (it.p.open || []).map(put), rot: k % 2 === 1, turn: k * 90 });
       area += it.area;
       done = true;
     }
@@ -1210,7 +1301,7 @@ function nestRows(parts, W, H, gap = 5, rotate = true) {
     for (const l of p.outline) for (const [x, y] of l) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
     if (!(x1 > x0)) continue;
     const area = p.outline.reduce((a, l) => a + polyArea(l), 0);
-    for (let i = 0; i < Math.max(1, Math.round(+p.qty || 1)); i++) items.push({ id: p.id, outline: p.outline, x0, y0, w: x1 - x0, h: y1 - y0, area: Math.abs(area) });
+    for (let i = 0; i < Math.max(1, Math.round(+p.qty || 1)); i++) items.push({ id: p.id, outline: p.outline, open: p.open || [], x0, y0, w: x1 - x0, h: y1 - y0, area: Math.abs(area) });
   }
   const left = [], placed = [];
   // lying flat (the short side up) fills rows best; a part that only fits upright stays upright
@@ -1234,12 +1325,24 @@ function nestRows(parts, W, H, gap = 5, rotate = true) {
   let area = 0;
   for (const it of todo) {
     // turned by 90° counter-clockwise: (x, y) → (-y, x); then the box's corner onto its place
-    const loops = it.outline.map(l => l.map(([x, y]) => (it.rot ? [it.px + (it.y0 + it.h - y), it.py + (x - it.x0)] : [it.px + (x - it.x0), it.py + (y - it.y0)])));
-    placed.push({ id: it.id, sheet: it.sheet, loops, rot: !!it.rot });
+    const put = l => l.map(([x, y]) => (it.rot ? [it.px + (it.y0 + it.h - y), it.py + (x - it.x0)] : [it.px + (x - it.x0), it.py + (y - it.y0)]));
+    placed.push({ id: it.id, sheet: it.sheet, loops: it.outline.map(put), open: it.open.map(put), rot: !!it.rot });
     area += it.area;
   }
   return { sheets: sheets.length, placed, left, used: sheets.length ? area / (sheets.length * W * H) : 0 };
 }
+
+/**
+ * How a control switches the beam (or the torch, the jet): CUT_CONTROLS[id] = { name, on(power), off, dwell }.
+ * dwell: the pierce time is written as G4 P (seconds); a control that pierces by itself gets none.
+ */
+export const CUT_CONTROLS = {
+  generic: { name: 'Allgemein (M3 / M5, G4)', on: s => (s ? `M3 S${s}` : 'M3'), off: 'M5', dwell: true },
+  grbl: { name: 'GRBL-Laser (M4, Leistung folgt dem Vorschub)', on: s => `M4 S${s || 1000}`, off: 'M5', dwell: true },
+  plasmac: { name: 'LinuxCNC QtPlasmaC (M3 $0 S1 / M5 $0)', on: () => 'M3 $0 S1', off: 'M5 $0', dwell: false },
+  m7: { name: 'Schneidkopf an M7 / M9', on: () => 'M7', off: 'M9', dwell: true },
+  custom: { name: 'Eigene Befehle', on: () => 'M3', off: 'M5', dwell: true },
+};
 
 /**
  * Cutting program for one sheet of a nesting plan: loops = the outlines of the blanks on that sheet (outer loops and
@@ -1247,13 +1350,25 @@ function nestRows(parts, W, H, gap = 5, rotate = true) {
  * on the waste side, holes before the outline of their part, the nearest part next; every contour starts with a
  * lead-in from the waste, in the middle of its longest straight stretch. opts: { mode: 'laser' | 'plasma' |
  * 'waterjet' | 'mill', kerf, feed, lead, pierce (s), power, thickness, name; mill: rpm, plunge, step (depth per
- * pass), safeZ, through (how far below the sheet) }. Returns { text, length (mm cut), pierces, minutes, paths
- * [{ pts (closed), lead: [x, y], hole }] }.
+ * pass), safeZ, through (how far below the sheet); open: [[p, q, …]] cuts that are no outline (louvre slits: on
+ * the line, before the outline of their part); tabs (per outline), tabW (mm left standing; mill: tabH high, the
+ * cutter adds its diameter to the gap), minTab (outlines shorter than this get none); control (CUT_CONTROLS),
+ * onCode / offCode (control 'custom'); holeTabs: cut-outs with at least this perimeter get tabs too (0: none);
+ * common: a stretch that an earlier contour has already cut (parts lying one kerf apart share an edge) is not
+ * cut again }. The lead-in never starts in another part: the longest stretch with free waste beside it is taken,
+ * and where there is none the beam pierces on the contour. Returns { text, length (mm cut), pierces, tabs,
+ * saved (mm not cut twice), minutes, paths [{ pts (closed), lead: [x, y], hole, open, tabs: [[from, to] along the
+ * path] }], trace [[x0, y0, x1, y1, kind]] – kind 0 rapid, 1 cut, 2 lead-in, 3 tab }.
  */
 export function cutProgram(loops, opts = {}) {
   const L = window.ClipperLib, S = 1000;
   const mode = opts.mode || 'laser', mill = mode === 'mill', kerf = Math.max(0, +opts.kerf || 0), feed = Math.max(1, +opts.feed || 1000), lead0 = Math.max(0, +(opts.lead ?? 2) || 0);
   const t = Math.max(0, +opts.thickness || 0), pierce = Math.max(0, +opts.pierce || 0);
+  const ctl = CUT_CONTROLS[opts.control] || CUT_CONTROLS.generic, clean = c => String(c || '').replace(/[\r\n]+/g, ' ').trim();
+  const onCode = opts.control === 'custom' && clean(opts.onCode) ? clean(opts.onCode) : ctl.on(mode === 'laser' ? Math.round(+opts.power || 1000) : 0);
+  const offCode = opts.control === 'custom' && clean(opts.offCode) ? clean(opts.offCode) : ctl.off;
+  const nTabs = Math.max(0, Math.round(+opts.tabs || 0)), tabW = Math.max(0, +opts.tabW || 0), minTab = Math.max(0, +(opts.minTab ?? 40) || 0);
+  const holeTabs = Math.max(0, +opts.holeTabs || 0), common = !!opts.common;
   // the parts: every outer loop with the holes inside it
   const toC = p => p.map(([x, y]) => ({ X: Math.round(x * S), Y: Math.round(y * S) }));
   const un = new L.Clipper(), tree = new L.PolyTree();
@@ -1263,6 +1378,7 @@ export function cutProgram(loops, opts = {}) {
   const walk = node => { for (const ch of node.Childs()) { if (!ch.IsHole()) parts.push([ch.Contour(), ...ch.Childs().map(h => h.Contour())]); walk(ch); } };
   walk(tree);
   const fromC = p => p.map(q => [q.X / S, q.Y / S]);
+  const lenOf = (pts, closed) => { let a = 0; for (let i = 0; i < pts.length - (closed ? 0 : 1); i++) { const n = pts[(i + 1) % pts.length]; a += Math.hypot(n[0] - pts[i][0], n[1] - pts[i][1]); } return a; };
   const jobs = parts.map(pp => {
     const co = new L.ClipperOffset(2, 0.01 * S), out = new L.Paths();
     co.AddPaths(pp, L.JoinType.jtRound, L.EndType.etClosedPolygon);
@@ -1271,16 +1387,38 @@ export function cutProgram(loops, opts = {}) {
     // waste on the right of the way round: outlines counter-clockwise, holes clockwise
     for (const q of paths) { let a = 0; for (let i = 0; i < q.pts.length; i++) { const n = q.pts[(i + 1) % q.pts.length]; a += q.pts[i][0] * n[1] - n[0] * q.pts[i][1]; } if ((a > 0) === q.hole) q.pts.reverse(); }
     const c = pp[0].reduce((m, q) => [m[0] + q.X / S / pp[0].length, m[1] + q.Y / S / pp[0].length], [0, 0]);
-    return { c, paths: [...paths.filter(q => q.hole), ...paths.filter(q => !q.hole)] };
+    return { c, outer: fromC(pp[0]), loops: pp.map(fromC), paths: [...paths.filter(q => q.hole), ...paths.filter(q => !q.hole)] };
   });
-  // start in the middle of the longest stretch, lead-in from the waste side
+  // open cuts go to the part they lie in, before its outline
+  const inside = ([x, y], P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < ((P[j][0] - P[i][0]) * (y - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; return c; };
+  for (const o of opts.open || []) {
+    if (!o || o.length < 2 || !(lenOf(o, false) > 1e-6)) continue;
+    const j = jobs.find(q => inside(o[0], q.outer)) || jobs[0];
+    if (!j) continue;
+    const k = j.paths.findIndex(q => !q.hole && !q.open);
+    j.paths.splice(k < 0 ? j.paths.length : k, 0, { pts: o.map(p => [p[0], p[1]]), open: true, hole: true, lead: [o[0][0], o[0][1]] });
+  }
+  // start in the middle of the longest stretch that has free waste beside it, lead-in from the waste side
+  const inMat = p => jobs.some(j => j.loops.reduce((c, P) => c !== inside(p, P), false));
   for (const j of jobs) for (const q of j.paths) {
-    let bi = 0, bl = -1;
-    for (let i = 0; i < q.pts.length; i++) { const n = q.pts[(i + 1) % q.pts.length], l = Math.hypot(n[0] - q.pts[i][0], n[1] - q.pts[i][1]); if (l > bl) { bl = l; bi = i; } }
-    const a = q.pts[bi], b = q.pts[(bi + 1) % q.pts.length], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], e = [(b[0] - a[0]) / (bl || 1), (b[1] - a[1]) / (bl || 1)];
+    if (q.open) continue;
+    const N = q.pts.length, segs = q.pts.map((a, i) => { const n = q.pts[(i + 1) % N]; return [Math.hypot(n[0] - a[0], n[1] - a[1]), i]; }).sort((x, y) => y[0] - x[0]).slice(0, 24);
     const ld = q.hole ? Math.min(lead0, 0.35 * Math.sqrt(q.area)) : lead0;
-    q.pts = [mid, ...q.pts.slice(bi + 1), ...q.pts.slice(0, bi + 1)];
-    q.lead = [mid[0] + e[1] * ld, mid[1] - e[0] * ld];
+    let pick = null;
+    for (const [bl, bi] of segs) {
+      const a = q.pts[bi], b = q.pts[(bi + 1) % N], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], e = [(b[0] - a[0]) / (bl || 1), (b[1] - a[1]) / (bl || 1)];
+      const lp = [mid[0] + e[1] * ld, mid[1] - e[0] * ld];
+      if (!pick) pick = { bi, mid, lp: mid };
+      if (!(ld > 1e-6) || !(inMat(lp) || inMat([(mid[0] + lp[0]) / 2, (mid[1] + lp[1]) / 2]))) { pick = { bi, mid, lp }; break; }
+    }
+    q.pts = [pick.mid, ...q.pts.slice(pick.bi + 1), ...q.pts.slice(0, pick.bi + 1)];
+    q.lead = pick.lp;
+    // tabs: evenly round the outline, the first half a spacing after the start
+    q.tabs = [];
+    if (nTabs > 0 && tabW > 0 && (!q.hole || holeTabs > 0)) {
+      const U = lenOf(q.pts, true), gapW = tabW + (mill ? kerf : 0);
+      if (U >= (q.hole ? Math.max(minTab, holeTabs) : minTab) && U > 2 * nTabs * gapW) for (let i = 0; i < nTabs; i++) { const m = ((i + 0.5) * U) / nTabs; q.tabs.push([m - gapW / 2, m + gapW / 2]); }
+    }
   }
   // the nearest part next
   const order = [];
@@ -1297,31 +1435,101 @@ export function cutProgram(loops, opts = {}) {
   const names = { laser: 'Laser', plasma: 'Plasma', waterjet: 'Wasserstrahl', mill: 'Fraesen' };
   const out = [`(${String(opts.name || 'Schachtelplan').replace(/[()]/g, ' ')})`, `(Verfahren: ${names[mode] || mode}, ${mill ? 'Werkzeug' : 'Schnittfuge'} ${n3(kerf)} mm, Vorschub ${n3(feed)} mm/min, Blech ${n3(t)} mm)`,
     '(ACHTUNG: Programm vor dem Einsatz an der Maschine oder in einem NC-Simulator pruefen)', 'G21 G90 G17'];
-  let length = 0, pierces = 0, rapid = 0, last = [0, 0];
+  let length = 0, pierces = 0, rapid = 0, tabs = 0, saved = 0, last = [0, 0];
+  const trace = [], tr = (a, b, k) => { if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-9) trace.push([a[0], a[1], b[0], b[1], k]); };
+  // what earlier contours have cut (or left standing as a tab): a later contour does not go there again
+  const done = [];
+  const cutBefore = (a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), iv = [];
+    if (l < 0.05) return iv;
+    const ex = dx / l, ey = dy / l;
+    for (const [c, d] of done) {
+      if (Math.abs((c[0] - a[0]) * ey - (c[1] - a[1]) * ex) > 0.03 || Math.abs((d[0] - a[0]) * ey - (d[1] - a[1]) * ex) > 0.03) continue;
+      let s0 = (c[0] - a[0]) * ex + (c[1] - a[1]) * ey, s1 = (d[0] - a[0]) * ex + (d[1] - a[1]) * ey;
+      if (s0 > s1) [s0, s1] = [s1, s0];
+      s0 = Math.max(0, s0); s1 = Math.min(l, s1);
+      if (s1 - s0 > 0.05) iv.push([s0, s1]);
+    }
+    iv.sort((p, q) => p[0] - q[0]);
+    const m = [];
+    for (const v of iv) { if (m.length && v[0] <= m[m.length - 1][1] + 1e-6) m[m.length - 1][1] = Math.max(m[m.length - 1][1], v[1]); else m.push(v); }
+    return m.map(([s0, s1]) => [s0 / l, s1 / l]);
+  };
   const safeZ = Math.max(1, +opts.safeZ || 5), zEnd = -(t + Math.max(0, +(opts.through ?? 0.3) || 0)), step = Math.max(0.05, +opts.step || t || 1), plunge = Math.max(1, +opts.plunge || feed / 3);
+  const tabZ = -Math.max(0, t - Math.max(0.1, +opts.tabH || t / 2));
   if (mill) out.push(`G0 Z${n3(safeZ)}`, `M3 S${Math.round(+opts.rpm || 12000)}`);
+  const xy = p => `X${n3(p[0])} Y${n3(p[1])}`;
+  const beamOn = () => { out.push(onCode); if (pierce > 0 && ctl.dwell) out.push(`G4 P${n3(pierce)}`); pierces++; };
+  // the way round as stretches: [from, to, tab?] – the corners of the path, cut where a tab begins and ends
+  const stretches = q => {
+    const pts = q.open ? q.pts : [...q.pts, q.pts[0]], cuts = (q.tabs || []).flatMap(([a, b]) => [[a, 1], [b, 0]]), res = [];
+    let s = 0, ci = 0, tab = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      let from = a;
+      while (ci < cuts.length && cuts[ci][0] <= s + l + 1e-9) { const u = l > 0 ? (cuts[ci][0] - s) / l : 0, p = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]; res.push([from, p, tab]); from = p; tab = cuts[ci][1]; ci++; }
+      res.push([from, b, tab]);
+      s += l;
+    }
+    const all = res.filter(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-6);
+    if (!common || !done.length) return all;
+    // (flag 2: already cut by a neighbour)
+    const split = [];
+    for (const [a, b, tab] of all) {
+      const at = u => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+      let u = 0;
+      for (const [u0, u1] of tab ? [] : cutBefore(a, b)) { if (u0 > u + 1e-9) split.push([at(u), at(u0), 0]); split.push([at(u0), at(u1), 2]); u = u1; }
+      if (u < 1 - 1e-9) split.push([at(u), b, tab]);
+    }
+    return split;
+  };
   for (const q of order) {
-    const loopLen = q.pts.reduce((a, p, i) => { const n = q.pts[(i + 1) % q.pts.length]; return a + Math.hypot(n[0] - p[0], n[1] - p[1]); }, 0), ll = Math.hypot(q.pts[0][0] - q.lead[0], q.pts[0][1] - q.lead[1]);
+    const ll = Math.hypot(q.pts[0][0] - q.lead[0], q.pts[0][1] - q.lead[1]), st = stretches(q);
     rapid += Math.hypot(q.lead[0] - last[0], q.lead[1] - last[1]);
-    out.push(`G0 X${n3(q.lead[0])} Y${n3(q.lead[1])}`);
-    const round = f => { out.push(`G1 X${n3(q.pts[0][0])} Y${n3(q.pts[0][1])} F${n3(f)}`); for (let i = 1; i < q.pts.length; i++) out.push(`G1 X${n3(q.pts[i][0])} Y${n3(q.pts[i][1])}`); out.push(`G1 X${n3(q.pts[0][0])} Y${n3(q.pts[0][1])}`); };
+    out.push(`G0 ${xy(q.lead)}`);
+    tr(last, q.lead, 0); tr(q.lead, q.pts[0], 2);
+    for (const [a, b, f] of st) { tr(a, b, f === 2 ? 0 : f ? 3 : 1); if (f === 2) saved += Math.hypot(b[0] - a[0], b[1] - a[1]); }
     if (mill) {
       const levels = [];
       for (let z = -step; z > zEnd + 1e-6; z -= step) levels.push(z);
       levels.push(zEnd);
-      levels.forEach((z, i) => { if (i) out.push(`G1 X${n3(q.lead[0])} Y${n3(q.lead[1])}`); out.push(`G1 Z${n3(z)} F${n3(plunge)}`); round(feed); length += loopLen + ll * 2; });
+      levels.forEach((z, i) => {
+        if (i) out.push(`G1 ${xy(q.lead)}`);
+        out.push(`G1 Z${n3(z)} F${n3(plunge)}`);
+        let fSet = false, lvl = 0; // 0: at depth, 1: over a tab, 2: above the sheet (the neighbour has cut here)
+        const go = p => { out.push(`G1 ${xy(p)}${fSet ? '' : ` F${n3(feed)}`}`); fSet = true; };
+        const to = want => { if (want === lvl) return; out.push(want === 2 ? `G0 Z${n3(safeZ)}` : `G1 Z${n3(want ? tabZ : z)} F${n3(plunge)}`); fSet = false; lvl = want; };
+        if (ll > 1e-6) go(q.pts[0]);
+        for (const [a, b, tab] of st) {
+          to(tab === 2 ? 2 : tab && z < tabZ - 1e-9 ? 1 : 0);
+          if (lvl === 2) { out.push(`G0 ${xy(b)}`); continue; }
+          go(b);
+          length += Math.hypot(b[0] - a[0], b[1] - a[1]);
+        }
+        length += ll * 2;
+      });
       out.push(`G0 Z${n3(safeZ)}`);
+      pierces++;
     } else {
-      out.push(mode === 'laser' ? `M3 S${Math.round(+opts.power || 1000)}` : 'M3');
-      if (pierce > 0) out.push(`G4 P${n3(pierce)}`);
-      round(feed);
-      out.push('M5');
-      length += loopLen + ll;
+      beamOn();
+      let fSet = false, on = true;
+      const go = p => { out.push(`G1 ${xy(p)}${fSet ? '' : ` F${n3(feed)}`}`); fSet = true; };
+      if (ll > 1e-6) go(q.pts[0]);
+      for (const [a, b, tab] of st) {
+        if (tab) { if (on) { out.push(offCode); on = false; } out.push(`G0 ${xy(b)}`); continue; }
+        if (!on) { beamOn(); on = true; }
+        go(b);
+        length += Math.hypot(b[0] - a[0], b[1] - a[1]);
+      }
+      if (on) out.push(offCode);
+      length += ll;
     }
-    pierces++;
-    last = q.pts[0];
+    tabs += (q.tabs || []).length;
+    if (common) for (const [a, b, f] of st) if (f !== 2) done.push([a, b]);
+    last = q.open ? q.pts[q.pts.length - 1] : q.pts[0];
   }
   if (mill) out.push('M5');
   out.push('G0 X0 Y0', 'M30');
-  return { text: out.join('\n') + '\n', length, pierces, minutes: length / feed + (pierces * pierce) / 60 + rapid / 10000, paths: order };
+  tr(last, [0, 0], 0);
+  return { text: out.join('\n') + '\n', length, pierces, tabs, saved, minutes: length / feed + (mill ? 0 : (pierces * pierce) / 60) + rapid / 10000, paths: order, trace };
 }

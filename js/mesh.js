@@ -1114,7 +1114,7 @@ export function findCylinders(m, minFacets = 8, info = null) {
   // "soft" edges (a bend of 0.6° … 31° between two flat regions), sorted by their direction: the strips of a
   // cylinder meet in edges along its axis
   const cmin = Math.cos((31 * Math.PI) / 180), cmax = Math.cos((0.6 * Math.PI) / 180);
-  if (info) Object.assign(info, { reg, N, softList: [], used: new Set() });
+  if (info) Object.assign(info, { reg, N, softList: [], flatish: [], used: new Set() });
   // the normal of a region: from all its triangles, by area (single needles do not disturb it)
   const RN = new Float64Array(nT * 3);
   for (let t = 0; t < nT; t++) {
@@ -1128,7 +1128,10 @@ export function findCylinders(m, minFacets = 8, info = null) {
     const g = reg[t] * 3, q = reg[s] * 3;
     if (g === q) continue;
     const c = RN[g] * RN[q] + RN[g + 1] * RN[q + 1] + RN[g + 2] * RN[q + 2];
-    if (c < cmin || c > cmax) continue;
+    // (flatter than a soft edge, yet not one plane: fine facets of a round face – they hold it together when
+    // cones and spheres are looked for)
+    if (c > cmax) { if (info) info.flatish.push([reg[t], reg[s]]); continue; }
+    if (c < cmin) continue;
     let dx = P[b * 3] - P[a * 3], dy = P[b * 3 + 1] - P[a * 3 + 1], dz = P[b * 3 + 2] - P[a * 3 + 2];
     const l = Math.hypot(dx, dy, dz);
     if (l < 1e-9) continue;
@@ -1245,7 +1248,7 @@ export function findCylinders(m, minFacets = 8, info = null) {
       const sl = steps.reduce((a, s) => a + (C.r * C.r / 2) * (Math.abs(s) - Math.sin(Math.abs(s))), 0);
       const a0 = sg > 0 ? ang[0] : ang[ang.length - 1];
       out.push({ c: [u[0] * C.x + w[0] * C.y + d[0] * h0, u[1] * C.x + w[1] * C.y + d[1] * h0, u[2] * C.x + w[2] * C.y + d[2] * h0], d: d.slice(), r: C.r, h: h1 - h0, hole: side < 0,
-        n: full ? strips.length : Math.max(3, Math.round((2 * Math.PI) / (big || Math.abs(steps[0])))), full, u, w, a0, sweep, sl });
+        n: full ? strips.length : Math.max(3, Math.round((2 * Math.PI) / (big || Math.abs(steps[0])))), full, u, w, a0, sweep, sl, ...(info ? { regs: strips.map(st => st.r) } : {}) });
       if (info) for (const st of strips) info.used.add(st.r);
       return true;
     };
@@ -1312,10 +1315,91 @@ function solveN(M, b) {
  *   { apex, d (axis, from the apex to the wide end), t0, t1 (distances from the apex), r0, r1, hole, n }.
  * spheres: patches whose corners all lie on one sphere – balls, domes, rounded corners:
  *   { c, r, hole, vol (volume between the facets and the sphere), n (triangles) }.
+ * tori: rings of corners around an axis whose radii and heights lie on a circle – the fillet round a round edge,
+ *   a rounded rim: { c (centre, on the axis), d (axis), R (to the middle of the tube), r (tube), s0, s1 (the part
+ *   of the tube: angle above the plane of the torus, at the lowest and the highest ring), inner (the half of the
+ *   tube that looks to the axis – there the facets lie on both sides of the true face), hole (material outside
+ *   the tube), n, vol (between the facets and the torus; outer half only), din, dout (how far the facets lie
+ *   inside and outside the tube), a0, sweep, u, w (a part of the way round) }.
  */
-export function findRound(m, minFacets = 8) {
-  const info = {}, cylinders = findCylinders(m, minFacets, info), cones = [], spheres = [], minSeg = Math.max(4, minFacets >> 1);
-  const { reg, N, soft, used, trisOf } = info, I = m.idx, P = m.pos;
+export function findRound(m, minFacets = 8, veto = null) {
+  const info = {};
+  let cylinders = findCylinders(m, minFacets, info).filter(c => { if (!veto || !veto(c)) return true; for (const r of c.regs || []) info.used.delete(r); return false; });
+  // (the strips across a tube, where a mesher steps finely round the axis, read as many short pieces of cylinders
+  // of one radius lying far apart: they are given back – the search for tori takes them)
+  {
+    const parts = cylinders.filter(c => c.full === false), drop = new Set();
+    for (const c of parts) {
+      if (drop.has(c)) continue;
+      const g = parts.filter(q => Math.abs(q.r - c.r) < 2e-3);
+      if (g.length < 6) continue;
+      let far = 0;
+      for (const p of g) for (const q of g) far = Math.max(far, Math.hypot(p.c[0] - q.c[0], p.c[1] - q.c[1], p.c[2] - q.c[2]));
+      const hs = g.map(q => q.h).sort((p, q) => p - q);
+      if (hs[hs.length >> 1] < 0.15 * far) for (const q of g) drop.add(q);
+    }
+    if (drop.size) { for (const c of drop) for (const r of c.regs || []) info.used.delete(r); cylinders = cylinders.filter(c => !drop.has(c)); }
+  }
+  const cones = [], spheres = [], tori = [], minSeg = Math.max(4, minFacets >> 1);
+  // axes a torus may turn about: those of the cylinders and cones, and the main axes
+  const axes0 = [];
+  const addAxis = d => { if (d && !axes0.some(q => Math.abs(q[0] * d[0] + q[1] * d[1] + q[2] * d[2]) > 0.999999)) axes0.push(d); };
+  for (const c of cylinders) addAxis(c.d);
+  addAxis([0, 0, 1]); addAxis([1, 0, 0]); addAxis([0, 1, 0]);
+  const { reg, N, used, trisOf } = info, I = m.idx, P = m.pos, soft = info.flatish.length ? info.soft.concat(info.flatish) : info.soft;
+  // a ring on its own (an O-ring): a closed piece of the mesh with every corner on one torus
+  {
+    const nV = P.length / 3, up = new Int32Array(nV), dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+    for (let i = 0; i < nV; i++) up[i] = i;
+    const fd = x => { while (up[x] !== x) { up[x] = up[up[x]]; x = up[x]; } return x; };
+    for (let t = 0; t < I.length; t += 3) for (const k of [1, 2]) { const a = fd(I[t]), b = fd(I[t + k]); if (a !== b) up[b] = a; }
+    const parts = new Map();
+    for (let t = 0; t < I.length / 3; t++) { const g = fd(I[t * 3]); let l = parts.get(g); if (!l) parts.set(g, (l = [])); l.push(t); }
+    for (const tris of parts.values()) {
+      if (tris.length < 96) continue;
+      const vs = [...new Set(tris.flatMap(t => [I[t * 3], I[t * 3 + 1], I[t * 3 + 2]]))].map(v => [P[v * 3], P[v * 3 + 1], P[v * 3 + 2]]);
+      let c = [0, 0, 0];
+      for (const p of vs) for (let k = 0; k < 3; k++) c[k] += p[k] / vs.length;
+      const C = [0, 0, 0, 0, 0, 0];
+      for (const p of vs) { const q = [p[0] - c[0], p[1] - c[1], p[2] - c[2]]; C[0] += q[0] * q[0]; C[1] += q[0] * q[1]; C[2] += q[0] * q[2]; C[3] += q[1] * q[1]; C[4] += q[1] * q[2]; C[5] += q[2] * q[2]; }
+      const E = eig3(C);
+      if (!(E.val[0] < 0.6 * E.val[1])) continue;
+      const a = E.vec[0], e1 = E.vec[1], e2 = [a[1] * e1[2] - a[2] * e1[1], a[2] * e1[0] - a[0] * e1[2], a[0] * e1[1] - a[1] * e1[0]];
+      let Rc = 0, r = 0, fit = false;
+      for (let it = 0; it < 8 && !fit; it++) {
+        const rt = vs.map(p => { const q = [p[0] - c[0], p[1] - c[1], p[2] - c[2]], x = dot(q, e1), y = dot(q, e2), rho = Math.hypot(x, y) || 1e-12; return [rho, dot(q, a), x / rho, y / rho]; });
+        // the circle of the tube through (distance from the axis, height) …
+        const M3 = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b3 = [0, 0, 0];
+        for (const [x, y] of rt) { const row = [x, y, 1], z = x * x + y * y; for (let i = 0; i < 3; i++) { b3[i] += row[i] * z; for (let j = 0; j < 3; j++) M3[i][j] += row[i] * row[j]; } }
+        const sol = solveN(M3, b3);
+        if (!sol) break;
+        const tc = sol[1] / 2;
+        Rc = sol[0] / 2; r = Math.sqrt(Math.max(0, sol[2] + Rc * Rc + tc * tc));
+        if (!(r > 1e-3) || !(Rc > 1.25 * r)) break;
+        // … and the place of the axis that fits it best
+        let a11 = 0, a12 = 0, a22 = 0, b1 = 0, b2 = 0, worst = 0;
+        for (const [rho, t, ux, uy] of rt) { const s = Math.hypot(rho - Rc, t - tc) || 1e-12, e = s - r, g = -(rho - Rc) / s, jx = g * ux, jy = g * uy; a11 += jx * jx; a12 += jx * jy; a22 += jy * jy; b1 += jx * e; b2 += jy * e; worst = Math.max(worst, Math.abs(e)); }
+        const det = a11 * a22 - a12 * a12, dx = Math.abs(det) > 1e-12 ? -(a22 * b1 - a12 * b2) / det : 0, dy = Math.abs(det) > 1e-12 ? -(a11 * b2 - a12 * b1) / det : 0;
+        c = c.map((x, k) => x + e1[k] * dx + e2[k] * dy + a[k] * tc);
+        fit = worst < Math.max(5e-3, 2.5e-3 * r) && Math.abs(dx) + Math.abs(dy) + Math.abs(tc) < 1e-6;
+      }
+      if (!fit) continue;
+      // closed, the outside outwards, and as much inside as a torus holds
+      let v6 = 0, okT = true;
+      for (const t of tris) {
+        const p = [0, 1, 2].map(k => { const v = I[t * 3 + k]; return [P[v * 3] - c[0], P[v * 3 + 1] - c[1], P[v * 3 + 2] - c[2]]; });
+        v6 += p[0][0] * (p[1][1] * p[2][2] - p[1][2] * p[2][1]) - p[0][1] * (p[1][0] * p[2][2] - p[1][2] * p[2][0]) + p[0][2] * (p[1][0] * p[2][1] - p[1][1] * p[2][0]);
+        const g = [(p[0][0] + p[1][0] + p[2][0]) / 3, (p[0][1] + p[1][1] + p[2][1]) / 3, (p[0][2] + p[1][2] + p[2][2]) / 3], tt = dot(g, a), rho = Math.hypot(dot(g, e1), dot(g, e2));
+        if (Math.abs(Math.hypot(rho - Rc, tt) - r) > 0.2 * r) { okT = false; break; }
+      }
+      const full = 2 * Math.PI * Math.PI * Rc * r * r, vol = full - v6 / 6;
+      if (!okT || !(vol > 0) || vol > 0.15 * full) continue;
+      const own = new Set(tris.map(t => reg[t]));
+      for (let i = cylinders.length - 1; i >= 0; i--) if ((cylinders[i].regs || []).some(x => own.has(x))) cylinders.splice(i, 1);
+      for (const x of own) used.add(x);
+      tori.push({ c, d: a, R: Rc, r, s0: -Math.PI / 2, s1: Math.PI / 2, whole: true, inner: false, hole: false, n: 16, vol, din: 0, dout: 0, tris: tris.length, ti: tris });
+    }
+  }
   // what is left: flat regions joined by soft edges
   const par = new Map(), find = x => { let p = par.get(x); if (p === undefined) { par.set(x, x); return x; } while (p !== par.get(p)) p = par.get(p); par.set(x, p); return p; };
   for (const [a, b] of soft) { if (used.has(a) || used.has(b)) continue; const ra = find(a), rb = find(b); if (ra !== rb) par.set(rb, ra); }
@@ -1404,8 +1488,6 @@ export function findRound(m, minFacets = 8) {
       if (Math.abs(side) !== regs.length) return null;
       return { apex, d: a, t0, t1, r0: kk * t0, r1: kk * t1, hole: side < 0, n: nSeg, ...(seg || {}) };
     };
-    const co = cone(regs, nrm);
-    if (co) { cones.push(co); continue; }
     // ---- a cone between two rings of corners ----
     // (how a CAD export triangulates a cone: the corners lie on its two circles, the triangles run from one to
     // the other in any division – no strips of one width, so the planes above say nothing)
@@ -1418,22 +1500,36 @@ export function findRound(m, minFacets = 8) {
       const a0 = eig3(C).vec[0], dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
       // the rings: along the rough axis the corners fall into heaps (two, or more where the export has laid
       // further rings in between)
-      const ord = pts.map(p => [dot(p, a0), p]).sort((p, q) => p[0] - q[0]);
-      let gap = 0;
-      for (let i = 1; i < ord.length; i++) gap = Math.max(gap, ord[i][0] - ord[i - 1][0]);
-      const rings = [[ord[0][1]]];
-      for (let i = 1; i < ord.length; i++) { if (ord[i][0] - ord[i - 1][0] > 0.3 * gap) rings.push([]); rings[rings.length - 1].push(ord[i][1]); }
-      if (rings.length < 2 || rings.length > 40 || rings.some(r => r.length < 3)) return null;
+      const heaps = (ax, k, least) => {
+        const ord = pts.map(p => [dot(p, ax), p]).sort((p, q) => p[0] - q[0]);
+        let gap = 0;
+        for (let i = 1; i < ord.length; i++) gap = Math.max(gap, ord[i][0] - ord[i - 1][0]);
+        const out = [[ord[0][1]]];
+        for (let i = 1; i < ord.length; i++) { if (ord[i][0] - ord[i - 1][0] > Math.max(least, k * gap)) out.push([]); out[out.length - 1].push(ord[i][1]); }
+        return out;
+      };
+      // (a single corner at one end: the tip of the cone)
+      const fit = rs => rs.length >= 2 && rs.length <= 40 && !rs.some((r, i) => r.length < 3 && !(r.length === 1 && (i === 0 || i === rs.length - 1))) && !(rs[0].length === 1 && rs[rs.length - 1].length === 1);
       // the axis exactly: every ring is flat, across the same direction
-      const cen = ps => [0, 1, 2].map(k => ps.reduce((s, p) => s + p[k], 0) / ps.length), gs0 = rings.map(cen), C2 = [0, 0, 0, 0, 0, 0];
-      rings.forEach((ps, k) => { const g = gs0[k]; for (const p of ps) { const x = p[0] - g[0], y = p[1] - g[1], z = p[2] - g[2]; C2[0] += x * x; C2[1] += x * y; C2[2] += x * z; C2[3] += y * y; C2[4] += y * z; C2[5] += z * z; } });
-      let a = eig3(C2).vec[0];
+      const cen = ps => [0, 1, 2].map(k => ps.reduce((s, p) => s + p[k], 0) / ps.length);
+      const axisOf = rs => {
+        const gs = rs.map(cen), C2 = [0, 0, 0, 0, 0, 0];
+        rs.forEach((ps, k) => { const g = gs[k]; for (const p of ps) { const x = p[0] - g[0], y = p[1] - g[1], z = p[2] - g[2]; C2[0] += x * x; C2[1] += x * y; C2[2] += x * z; C2[3] += y * y; C2[4] += y * z; C2[5] += z * z; } });
+        return [eig3(C2).vec[0], gs];
+      };
+      let rings = heaps(a0, 0.3, 0);
+      if (!fit(rings)) return null;
+      let [a, gs0] = axisOf(rings);
+      // along the exact axis rings that lie close together come apart (the rough axis had smeared them into one)
+      const fine = heaps(a, 0.05, 0.01);
+      if (fine.length !== rings.length) { if (!fit(fine)) return null; rings = fine; [a, gs0] = axisOf(rings); }
       const gL = gs0[rings.length - 1];
       if (dot(a, [gL[0] - gs0[0][0], gL[1] - gs0[0][1], gL[2] - gs0[0][2]]) < 0) a = a.map(x => -x);
       if (rings.some((ps, k) => ps.some(p => Math.abs(dot([p[0] - gs0[k][0], p[1] - gs0[k][1], p[2] - gs0[k][2]], a)) > 3e-3))) return null;
       const ux0 = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = dot(ux0, a), e1 = (v => { const l = Math.hypot(...v); return v.map(x => x / l); })([ux0[0] - a[0] * dd, ux0[1] - a[1] * dd, ux0[2] - a[2] * dd]);
       const e2 = [a[1] * e1[2] - a[2] * e1[1], a[2] * e1[0] - a[0] * e1[2], a[0] * e1[1] - a[1] * e1[0]];
       const circle = (ps, g) => {
+        if (ps.length === 1) return { c: ps[0], r: 0, ps };
         const M3 = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b3 = [0, 0, 0], xy = ps.map(p => { const q = [p[0] - g[0], p[1] - g[1], p[2] - g[2]]; return [dot(q, e1), dot(q, e2)]; });
         for (const [x, y] of xy) { const row = [x, y, 1], z = x * x + y * y; for (let i = 0; i < 3; i++) { b3[i] += row[i] * z; for (let j = 0; j < 3; j++) M3[i][j] += row[i] * row[j]; } }
         const sol = solveN(M3, b3);
@@ -1485,9 +1581,9 @@ export function findRound(m, minFacets = 8) {
       // what the facets leave out of the cone: both seen from the centre of the small ring
       // (… and the cone from that centre to the wide ring reaches further where the ring is a circle, not a polygon)
       const lune = gw.reduce((q, g, i) => q + (seg && i === wi ? 0 : g - Math.sin(g)), 0);
-      const vol = ((seg ? seg.sweep : 2 * Math.PI) / 2) * (h / 3) * (small.r * small.r + small.r * big.r) - Math.abs(star) + (h / 3) * 0.5 * big.r * big.r * lune;
+      const vol = ((seg ? seg.sweep : 2 * Math.PI) / 2) * (h / 3) * (small.r * small.r + small.r * big.r) - Math.sign(side) * star + (h / 3) * 0.5 * big.r * big.r * lune;
       if (!(vol > 0)) return null;
-      return { apex, d, t0, t1, r0: small.r, r1: big.r, hole: side < 0, n: Math.max(minFacets, Math.floor((2 * Math.PI) / step)), vol, ...(seg || {}) };
+      return { apex, d, t0, t1, r0: small.r, r1: big.r, hole: side < 0, n: Math.max(minFacets, Math.floor((2 * Math.PI) / step + 1e-3)), vol, ...(seg || {}) };
     };
     {
       // without the large flat faces that run on from it (the chamfer between two rounded corners), piece by piece
@@ -1500,6 +1596,9 @@ export function findRound(m, minFacets = 8) {
       for (const l of groups.values()) { if (l.length < minSeg) continue; const rc = ringCone(l.map(i => regs[i]), l.map(i => nrm[i])); if (rc) found.push(rc); }
       if (found.length) { cones.push(...found); continue; }
     }
+    // (after the rings: where both fit, the rings take in the irregular band at the rim as well)
+    const co = cone(regs, nrm);
+    if (co) { cones.push(co); continue; }
     sph: {
     if (regs.length < minFacets) break sph;
     // ---- a sphere: every corner at the same distance from one point ----
@@ -1563,8 +1662,166 @@ export function findRound(m, minFacets = 8) {
     let alpha = Math.PI, rin = r;
     if (al > 1e-6 * pts.length) { ax[0] /= al; ax[1] /= al; ax[2] /= al; alpha = Math.max(...pts.map(p => Math.acos(Math.max(-1, Math.min(1, ((p[0] - c[0]) * ax[0] + (p[1] - c[1]) * ax[1] + (p[2] - c[2]) * ax[2]) / (Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) || 1)))))); }
     regsS.forEach((rg, i) => { const p = V(I[T.get(rg)[0] * 3]); rin = Math.min(rin, Math.abs(nrmS[i][0] * (p[0] - c[0]) + nrmS[i][1] * (p[1] - c[1]) + nrmS[i][2] * (p[2] - c[2]))); });
-    spheres.push({ c, r, hole: side < 0, vol, n: trisS.length, ax, alpha, rin });
+    {
+      // (the shreds between the facets belong to the patch)
+      const own = new Set(trisS);
+      const angOf = p => { const q = [p[0] - c[0], p[1] - c[1], p[2] - c[2]], l = Math.hypot(...q) || 1; return Math.abs(l - r) < tol ? Math.acos(Math.max(-1, Math.min(1, (q[0] * ax[0] + q[1] * ax[1] + q[2] * ax[2]) / l))) : Infinity; };
+      if (alpha < 3.1) for (const rg of allRegs) for (const x of T.get(rg)) { if (own.has(x)) continue; const an = [angOf(V(I[x * 3])), angOf(V(I[x * 3 + 1])), angOf(V(I[x * 3 + 2]))]; if (an.every(q => q < alpha + 1e-3) && an.some(q => q < alpha - 3e-3)) { own.add(x); trisS.push(x); } }
+    }
+    spheres.push({ c, r, hole: side < 0, vol, n: trisS.length, ax, alpha, rin, ti: trisS });
     continue;
+    }
+    {
+      // ---- a torus: the corners lie in rings around an axis, the rings on a circle in the plane through it ----
+      const torus = (rs, ns) => {
+        const tris = rs.flatMap(r => T.get(r));
+        if (tris.length < 4 * minSeg) return null;
+        const pts = [...new Set(tris.flatMap(t => [I[t * 3], I[t * 3 + 1], I[t * 3 + 2]]))].map(V);
+        if (pts.length < 12) return null;
+        const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+        const g0 = [0, 1, 2].map(k => pts.reduce((s, p) => s + p[k], 0) / pts.length);
+        const tryAxis = (a, tris, pts) => {
+          const ord = pts.map(p => [dot(p, a), p]).sort((p, q) => p[0] - q[0]);
+          if (ord[ord.length - 1][0] - ord[0][0] < 1e-2) return null;
+          const rings = [[ord[0]]];
+          for (let i = 1; i < ord.length; i++) { if (ord[i][0] - ord[i - 1][0] > 2e-3) rings.push([]); rings[rings.length - 1].push(ord[i]); }
+          if (rings.length < 4 || rings.length > 80 || rings.some(r => r.length < 3)) return null;
+          const ux0 = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = dot(ux0, a), e1 = (v => { const l = Math.hypot(...v); return v.map(x => x / l); })([ux0[0] - a[0] * dd, ux0[1] - a[1] * dd, ux0[2] - a[2] * dd]);
+          const e2 = [a[1] * e1[2] - a[2] * e1[1], a[2] * e1[0] - a[0] * e1[2], a[0] * e1[1] - a[1] * e1[0]];
+          const xyOf = p => { const q = [p[0] - g0[0], p[1] - g0[1], p[2] - g0[2]]; return [dot(q, e1), dot(q, e2)]; };
+          // every ring a circle, all about one centre
+          const cs = [];
+          for (const ring of rings) {
+            const M3 = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b3 = [0, 0, 0], xy = ring.map(q => xyOf(q[1]));
+            for (const [x, y] of xy) { const row = [x, y, 1], z = x * x + y * y; for (let i = 0; i < 3; i++) { b3[i] += row[i] * z; for (let j = 0; j < 3; j++) M3[i][j] += row[i] * row[j]; } }
+            const sol = solveN(M3, b3);
+            if (!sol) return null;
+            const cx = sol[0] / 2, cy = sol[1] / 2, rr = Math.sqrt(Math.max(0, sol[2] + cx * cx + cy * cy));
+            if (!(rr > 1e-3) || xy.some(([x, y]) => Math.abs(Math.hypot(x - cx, y - cy) - rr) > Math.max(2e-3, 2e-4 * rr))) return null;
+            cs.push([cx, cy, rr, ring.length]);
+          }
+          // (the rings with the most corners say best where the axis is)
+          const wsum = cs.reduce((s, c) => s + c[3], 0), cx = cs.reduce((s, c) => s + c[0] * c[3], 0) / wsum, cy = cs.reduce((s, c) => s + c[1] * c[3], 0) / wsum, rmax = Math.max(...cs.map(c => c[2]));
+          if (cs.some(c => Math.hypot(c[0] - cx, c[1] - cy) > Math.max(5e-3, 2e-3 * rmax))) return null;
+          const rt = rings.map(ring => [ring.reduce((s, q) => { const [x, y] = xyOf(q[1]); return s + Math.hypot(x - cx, y - cy); }, 0) / ring.length, ring.reduce((s, q) => s + q[0], 0) / ring.length]);
+          // the rings on a circle in the plane through the axis
+          const M3 = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b3 = [0, 0, 0], tm = rt.reduce((s, q) => s + q[1], 0) / rt.length;
+          for (const [x, t] of rt) { const y = t - tm, row = [x, y, 1], z = x * x + y * y; for (let i = 0; i < 3; i++) { b3[i] += row[i] * z; for (let j = 0; j < 3; j++) M3[i][j] += row[i] * row[j]; } }
+          const sol = solveN(M3, b3);
+          if (!sol) return null;
+          const Rc = sol[0] / 2, tc = sol[1] / 2 + tm, r = Math.sqrt(Math.max(0, sol[2] + Rc * Rc + (sol[1] / 2) ** 2)), h = rt[rt.length - 1][1] - rt[0][1];
+          const tol = Math.max(3e-3, 1e-3 * r);
+          if (!(r > 1e-2) || r > 50 * h || !(Rc > 0.02 * r) || rt.some(([x, t]) => Math.abs(Math.hypot(x - Rc, t - tc) - r) > tol)) return null;
+          // one half of the tube: away from the axis or towards it
+          const cosv = rt.map(([x]) => (x - Rc) / r);
+          const inner = cosv.every(c => c < 1e-3) ? true : cosv.every(c => c > -1e-3) ? false : null;
+          if (inner === null) return null;
+          // (angle above the plane of the torus; a quarter ends square)
+          const sOf = ([x, t]) => { const s = Math.atan2(t - tc, Math.abs(x - Rc)), q = Math.round(s / (Math.PI / 2)) * (Math.PI / 2); return Math.abs(s - q) < 2e-3 ? q : s; }, s0 = sOf(rt[0]), s1 = sOf(rt[rt.length - 1]);
+          if (s1 - s0 < 0.05) return null;
+          // every corner on the torus; how far the facets leave it; which side the material is on
+          const O = [g0[0] + e1[0] * cx + e2[0] * cy, g0[1] + e1[1] * cx + e2[1] * cy, g0[2] + e1[2] * cx + e2[2] * cy], tO = dot(O, a);
+          const rhoT = p => { const t = dot(p, a) - tO, q = [p[0] - O[0] - a[0] * t, p[1] - O[1] - a[1] * t, p[2] - O[2] - a[2] * t], rho = Math.hypot(...q); return [rho, t + tO, q]; };
+          const sOfP = p => { const [rho, t] = rhoT(p); return Math.hypot(rho - Rc, t - tc); };
+          if (pts.some(p => Math.abs(sOfP(p) - r) > tol)) return null;
+          let side = 0, star = 0, sMin = r, sMax = r;
+          const OA = O.map((x, k) => x + a[k] * (rt[0][1] - tO));
+          for (const t of tris) {
+            const p = V(I[t * 3]), q = V(I[t * 3 + 1]), r3 = V(I[t * 3 + 2]), u = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], v = [r3[0] - p[0], r3[1] - p[1], r3[2] - p[2]];
+            const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], g = [(p[0] + q[0] + r3[0]) / 3, (p[1] + q[1] + r3[1]) / 3, (p[2] + q[2] + r3[2]) / 3];
+            const [rho, tg, rad] = rhoT(g), k = rho > 1e-9 ? (rho - Rc) / rho : 0, out = [rad[0] * k + a[0] * (tg - tc), rad[1] * k + a[1] * (tg - tc), rad[2] * k + a[2] * (tg - tc)];
+            side += Math.sign(dot(n, out));
+            star += dot(n, [p[0] - OA[0], p[1] - OA[1], p[2] - OA[2]]) / 6;
+            for (const x of [g, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], [(q[0] + r3[0]) / 2, (q[1] + r3[1]) / 2, (q[2] + r3[2]) / 2], [(p[0] + r3[0]) / 2, (p[1] + r3[1]) / 2, (p[2] + r3[2]) / 2]]) { const s = sOfP(x); sMin = Math.min(sMin, s); sMax = Math.max(sMax, s); }
+          }
+          if (Math.abs(side) !== tris.length) return null;
+          // how far round: the ring with the most corners
+          const big = rings.reduce((b, x) => (x.length > b.length ? x : b), rings[0]);
+          const angsOf = ring => ring.map(q => { const [x, y] = xyOf(q[1]); return Math.atan2(y - cy, x - cx); }).sort((p, q) => p - q);
+          const gapsOf = an => an.map((x, i) => (i ? x - an[i - 1] : x + 2 * Math.PI - an[an.length - 1]));
+          const aw = angsOf(big), gw = gapsOf(aw), med = gw.slice().sort((p, q) => p - q)[gw.length >> 1], wi = gw.indexOf(Math.max(...gw));
+          let seg = null, step = Math.max(...gw);
+          if (gw[wi] > 2.5 * med && gw[wi] > 0.5) {
+            const sweep = 2 * Math.PI - gw[wi];
+            if (sweep < 0.2) return null;
+            seg = { a0: aw[wi], sweep, u: e1, w: e2 };
+            step = Math.max(...gw.filter((_, i) => i !== wi));
+          }
+          if (!(step > 1e-4) || step > 1.3) return null;
+          // between the facets and the torus (outer half: the facets lie inside the tube all over). Seen from the
+          // axis at the height of the first ring: the torus, the facets, and the flat rim at the last ring where a
+          // circle reaches further than its polygon
+          let vol = null;
+          if (!inner) {
+            const phi = seg ? seg.sweep : 2 * Math.PI, tA = rt[0][1], K = 64;
+            let integ = 0;
+            for (let i = 0; i <= K; i++) {
+              const s = s0 + ((s1 - s0) * i) / K, rho = Rc + r * Math.cos(s), t = tc + r * Math.sin(s) - tA, f = rho * (rho * r * Math.cos(s) + t * r * Math.sin(s));
+              integ += f * (i === 0 || i === K ? 1 : i % 2 ? 4 : 2);
+            }
+            const VT = (phi / 3) * ((integ * (s1 - s0)) / (3 * K));
+            const gB = gapsOf(angsOf(rings[rings.length - 1])), bi = gB.indexOf(Math.max(...gB)), rB = rt[rt.length - 1][0];
+            const lune = gB.reduce((q, g, i) => q + (seg && i === bi ? 0 : g - Math.sin(g)), 0);
+            vol = VT - Math.sign(side) * star + (h / 3) * 0.5 * rB * rB * lune;
+            if (!(vol > 0)) return null;
+          }
+          return { c: O.map((x, k) => x + a[k] * (tc - tO)), d: a, R: Rc, r, s0, s1, inner, hole: side < 0, n: Math.max(minFacets, Math.floor((2 * Math.PI) / step + 1e-3)), vol, oa: OA, din: r - sMin, dout: sMax - r, tris: tris.length, ti: tris, ...(seg || {}) };
+        };
+        // (the normals of a fillet all the way round vary least along its axis)
+        const mean = [0, 0, 0], C = [0, 0, 0, 0, 0, 0];
+        for (const n of ns) for (let k = 0; k < 3; k++) mean[k] += n[k] / ns.length;
+        for (const n of ns) { const x = n[0] - mean[0], y = n[1] - mean[1], z = n[2] - mean[2]; C[0] += x * x; C[1] += x * y; C[2] += x * z; C[3] += y * y; C[4] += y * z; C[5] += z * z; }
+        let own = [];
+        try { own = eig3(C).vec; } catch { /* the known axes only */ }
+        // (a row of strips that runs on from the fillet – the wall of a cylinder the search has not taken – would
+        // spoil the fit: the rings at the two ends are left away, one by one)
+        const tryTrim = a => {
+          let res = tryAxis(a, tris, pts);
+          if (res) return res;
+          const hs = pts.map(p => dot(p, a)).sort((p, q) => p - q), H = [hs[0]];
+          for (let i = 1; i < hs.length; i++) if (hs[i] - hs[i - 1] > 2e-3) H.push(hs[i]);
+          if (H.length < 5 || H.length > 80) return null;
+          const top = k => { const nx = H[k + 1]; let e = H[k]; for (const h of hs) { if (nx !== undefined && h >= nx) break; if (h > e) e = h; } return e; };
+          // (a cone that runs on from the fillet has a few rings of its own)
+          for (const [lo, hi] of [[1, 0], [0, 1], [1, 1], [2, 0], [0, 2], [2, 1], [1, 2], [2, 2], [3, 0], [0, 3], [3, 1], [1, 3], [4, 0], [0, 4], [4, 1], [1, 4], [3, 3], [4, 4]]) {
+            if (H.length - lo - hi < 4) continue;
+            const tLo = H[lo] - 1e-3, tHi = top(H.length - 1 - hi) + 1e-3;
+            const sub = tris.filter(t => { for (let k = 0; k < 3; k++) { const h = dot(V(I[t * 3 + k]), a); if (h < tLo || h > tHi) return false; } return true; });
+            if (sub.length < 4 * minSeg) continue;
+            const ps = [...new Set(sub.flatMap(t => [I[t * 3], I[t * 3 + 1], I[t * 3 + 2]]))].map(V);
+            if (ps.length < 12) continue;
+            res = tryAxis(a, sub, ps);
+            if (res) return res;
+          }
+          return null;
+        };
+        for (const a of [...axes0, ...cones.map(c => c.d), ...own]) { if (!a || !a.every(Number.isFinite)) continue; const t = tryTrim(a); if (t) return t; }
+        return null;
+      };
+      const keep = regs.map((_, i) => i).filter(i => area[bigIdx[i]] <= 20 * amed), at = new Map(keep.map(i => [regs[i], i])), pr = new Map(keep.map(i => [i, i]));
+      const fd = x => { while (pr.get(x) !== x) { pr.set(x, pr.get(pr.get(x))); x = pr.get(x); } return x; };
+      for (const [p, q] of soft) { const i = at.get(p), j = at.get(q); if (i === undefined || j === undefined) continue; const ri = fd(i), rj = fd(j); if (ri !== rj) pr.set(rj, ri); }
+      const groups = new Map();
+      for (const i of keep) { const g = fd(i); let l = groups.get(g); if (!l) groups.set(g, (l = [])); l.push(i); }
+      const found = [];
+      for (const l of groups.values()) { if (l.length < minSeg) continue; const to = torus(l.map(i => regs[i]), l.map(i => nrm[i])); if (to) found.push(to); }
+      if (found.length) {
+        // the shreds between the facets (too small to count as facets) belong to the face they lie on
+        const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+        for (const to of found) {
+          const own = new Set(to.ti), tol = Math.max(3e-3, 1e-3 * to.r), lo = to.r * Math.sin(to.s0) - tol, hi = to.r * Math.sin(to.s1) + tol;
+          const on = p => { const q = [p[0] - to.c[0], p[1] - to.c[1], p[2] - to.c[2]], tt = dot(q, to.d), rho = Math.hypot(q[0] - to.d[0] * tt, q[1] - to.d[1] * tt, q[2] - to.d[2] * tt); return tt > lo && tt < hi && Math.abs(Math.hypot(rho - to.R, tt) - to.r) < tol && (to.inner ? rho < to.R + tol : rho > to.R - tol); };
+          // (and single triangles that lie in the plane of a neighbour, as a mesher leaves them at its seam; not those of the flat faces at the two ends)
+          const end = (p, h) => Math.abs((p[0] - to.c[0]) * to.d[0] + (p[1] - to.c[1]) * to.d[1] + (p[2] - to.c[2]) * to.d[2] - h) < tol, hA = to.r * Math.sin(to.s0), hB = to.r * Math.sin(to.s1);
+          for (const r of allRegs) for (const x of T.get(r)) { if (own.has(x)) continue; const ps = [V(I[x * 3]), V(I[x * 3 + 1]), V(I[x * 3 + 2])]; if (ps.every(on) && !ps.every(p => end(p, hA)) && !ps.every(p => end(p, hB))) {
+            own.add(x); to.ti.push(x);
+            // (the volume between the facets and the torus counts them too)
+            if (to.vol != null) { const p = V(I[x * 3]), q = V(I[x * 3 + 1]), r3 = V(I[x * 3 + 2]), u = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], w = [r3[0] - p[0], r3[1] - p[1], r3[2] - p[2]]; to.vol -= ((to.hole ? -1 : 1) * dot([u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]], [p[0] - to.oa[0], p[1] - to.oa[1], p[2] - to.oa[2]])) / 6; }
+          } }
+        }
+        tori.push(...found);
+        continue;
+      }
     }
     {
       // several parts of cones in one piece – the chamfer round a plate with rounded corners: the flat chamfers
@@ -1591,7 +1848,232 @@ export function findRound(m, minFacets = 8) {
       }
     }
   }
-  return { cylinders, cones: cones.sort((a, b) => b.r1 - a.r1), spheres: spheres.sort((a, b) => b.r - a.r) };
+  // a row of facets along the tube of a torus looks like a short piece of a cylinder: such pieces go back to
+  // the torus they lie on, and the search runs once more without them
+  if (!veto && tori.length) {
+    const onTorus = c => arcOnTorus(c, tori);
+    if (cylinders.some(onTorus)) return findRound(m, minFacets, onTorus);
+  }
+  for (const c of cylinders) delete c.regs;
+  return { cylinders, cones: cones.sort((a, b) => b.r1 - a.r1), spheres: spheres.sort((a, b) => b.r - a.r), tori: tori.sort((a, b) => b.R - a.R) };
+}
+
+/**
+ * Before a faceted mesh becomes a solid: the many small facets of a recognised torus or of the cap of a sphere
+ * are replaced by a few large ones inside the true face (a kernel needs minutes to cut a round face against
+ * thousands of facets that touch it; against a handful it is done at once). The rims stay as they are, so the
+ * mesh stays closed. tori, spheres: from findRound (with their triangles, ti).
+ * Returns { m, tori: [{ src, din, dout, vol }], spheres: [{ src, h0, vol }] } – what was replaced, how far the
+ * new facets lie inside (din) and outside (dout) the tube, the volume between them and the true face; for a
+ * sphere the height of the flat lid above the centre, along src.ax.
+ */
+export function standIn(m, tori = [], spheres = []) {
+  const P = m.pos, I = m.idx, nT = I.length / 3;
+  const pos = Array.from(P), gone = new Uint8Array(nT), extra = [], outT = [], outS = [];
+  const V = v => [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]];
+  const addV = p => { pos.push(p[0], p[1], p[2]); return pos.length / 3 - 1; };
+  const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+  // the rim of a set of triangles: closed rows of corners, in the direction the triangles run along them
+  const rimOf = ti => {
+    const cnt = new Map(), key = (a, b) => (a < b ? a + '_' + b : b + '_' + a);
+    for (const t of ti) for (let k = 0; k < 3; k++) { const e = key(I[t * 3 + k], I[t * 3 + (k + 1) % 3]); cnt.set(e, (cnt.get(e) || 0) + 1); }
+    const next = new Map();
+    for (const t of ti) for (let k = 0; k < 3; k++) { const a = I[t * 3 + k], b = I[t * 3 + (k + 1) % 3]; if (cnt.get(key(a, b)) !== 1) continue; if (next.has(a)) return null; next.set(a, b); }
+    const dir = new Map(next), loops = [];
+    while (next.size) {
+      const start = next.keys().next().value, loop = [];
+      let v = start;
+      do { loop.push(v); const n = next.get(v); if (n === undefined) return null; next.delete(v); v = n; } while (v !== start);
+      loops.push(loop);
+    }
+    return { loops, dir };
+  };
+  const star = tris => { let s = 0; for (const [a, b, c] of tris) { const p = V(a), q = V(b), r = V(c); s += (p[0] * (q[1] * r[2] - q[2] * r[1]) - p[1] * (q[0] * r[2] - q[2] * r[0]) + p[2] * (q[0] * r[1] - q[1] * r[0])) / 6; } return s; };
+  const trisOf = ti => ti.map(t => [I[t * 3], I[t * 3 + 1], I[t * 3 + 2]]);
+  for (const t of tori) {
+    // (a ring on its own needs no stand-in: it becomes a torus as it is)
+    if (!t.ti || t.whole || t.ti.length < 40 || t.ti.some(x => gone[x])) continue;
+    // a quarter of a tube between a cylinder and a flat face: a sharp corner stands in – two faces a kernel cuts
+    // at once, and all of it on one side of the true face (the half of a tube that looks to the axis has its
+    // facets on both sides: it is done this way or not at all)
+    const q0 = Math.abs(t.s0) < 1e-6, q1 = Math.abs(t.s1) < 1e-6;
+    const span = t.s1 - t.s0, cornerQ = Math.abs(span - Math.PI / 2) < 1e-6 && q0 !== q1 && (!t.inner || t.R >= 1.6 * t.r);
+    // any other piece of the outer half of a tube (a half-round rim, the fillet between a cone and a flat face):
+    // the tangents at its two ends stand in, meeting in one corner – or in two, with the tangent in the middle,
+    // where the piece is long
+    const nC = !cornerQ && !t.inner && t.vol != null && span > 0.3 && span < Math.PI + 1e-6 ? (span > 0.6 * Math.PI ? 2 : 1) : 0;
+    const corner = cornerQ || nC > 0;
+    if (t.inner && !corner) continue;
+    const rim = rimOf(t.ti);
+    if (!rim) continue;
+    const c = t.c, d = t.d, sg = t.inner ? -1 : 1, part = !!t.sweep;
+    let e1 = t.u, e2 = t.w;
+    if (!part) { const ux = Math.abs(d[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], dd = dot(ux, d), v = [ux[0] - d[0] * dd, ux[1] - d[1] * dd, ux[2] - d[2] * dd], l = Math.hypot(...v); e1 = v.map(x => x / l); e2 = [d[1] * e1[2] - d[2] * e1[1], d[2] * e1[0] - d[0] * e1[2], d[0] * e1[1] - d[1] * e1[0]]; }
+    const a0 = part ? t.a0 : 0, sweep = part ? t.sweep : 2 * Math.PI;
+    const co = v => {
+      const p = V(v), q = [p[0] - c[0], p[1] - c[1], p[2] - c[2]], tt = dot(q, d), rad = [q[0] - d[0] * tt, q[1] - d[1] * tt, q[2] - d[2] * tt], rho = Math.hypot(...rad);
+      let ang = (((Math.atan2(dot(rad, e2), dot(rad, e1)) - a0) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      if (part && ang > sweep + (2 * Math.PI - sweep) / 2) ang -= 2 * Math.PI;
+      return { v, tt, rho, ang, s: Math.atan2(tt, Math.abs(rho - t.R)) };
+    };
+    const onTorus = (ang, s) => { const rho = t.R + sg * t.r * Math.cos(s), ca = Math.cos(ang + a0), sa = Math.sin(ang + a0); return [c[0] + rho * (e1[0] * ca + e2[0] * sa) + d[0] * t.r * Math.sin(s), c[1] + rho * (e1[1] * ca + e2[1] * sa) + d[1] * t.r * Math.sin(s), c[2] + rho * (e1[2] * ca + e2[2] * sa) + d[2] * t.r * Math.sin(s)]; };
+    const tA = t.r * Math.sin(t.s0), tB = t.r * Math.sin(t.s1), tolT = Math.max(3e-3, 1e-3 * t.r);
+    let A, B, ch0 = null, chE = null;
+    if (!part) {
+      if (rim.loops.length !== 2) continue;
+      const L = rim.loops.map(l => l.map(co)), low = L.findIndex(l => l.every(q => Math.abs(q.tt - tA) < tolT)), high = L.findIndex(l => l.every(q => Math.abs(q.tt - tB) < tolT));
+      if (low < 0 || high < 0 || low === high) continue;
+      A = L[low]; B = L[high];
+    } else {
+      if (rim.loops.length !== 1) continue;
+      const L = rim.loops[0].map(co), near = (q, a) => Math.abs(q.ang - a) < 5e-3 / Math.max(q.rho, 1e-6) + 1e-4;
+      A = L.filter(q => Math.abs(q.tt - tA) < tolT); B = L.filter(q => Math.abs(q.tt - tB) < tolT);
+      ch0 = L.filter(q => near(q, 0)).sort((p, q) => p.s - q.s); chE = L.filter(q => near(q, sweep)).sort((p, q) => p.s - q.s);
+      if (L.some(q => !(Math.abs(q.tt - tA) < tolT || Math.abs(q.tt - tB) < tolT || near(q, 0) || near(q, sweep))) || ch0.length < 2 || chE.length < 2) continue;
+      if (Math.abs(ch0[0].tt - tA) > tolT || Math.abs(chE[0].tt - tA) > tolT || Math.abs(ch0[ch0.length - 1].tt - tB) > tolT || Math.abs(chE[chE.length - 1].tt - tB) > tolT) continue;
+    }
+    A.sort((p, q) => p.ang - q.ang); B.sort((p, q) => p.ang - q.ang);
+    if (A.length < 2 || B.length < 2) continue;
+    // rings in between: the tube in steps of 45° at most, round the axis as coarse as 12 % of the tube allows
+    const nb = Math.max(1, Math.ceil((t.s1 - t.s0) / (Math.PI / 4) - 1e-6)), rings = [A], sel0 = [0], selE = [0], v0 = pos.length;
+    let bad = false;
+    const cvs0 = [], cvsE = [];
+    if (nC) {
+      if (part && (Math.abs(A[0].ang) > 1e-3 || Math.abs(A[A.length - 1].ang - sweep) > 1e-3)) continue;
+      const hh = span / (2 * nC), rhoA = t.R + t.r * Math.cos(t.s0), rx = t.r / Math.cos(hh);
+      for (let k = 0; k < nC; k++) {
+        const sk = t.s0 + hh * (2 * k + 1), fx = (t.R + rx * Math.cos(sk)) / rhoA, tx = rx * Math.sin(sk);
+        const ring = A.map(q => { const p = V(q.v); return { v: addV([0, 1, 2].map(i => c[i] + d[i] * tx + (p[i] - c[i] - d[i] * q.tt) * fx)), ang: q.ang }; });
+        rings.push(ring); cvs0.push(ring[0].v); cvsE.push(ring[ring.length - 1].v);
+      }
+    } else if (corner) {
+      // the ring of the corner: straight above (or below) the ring on the cylinder, at the height of the flat face
+      const X = q0 ? A : B, tc = q0 ? tB : tA;
+      if (part && (Math.abs(X[0].ang) > 1e-3 || Math.abs(X[X.length - 1].ang - sweep) > 1e-3)) continue;
+      const ring = X.map(q => { const p = V(q.v); return { v: addV([p[0] + d[0] * (tc - q.tt), p[1] + d[1] * (tc - q.tt), p[2] + d[2] * (tc - q.tt)]), ang: q.ang }; });
+      rings.push(ring); cvs0.push(ring[0].v); cvsE.push(ring[ring.length - 1].v);
+    }
+    for (let j = 1; j < nb && !bad && !corner; j++) {
+      let sj = t.s0 + (j * (t.s1 - t.s0)) / nb, sE = sj, first = null, last = null;
+      if (part) {
+        const pick = (ch, sel) => { let bi = -1, bd = Infinity; for (let i = sel[sel.length - 1] + 1; i < ch.length - 1; i++) { const e = Math.abs(ch[i].s - sj); if (e < bd) { bd = e; bi = i; } } if (bi < 0) return null; sel.push(bi); return ch[bi]; };
+        first = pick(ch0, sel0); last = pick(chE, selE);
+        if (!first || !last) { bad = true; break; }
+        sj = first.s; sE = last.s;
+      }
+      const rho = t.R + sg * t.r * Math.cos(sj), n1 = Math.max(8, Math.min(Math.max(8, t.n), Math.ceil(Math.PI / Math.acos(Math.max(-1, 1 - (0.12 * t.r) / Math.max(rho, 1e-6)))))), k = part ? Math.max(2, Math.ceil((n1 * sweep) / (2 * Math.PI))) : n1;
+      const ring = [];
+      if (part) ring.push({ v: first.v, ang: 0 });
+      for (let i = part ? 1 : 0; i < k; i++) { const ang = (sweep * i) / k; ring.push({ v: addV(onTorus(ang, sj + ((sE - sj) * i) / k)), ang }); }
+      if (part) ring.push({ v: last.v, ang: sweep });
+      rings.push(ring);
+    }
+    if (bad) { pos.length = v0; continue; }
+    rings.push(B);
+    sel0.push(ch0 ? ch0.length - 1 : 0); selE.push(chE ? chE.length - 1 : 0);
+    // bands between the rings, corner by corner in the order of their angles
+    const band = [];
+    for (let j = 0; j + 1 < rings.length; j++) {
+      let X = rings[j], Y = rings[j + 1];
+      if (!part) { X = [...X, { v: X[0].v, ang: X[0].ang + 2 * Math.PI }]; Y = [...Y, { v: Y[0].v, ang: Y[0].ang + 2 * Math.PI }]; }
+      let i = 0, k = 0;
+      while (i < X.length - 1 || k < Y.length - 1) {
+        if (k === Y.length - 1 || (i < X.length - 1 && X[i + 1].ang <= Y[k + 1].ang)) { band.push([X[i].v, X[i + 1].v, Y[k].v]); i++; } else { band.push([X[i].v, Y[k + 1].v, Y[k].v]); k++; }
+      }
+    }
+    // (a closed ring starts where it likes: the first corners of two rings may lie apart – the band takes that
+    // in its stride, but not half a turn)
+    if (!part && rings.some((r, j) => j && Math.abs(r[0].ang - rings[j - 1][0].ang) > 1)) { pos.length = v0; continue; }
+    // facing as the facets did: away from the middle of the tube, or to it
+    const out = tri => { const p = V(tri[0]), q = V(tri[1]), r3 = V(tri[2]), u = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], w = [r3[0] - p[0], r3[1] - p[1], r3[2] - p[2]], n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+      const g = [(p[0] + q[0] + r3[0]) / 3 - c[0], (p[1] + q[1] + r3[1]) / 3 - c[1], (p[2] + q[2] + r3[2]) / 3 - c[2]], tt = dot(g, d), rad = [g[0] - d[0] * tt, g[1] - d[1] * tt, g[2] - d[2] * tt], rho = Math.hypot(...rad) || 1, k = (rho - t.R) / rho;
+      return dot(n, [rad[0] * k + d[0] * tt, rad[1] * k + d[1] * tt, rad[2] * k + d[2] * tt]); };
+    const big = band.reduce((b, x) => (Math.abs(out(x)) > Math.abs(out(b)) ? x : b), band[0]);
+    if ((out(big) > 0) === !!t.hole) for (const x of band) { const y = x[1]; x[1] = x[2]; x[2] = y; }
+    // the ends of a part of a ring: the flat piece between the corners in the plane through the axis
+    const fans = [];
+    if (part && corner) for (const [ch, cvs] of [[ch0, cvs0], [chE, cvsE]]) {
+      // (two corners share the end: each takes its half of the arc, a triangle joins them)
+      let split = ch.length, fwd = true;
+      if (cvs.length === 2) { if (ch.length < 3) { bad = true; continue; } const sm = (t.s0 + t.s1) / 2; let bd = Infinity; for (let i = 1; i < ch.length - 1; i++) { const e = Math.abs(ch[i].s - sm); if (e < bd) { bd = e; split = i; } } }
+      for (let k = 0; k + 1 < ch.length; k++) {
+        const cv = k < split ? cvs[0] : cvs[1], b = ch[k].v, e = ch[k + 1].v;
+        if (rim.dir.get(b) === e) fans.push([cv, b, e]); else if (rim.dir.get(e) === b) { fans.push([cv, e, b]); fwd = false; } else bad = true;
+      }
+      if (cvs.length === 2) fans.push(fwd ? [cvs[0], ch[split].v, cvs[1]] : [cvs[0], cvs[1], ch[split].v]);
+    }
+    else if (part) for (const [ch, sel] of [[ch0, sel0], [chE, selE]]) for (let q = 0; q + 1 < sel.length; q++) for (let k = sel[q] + 1; k < sel[q + 1]; k++) {
+      const a = ch[sel[q]].v, b = ch[k].v, e = ch[k + 1].v;
+      if (rim.dir.get(b) === e) fans.push([a, b, e]); else if (rim.dir.get(e) === b) fans.push([a, e, b]); else bad = true;
+    }
+    if (bad) { pos.length = v0; continue; }
+    const fresh = [...band, ...fans];
+    // how far the new facets leave the torus
+    let sMin = t.r, sMax = t.r;
+    const sOf = p => { const q = [p[0] - c[0], p[1] - c[1], p[2] - c[2]], tt = dot(q, d), rho = Math.hypot(q[0] - d[0] * tt, q[1] - d[1] * tt, q[2] - d[2] * tt); return Math.hypot(rho - t.R, tt); };
+    for (const x of band) { const p = V(x[0]), q = V(x[1]), r3 = V(x[2]); for (const y of [[(p[0] + q[0] + r3[0]) / 3, (p[1] + q[1] + r3[1]) / 3, (p[2] + q[2] + r3[2]) / 3], [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], [(q[0] + r3[0]) / 2, (q[1] + r3[1]) / 2, (q[2] + r3[2]) / 2], [(p[0] + r3[0]) / 2, (p[1] + r3[1]) / 2, (p[2] + r3[2]) / 2]]) { const s = sOf(y); sMin = Math.min(sMin, s); sMax = Math.max(sMax, s); } }
+    if (!(sMin > 0.15 * t.r)) { pos.length = v0; continue; }
+    const dV = star(trisOf(t.ti)) - star(fresh);
+    // (what lies between the corners and the torus: what the facets lacked, and what the corners have more)
+    const vG = nC ? -(t.vol + (t.hole ? -1 : 1) * dV) : 0;
+    if (nC && !(vG > 0)) { pos.length = v0; continue; }
+    for (const x of t.ti) gone[x] = 1;
+    extra.push(...fresh);
+    if (nC) { outT.push({ src: t, corner: true, din: 0, dout: sMax - t.r, vol: vG }); continue; }
+    if (corner) {
+      // between the corner and the torus: what a quarter circle leaves of its square, turned around – and the
+      // slivers between the cylinder and the ring of corners on it
+      const X = q0 ? A : B, rc = t.R + sg * t.r;
+      let poly = 0;
+      for (let i = 0; i + 1 < X.length + (part ? 0 : 1); i++) { const a = X[i], b = X[(i + 1) % X.length]; poly += 0.5 * a.rho * b.rho * Math.sin((((b.ang - a.ang) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)); }
+      outT.push({ src: t, corner: true, din: 0, dout: sMax - t.r, vol: sweep * t.r * t.r * (t.R * (1 - Math.PI / 4) + (sg * t.r) / 6) - sg * t.r * ((sweep / 2) * rc * rc - poly) });
+      continue;
+    }
+    outT.push({ src: t, din: t.r - sMin, dout: sMax - t.r, vol: t.vol == null ? null : t.vol + (t.hole ? -1 : 1) * dV });
+  }
+  const lids = [];
+  for (const s of spheres) {
+    if (!s.ti || !s.ax || s.ti.length < 40 || s.ti.some(x => gone[x])) continue;
+    const rim = rimOf(s.ti);
+    if (!rim || rim.loops.length !== 1 || rim.loops[0].length < 8) continue;
+    // the rim a circle in one plane across the direction of the patch, the patch all on one side of it
+    // (the direction of the patch is only the mean of its corners: the rim itself says how its plane lies)
+    const L0 = rim.loops[0].map(V), nw = [0, 0, 0];
+    for (let i = 0; i < L0.length; i++) { const p = L0[i], q = L0[(i + 1) % L0.length]; nw[0] += (p[1] - q[1]) * (p[2] + q[2]); nw[1] += (p[2] - q[2]) * (p[0] + q[0]); nw[2] += (p[0] - q[0]) * (p[1] + q[1]); }
+    const nl = Math.hypot(...nw) || 1, sgn = dot(nw, s.ax) < 0 ? -1 : 1, ax = nw.map(x => (sgn * x) / nl);
+    if (dot(ax, s.ax) < 0.99) continue;
+    const hs = L0.map(p => dot([p[0] - s.c[0], p[1] - s.c[1], p[2] - s.c[2]], ax)), h0 = hs.reduce((a, x) => a + x, 0) / hs.length, tol = Math.max(3e-3, 1e-3 * s.r);
+    if (hs.some(x => Math.abs(x - h0) > tol) || Math.abs(h0) > 0.999 * s.r) continue;
+    const rb = Math.sqrt(s.r * s.r - h0 * h0), mid = s.c.map((x, k) => x + ax[k] * h0);
+    if (s.ti.some(t => { for (let k = 0; k < 3; k++) { const p = V(I[t * 3 + k]); if (dot([p[0] - s.c[0], p[1] - s.c[1], p[2] - s.c[2]], ax) < h0 - tol) return true; } return false; })) continue;
+    // (two lids in one place – the outside and the inside of a thin dome – would leave a body without thickness)
+    if (lids.some(l => Math.abs(dot(l.ax, ax)) > 0.999 && Math.abs(dot([l.mid[0] - mid[0], l.mid[1] - mid[1], l.mid[2] - mid[2]], ax)) < 0.05 && Math.hypot(l.mid[0] - mid[0], l.mid[1] - mid[1], l.mid[2] - mid[2]) < l.rb + rb)) continue;
+    const cv = addV(mid), fresh = [];
+    for (const [a, b] of rim.dir) fresh.push([cv, a, b]);
+    const dV = star(trisOf(s.ti)) - star(fresh);
+    for (const x of s.ti) gone[x] = 1;
+    extra.push(...fresh);
+    lids.push({ ax, mid, rb });
+    outS.push({ src: s, ax, h0, vol: s.vol + (s.hole ? -1 : 1) * dV });
+  }
+  if (!outT.length && !outS.length) return { m, tori: [], spheres: [] };
+  const idx = [];
+  for (let t = 0; t < nT; t++) if (!gone[t]) idx.push(I[t * 3], I[t * 3 + 1], I[t * 3 + 2]);
+  for (const x of extra) idx.push(x[0], x[1], x[2]);
+  return { m: compact({ pos: new Float32Array(pos), idx: new Uint32Array(idx) }), tori: outT, spheres: outS };
+}
+
+/** Does this piece of a cylinder lie on one of the tori (a row of facets along the tube looks like one)? */
+export function arcOnTorus(c, tori) {
+  return c.full === false && tori.some(to => {
+    const tol = Math.max(5e-3, 2.5e-3 * to.r), lo = to.r * Math.sin(to.s0) - tol, hi = to.r * Math.sin(to.s1) + tol;
+    for (const z of [0, c.h / 2, c.h]) for (const k of [0, 0.5, 1]) {
+      const a = c.a0 + c.sweep * k, p = [0, 1, 2].map(i => c.c[i] + c.d[i] * z + c.r * (c.u[i] * Math.cos(a) + c.w[i] * Math.sin(a)));
+      const q = [p[0] - to.c[0], p[1] - to.c[1], p[2] - to.c[2]], tt = q[0] * to.d[0] + q[1] * to.d[1] + q[2] * to.d[2], rho = Math.hypot(q[0] - to.d[0] * tt, q[1] - to.d[1] * tt, q[2] - to.d[2] * tt);
+      if (tt < lo || tt > hi || Math.abs(Math.hypot(rho - to.R, tt) - to.r) > tol) return false;
+    }
+    return true;
+  });
 }
 
 /**

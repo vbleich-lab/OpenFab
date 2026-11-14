@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "Клацніть грань – отвір утвориться разом з ним",
+ "Kopf versenken (Senkbohrung)": "Втопити головку (циліндричне зенкування)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "Клацніть грань: у кожній позначеній точці утворюється наскрізний отвір для гвинта (ISO 273, середній ряд) крізь усі деталі, що лежать там одна на одній – для гвинтів з потайною головкою з 90° конічним зенкуванням, для гвинтів з циліндричною головкою за бажанням з циліндричним зенкуванням (DIN 974-1, ряд 1) на глибину головки. Гвинт одразу сидить в отворі. Отвір і гвинт можна згодом змінити на часовій шкалі.",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "Стандартна деталь: {0} вставлено – клацніть наступну точку або завершіть.",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "Стандартна деталь: клацніть точку на плоскій грані – там утвориться отвір.",
+ "Auf eine ebene Fläche klicken.": "Клацніть плоску грань.",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "Це округла грань – клацніть плоску грань.",
+ "Unter diesem Punkt liegt kein Material.": "Під цією точкою немає матеріалу.",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "Деталь занадто тонка для зенкування (глибина зенкування {0} mm, товщина {1} mm).",
+ "Bohrung für {0} – Skizze": "Отвір для {0} – ескіз",
+ "Bohrung für {0}": "Отвір для {0}",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "отвір Ø {0} mm із циліндричним зенкуванням Ø {1} × {2} mm",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "отвір Ø {0} mm із 90° конічним зенкуванням Ø {1} mm",
+ "Bohrung Ø {0} mm": "отвір Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "Гвинтове з’єднання: {0} – {1}; гвинт закороткий для товщини пакета {2} mm (потрібно: {3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}, товщина {2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "Для {0} не задано наскрізного отвору"
+}

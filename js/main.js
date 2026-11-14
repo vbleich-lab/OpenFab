@@ -32,8 +32,8 @@ import { getSettings, saveSettings, resetSettings, DEFAULTS, MOUSE_PRESETS, ACCE
 import { getBlob, putBlob, loadBlobs, withBlobs, takeBlobs, igesToStep, stepToIges, meshToStep, onFullKernel, requestFullKernel, parseToolLibrary, convertCps } from './interop.js';
 import { makeDrawing, SHEETS, VIEWS as DRAW_VIEWS } from './drawing.js';
 import { bodyMatrix, hasAssembly, transformShape, JOINT_TYPES, JOINT_DOF, jointValues } from './assembly.js';
-import { STD_FAMILIES, STD_LENGTHS, stdFamily, stdPartName, stdPartSteps } from './stdparts.js';
-import { flatPattern, polyEdges, polyArcs, bendAllowance, sheetChecks, SHEET_RULES, nestParts, pressForce, SHEET_RM, holeCircle, collarPlan, cutProgram } from './sheetmetal.js';
+import { STD_FAMILIES, STD_LENGTHS, stdFamily, stdPartName, stdPartSteps, boltSizeFor, boltStack, boltHole } from './stdparts.js';
+import { flatPattern, polyEdges, polyArcs, bendAllowance, sheetChecks, SHEET_RULES, nestParts, pressForce, SHEET_RM, holeCircle, collarPlan, cutProgram, CUT_CONTROLS } from './sheetmetal.js';
 import { TurnSim, TURN_OPS, turnCutShape, LatheStock } from './turning.js';
 import { CylSim, CylStock, cylPartMap } from './cylstock.js';
 import { WindowManager } from './windows.js';
@@ -3635,7 +3635,7 @@ function formDialog(title, fields, okLabel = 'OK') {
     const vals = Object.fromEntries(fields.map(f => [f.key, f.value]));
     const back = h('div', { class: 'modal-back' });
     const done = v => { back.remove(); resolve(v); };
-    const rows = fields.map(f => {
+    const rows = fields.filter(f => f.label != null).map(f => {
       if (f.options) return row(f.label, sel(f.options, f.value, v => (vals[f.key] = v)));
       if (f.check) return row(f.label, chk(f.value, v => (vals[f.key] = v)));
       const i = h('input', { type: 'text', value: f.value ?? '' });
@@ -4104,7 +4104,12 @@ async function insertDerive() {
 
 // ----- Normteile einfügen: screws, nuts, washers, pins, keys, rings, bearings (js/stdparts.js) -----
 let pendingBolt = null;
-let stdLast = { fam: 'iso4762', size: 'M6', len: 20, where: 'hole' };
+let stdLast = { fam: 'iso4762', size: 'M6', len: 20, where: 'hole', thread: 'mark', headWasher: '', nut: '', nutWasher: '', fit: '', sink: true, tap: '' };
+// a screw through clicked holes can bring its washers and its nut along
+const stdScrew = v => { const f = stdFamily(v.fam); return f?.group === 'Schrauben' && f.id !== 'iso4026' && f.id !== 'din976'; };
+const stdJoint = v => (v.where === 'hole' || v.where === 'face') && stdScrew(v);
+// (a cap screw can have its head sunk into a counterbore)
+const stdSinks = v => v.fam === 'iso4762' || v.fam === 'din7984';
 function stdPartDialog(hasBody) {
   return new Promise(resolve => {
     const v = { ...stdLast };
@@ -4117,6 +4122,9 @@ function stdPartDialog(hasBody) {
       v.fam = fam.id;
       if (!sizes.includes(String(v.size))) v.size = sizes.includes('M6') ? 'M6' : sizes[Math.min(3, sizes.length - 1)];
       if (fam.len && !(+v.len > 0)) v.len = fam.len;
+      if (v.where === 'face' && !stdScrew(v)) v.where = 'hole';
+      const onFace = v.where === 'face', sunk = onFace && stdSinks(v) && v.sink !== false;
+      const threaded = fam.make(String(v.size), fam.len || 0).some(st => st.k === 'thread');
       const li = h('input', { type: 'text', value: v.len, list: 'stdLens' });
       li.addEventListener('change', () => { const n = +String(li.value).replace(',', '.'); if (Number.isFinite(n) && n > 0) v.len = n; else li.value = v.len; });
       body.replaceChildren(
@@ -4125,12 +4133,29 @@ function stdPartDialog(hasBody) {
         row('Größe', sel(sizes.map(z => [z, z]), String(v.size), z => { v.size = z; draw(); })),
         ...(fam.len ? [row(fam.lenTotal ? 'Länge (mit Kopf)' : fam.seat === 'in' && fam.id !== 'iso2338' && fam.id !== 'din976' && fam.id !== 'iso4026' ? 'Länge (ohne Kopf)' : 'Länge', h('div', { class: 'unit' }, li, h('span', null, 'mm'))),
           h('datalist', { id: 'stdLens' }, ...STD_LENGTHS.map(q => h('option', { value: q })))] : []),
-        row('Position', sel([...(hasBody ? [['hole', 'Bohrungen im Modell anklicken']] : []), ['origin', 'Ursprung (Achse Z)']], v.where, w => (v.where = w))),
+        row('Position', sel([...(hasBody ? [['hole', 'Bohrungen im Modell anklicken'], ...(stdScrew(v) ? [['face', 'Fläche anklicken – die Bohrung entsteht mit']] : [])] : []), ['origin', 'Ursprung (Achse Z)']], v.where, w => { v.where = w; draw(); })),
+        ...(onFace && stdSinks(v) ? [row('Kopf versenken (Senkbohrung)', chk(v.sink !== false, w => { v.sink = w; draw(); }))] : []),
+        ...(stdJoint(v) ? (() => {
+          const ws = [['', 'Keine'], ...STD_FAMILIES.filter(f => f.group === 'Scheiben' && f.sizes().includes(String(v.size))).map(f => [f.id, f.name])];
+          const ns = [['', 'Keine'], ...['iso4032', 'iso4035', 'iso10511'].map(stdFamily).filter(f => f.sizes().includes(String(v.size))).map(f => [f.id, f.name])];
+          return [
+            ...(fam.lenTotal || sunk ? [] : [row('Scheibe unter dem Kopf', sel(ws, v.headWasher || '', w => (v.headWasher = w)))]),
+            row('Mutter auf der Gegenseite', sel(ns, v.nut || '', w => { v.nut = w; draw(); })),
+            ...(v.nut ? [row('Scheibe unter der Mutter', sel(ws, v.nutWasher || '', w => (v.nutWasher = w)))] : []),
+            ...(onFace && !v.nut ? [row('Ohne Mutter', sel([['', 'Durchgangsbohrung durch alle Teile'], ['tap', 'Gewindebohrung im untersten Teil']], v.tap || '', w => { v.tap = w; draw(); }))] : []),
+            ...(onFace ? (v.nut ? [row('Größe und Länge', sel([['', 'Wie oben gewählt'], ['len', 'Länge passend zur Klemmdicke']], v.fit ? 'len' : '', w => (v.fit = w)))] : [])
+              : [row('Größe und Länge', sel([['', 'Wie oben gewählt'], ...(v.nut ? [['len', 'Länge passend zur Klemmdicke']] : []), ['all', v.nut ? 'Größe passend zur Bohrung, Länge passend zur Klemmdicke' : 'Größe passend zur Bohrung']], v.fit === 'len' && !v.nut ? '' : v.fit || '', w => (v.fit = w)))]),
+          ];
+        })() : []),
+        ...(threaded ? [row('Gewinde', sel([['mark', 'Als Gewinde gekennzeichnet (Zeichnung)'], ['model', 'Ausmodelliert (rechnet länger)'], ['none', 'Glatter Zylinder']], v.thread || 'mark', w => (v.thread = w)))] : []),
         h('div', { class: 'stats' }, h('span', null, 'Richtmaße in mm'), h('b', null, fam.dims(String(v.size)))),
         h('p', { class: 'hint' }, fam.seat === 'in' ? 'Bei „Bohrungen“ sitzt der Kopf auf der Seite der Bohrung, die näher am Klickpunkt liegt; der Schaft zeigt in die Bohrung. Mehrere Bohrungen nacheinander anklicken, dann „Fertig“.'
           : fam.seat === 'on' ? 'Bei „Bohrungen“ liegt das Teil auf der Fläche an dem Ende der Bohrung, das näher am Klickpunkt liegt. Mehrere Bohrungen nacheinander anklicken, dann „Fertig“.'
             : 'Bei „Bohrungen“ sitzt das Teil bündig in dem Ende der Bohrung, das näher am Klickpunkt liegt. Mehrere Bohrungen nacheinander anklicken, dann „Fertig“.'),
-        h('p', { class: 'hint' }, 'Nennmaße der Normen ohne Toleranzen; Gewinde sind als glatter Zylinder gezeichnet.'));
+        ...(onFace ? [h('p', { class: 'hint' }, 'Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.')] : []),
+        ...(onFace && !v.nut && v.tap === 'tap' ? [h('p', { class: 'hint' }, 'Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.')] : []),
+        ...(stdJoint(v) ? [h('p', { class: 'hint' }, 'Verschraubung: Scheiben und Mutter kommen mit der Schraube in einem Zug an jede angeklickte Bohrung. Die Klemmdicke ist die Länge der Bohrung – durch mehrere Teile hindurch, wenn ihre Bohrungen fluchten und aneinanderstoßen. Mit Mutter wird die kürzeste Vorzugslänge vorgeschlagen, bei der die Schraube zwei Gewindegänge aus der Mutter ragt.')] : []),
+        h('p', { class: 'hint' }, 'Nennmaße der Normen ohne Toleranzen. Ein gekennzeichnetes Gewinde bleibt ein glatter Zylinder, die Zeichnung zeigt es als Gewinde; ausmodelliert wird der Gewindegang wirklich geschnitten.'));
     };
     draw();
     back.append(h('div', { class: 'modal', style: 'height:auto;width:min(480px,calc(100vw - 32px))' },
@@ -4147,13 +4172,13 @@ async function insertBolt() {
   stdLast = { ...v };
   if (v.where === 'origin') return buildStdPart(v, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1));
   pendingBolt = { ...v, n: 0 };
-  state.pick = { mode: 'boltHole' };
+  state.pick = { mode: v.where === 'face' ? 'boltFace' : 'boltHole' };
   stdBanner();
   renderAll();
 }
 function stdBanner() {
   const end = () => { state.pick = null; pendingBolt = null; showBanner(null); renderAll(); };
-  showBanner([pendingBolt.n ? `Normteil: ${pendingBolt.n} eingefügt – weitere Bohrung anklicken oder beenden.` : 'Normteil: Bohrung (Zylinderfläche) im Modell anklicken.', h('button', { onclick: end }, pendingBolt.n ? 'Fertig' : 'Abbrechen')]);
+  showBanner([pendingBolt.where === 'face' ? (pendingBolt.n ? `Normteil: ${pendingBolt.n} eingefügt – weiteren Punkt anklicken oder beenden.` : 'Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.') : pendingBolt.n ? `Normteil: ${pendingBolt.n} eingefügt – weitere Bohrung anklicken oder beenden.` : 'Normteil: Bohrung (Zylinderfläche) im Modell anklicken.', h('button', { onclick: end }, pendingBolt.n ? 'Fertig' : 'Abbrechen')]);
 }
 function placeBolt(e, meshes) {
   const hit = vp.raycast(e, meshes)[0];
@@ -4170,13 +4195,138 @@ function placeBolt(e, meshes) {
   const top = a.distanceTo(hit.point) < b2.distanceTo(hit.point) ? a : b2, other = top === a ? b2 : a;
   const n = top.clone().sub(other).normalize();
   const v = pendingBolt;
+  if (stdJoint(v) && (v.headWasher || v.nut || v.fit)) {
+    if (placeJoint(v, c, hit.point)) { v.n++; state.pick = { mode: 'boltHole' }; stdBanner(); renderAll(); }
+    return;
+  }
   // a free part (bearing, ring) goes into the bore instead of standing on it
   if (stdFamily(v.fam)?.seat === 'mid') n.negate();
   if (buildStdPart(v, top, n)) { v.n++; state.pick = { mode: 'boltHole' }; stdBanner(); renderAll(); }
 }
+// a screw on a point of a flat face: the hole is made with it – through everything that lies there one on the
+// other – and the screw (with its washers and its nut) put into it, in one step
+function placeBoltFace(e, meshes) {
+  const hit = vp.raycast(e, meshes)[0];
+  if (!hit || !hit.face) return status('Auf eine ebene Fläche klicken.');
+  if (cylinderInfo(getModel().bodies, hit.point.toArray())) return status('Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.');
+  const v = pendingBolt, n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize(), p = hit.point.clone(), dir = n.clone().negate();
+  // how thick: where the ray along the hole leaves the material for good (parts lying on each other count as one)
+  const ins = [], outs = [], A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), tn = new THREE.Vector3(), q = new THREE.Vector3();
+  const ray = new THREE.Ray(p.clone().addScaledVector(n, 1e-3), dir);
+  for (const ms of meshes) {
+    const g = ms.geometry, pos = g.attributes.position, ix = g.index;
+    for (let i = 0, cnt = ix ? ix.count : pos.count; i + 2 < cnt; i += 3) {
+      A.fromBufferAttribute(pos, ix ? ix.getX(i) : i).applyMatrix4(ms.matrixWorld); B.fromBufferAttribute(pos, ix ? ix.getX(i + 1) : i + 1).applyMatrix4(ms.matrixWorld); C.fromBufferAttribute(pos, ix ? ix.getX(i + 2) : i + 2).applyMatrix4(ms.matrixWorld);
+      if (!ray.intersectTriangle(A, B, C, false, q)) continue;
+      tn.subVectors(B, A).cross(C.clone().sub(A));
+      (tn.dot(dir) < 0 ? ins : outs).push(q.distanceTo(ray.origin) - 1e-3);
+    }
+  }
+  let clamp = 0;
+  for (let go = true; go;) { const ex = Math.min(...outs.filter(t => t > clamp + 1e-3)); if (!Number.isFinite(ex)) break; clamp = ex; go = ins.some(t => Math.abs(t - ex) < 0.05); }
+  if (!(clamp > 0.05)) return status('Unter diesem Punkt liegt kein Material.');
+  let hole, st, tapF = null, grip = 0;
+  const sets = [], size = v.size, sunk = stdSinks(v) && v.sink !== false, opt = { ...v, headWasher: sunk ? '' : v.headWasher };
+  // without a nut the screw can go into a thread in the part lying lowest: the clearance hole ends where that
+  // part begins (one part alone gets the thread from its face on)
+  const tap = !v.nut && v.tap === 'tap' ? THREAD_SIZES.find(t => t[0] === String(size)) : null;
+  let split = 0;
+  if (tap) for (const t of ins) if (t > 0.05 && t < clamp - 0.05 && outs.some(o => Math.abs(o - t) < 0.05)) split = Math.max(split, t);
+  const through = tap ? split : clamp;
+  try {
+    if (v.tap === 'tap' && !v.nut && !tap) throw new Error(`Für ${size} ist kein Gewinde hinterlegt.`);
+    hole = boltHole(v.fam, size, sunk);
+    if (tap && !split) hole = { ...hole, kind: 'simple', seat: 0 };
+    if (through && hole.seat > through - 0.5) throw new Error(`Das Teil ist für die Senkung zu dünn (Senktiefe ${f2(hole.seat)} mm, Dicke ${f2(through)} mm).`);
+    if (tap) {
+      const reach = v.len - (split - hole.seat), room = clamp - split;
+      if (!(reach >= 1)) throw new Error(`Die Schraube reicht nicht bis in das unterste Teil (Länge ${f2(v.len)} mm, darüber ${f2(split - hole.seat)} mm).`);
+      const deep = reach + 3 * tap[2], blind = deep < room - 1;
+      grip = Math.min(reach, room);
+      tapF = { depth: blind ? deep : room, tip: blind && deep + tap[3] / 2 < room - 0.5 };
+    }
+    st = boltStack(v.fam, size, clamp - hole.seat, opt);
+    const len = v.nut && v.fit ? st.len : v.len, top = p.clone().addScaledVector(n, -hole.seat), other = p.clone().addScaledVector(n, -clamp);
+    if (st.hw) sets.push(stdPartFeats({ fam: opt.headWasher, size }, top, n));
+    sets.push(stdPartFeats({ fam: v.fam, size, len, thread: v.thread }, top.clone().addScaledVector(n, st.hw), n));
+    if (st.nw) sets.push(stdPartFeats({ fam: v.nutWasher, size }, other, dir));
+    if (v.nut) sets.push(stdPartFeats({ fam: v.nut, size, thread: v.thread }, other.clone().addScaledVector(dir, st.nw), dir));
+    st.used = len;
+  } catch (err) { return status(err.message); }
+  const pl = planeFromFace(p, n), names = sets.map(s => s.label).join(' + '), sid = uid('sk'), hid = uid('ho'), r4 = x => +(+x).toFixed(4), screw = sets[st.hw ? 1 : 0];
+  const hf = through ? [{ id: sid, type: 'sketch', name: `Bohrung für ${screw.label} – Skizze`, plane: { o: p.toArray().map(r4), x: pl.x, n: pl.n }, entities: [{ id: uid('e'), type: 'circle', cx: 0, cy: 0, r: r4(hole.dia / 2) }], hidden: true },
+    { id: hid, type: 'hole', name: `Bohrung für ${screw.label}`, sketch: sid, points: 'all', kind: hole.kind, dia: hole.dia, through: false, depth: r4(through), cbDia: hole.cbDia, cbDepth: hole.cbDepth || r4(hole.dia), csDia: r4(hole.csDia), csAngle: hole.csAngle, tip: false }] : [];
+  if (tapF) {
+    const tid = uid('sk');
+    hf.push({ id: tid, type: 'sketch', name: `Gewindebohrung für ${screw.label} – Skizze`, plane: { o: p.clone().addScaledVector(n, -split).toArray().map(r4), x: pl.x, n: pl.n }, entities: [{ id: uid('e'), type: 'circle', cx: 0, cy: 0, r: r4(tap[3] / 2) }], hidden: true },
+      { id: uid('ho'), type: 'hole', name: `Gewindebohrung für ${screw.label}`, sketch: tid, points: 'all', kind: 'simple', dia: tap[3], tapped: true, threadSize: tap[0], through: false, depth: r4(tapF.depth), cbDia: hole.cbDia, cbDepth: r4(hole.dia), csDia: r4(hole.csDia), csAngle: 90, tip: tapF.tip });
+  }
+  commit(pr => { pr.bodyMeta ||= {}; pr.features.push(...hf); for (const s of sets) { pr.features.push(...s.feats); (pr.bodyMeta[s.first] ||= {}).name = s.label; } });
+  const all = [...hf, ...sets.flatMap(s => s.feats)], err = Object.keys(getModel().errors).find(id => all.some(f => f.id === id));
+  let what = !through ? '' : hole.kind === 'cbore' ? `Bohrung Ø ${f2(hole.dia)} mm mit Senkung Ø ${f2(hole.cbDia)} × ${f2(hole.cbDepth)} mm` : hole.kind === 'csink' ? `Bohrung Ø ${f2(hole.dia)} mm mit Senkung 90° Ø ${f2(hole.csDia)} mm` : `Bohrung Ø ${f2(hole.dia)} mm`;
+  if (tapF) what = (what ? what + ', ' : '') + (grip < tap[1] - 1e-6 ? `Gewindebohrung ${tap[0]} – Einschraubtiefe nur ${f2(grip)} mm` : `Gewindebohrung ${tap[0]}, Einschraubtiefe ${f2(grip)} mm`);
+  if (err) status(`${names}: ${getModel().errors[err]}`);
+  else if (v.nut && st.used < st.need - 1e-6) status(`Verschraubung: ${names} – ${what}; die Schraube ist für die Klemmdicke ${f2(clamp - hole.seat)} mm zu kurz (nötig: ${f2(st.need)} mm)`);
+  else status(`${names} – ${what}, Dicke ${f2(clamp)} mm`);
+  select('feature', screw.first);
+  if (!err) { v.n++; state.pick = { mode: 'boltFace' }; stdBanner(); renderAll(); }
+}
+// screw, washers and nut on one hole: the clamped length is the bore – through every part whose bore lines up
+function placeJoint(v, c, click) {
+  const d = new THREE.Vector3(...c.dir).normalize(), L = new THREE.Vector3(...c.loc);
+  let t0 = c.t0, t1 = c.t1;
+  const spans = [];
+  for (const q of cylinderFaces(getModel().bodies)) {
+    if (q.outside || Math.abs(q.r - c.r) > 0.2 * c.r) continue;
+    const qd = new THREE.Vector3(...q.dir).normalize();
+    if (Math.abs(qd.dot(d)) < 0.9999) continue;
+    const ends = [q.t0, q.t1].map(t => new THREE.Vector3(...q.loc).addScaledVector(qd, t).sub(L));
+    if (ends.some(e => e.clone().addScaledVector(d, -e.dot(d)).length() > 0.05)) continue;
+    const ts = ends.map(e => e.dot(d));
+    spans.push([Math.min(...ts), Math.max(...ts)]);
+  }
+  for (let grown = true; grown;) {
+    grown = false;
+    for (const [a, b] of spans) if (a <= t1 + 0.05 && b >= t0 - 0.05 && (a < t0 - 1e-6 || b > t1 + 1e-6)) { t0 = Math.min(t0, a); t1 = Math.max(t1, b); grown = true; }
+  }
+  const A = L.clone().addScaledVector(d, t0), B = L.clone().addScaledVector(d, t1);
+  const top = A.distanceTo(click) < B.distanceTo(click) ? A : B, other = top === A ? B : A;
+  const n = top.clone().sub(other).normalize(), back = n.clone().negate(), clamp = t1 - t0;
+  const size = v.fit === 'all' ? boltSizeFor(2 * c.r, v.fam) : v.size;
+  if (!size) { status(`Für eine Bohrung Ø ${f2(2 * c.r)} mm gibt es in dieser Reihe keine passende Schraube.`); return false; }
+  let st;
+  try { st = boltStack(v.fam, size, clamp, v); } catch (err) { status(err.message); return false; }
+  const len = v.nut && v.fit ? st.len : v.len, sets = [];
+  try {
+    if (st.hw) sets.push(stdPartFeats({ fam: v.headWasher, size }, top, n));
+    sets.push(stdPartFeats({ fam: v.fam, size, len, thread: v.thread }, top.clone().addScaledVector(n, st.hw), n));
+    if (st.nw) sets.push(stdPartFeats({ fam: v.nutWasher, size }, other, back));
+    if (v.nut) sets.push(stdPartFeats({ fam: v.nut, size, thread: v.thread }, other.clone().addScaledVector(back, st.nw), back));
+  } catch (err) { status(err.message); return false; }
+  commit(p => { p.bodyMeta ||= {}; for (const s of sets) { p.features.push(...s.feats); (p.bodyMeta[s.first] ||= {}).name = s.label; } });
+  const all = sets.flatMap(s => s.feats), err = Object.keys(getModel().errors).find(id => all.some(f => f.id === id));
+  const names = sets.map(s => s.label).join(' + ');
+  if (err) status(`${names}: ${getModel().errors[err]}`);
+  else if (v.nut && len < st.need - 1e-6) status(`Verschraubung: ${names} – die Schraube ist für die Klemmdicke ${f2(clamp)} mm zu kurz (nötig: ${f2(st.need)} mm)`);
+  else status(`Verschraubung: ${names} – Klemmdicke ${f2(clamp)} mm`);
+  select('feature', sets[st.hw ? 1 : 0].first);
+  return !err;
+}
 function buildStdPart(v, top, n) {
-  let part;
-  try { part = stdPartSteps(v.fam, v.size, v.len); } catch (err) { status(err.message); return false; }
+  let s;
+  try { s = stdPartFeats(v, top, n); } catch (err) { status(err.message); return false; }
+  const { feats, first, label } = s;
+  // (the body carries the designation: browser, parts list)
+  commit(p => { p.features.push(...feats); p.bodyMeta ||= {}; (p.bodyMeta[first] ||= {}).name = label; });
+  const err = Object.keys(getModel().errors).find(id => feats.some(f => f.id === id));
+  if (err) status(`${label}: ${getModel().errors[err]}`);
+  else status(`${label} eingefügt`);
+  select('feature', first);
+  return !err;
+}
+// the features of one standard part with its seat at top, its axis along n
+function stdPartFeats(v, top, n) {
+  const part = stdPartSteps(v.fam, v.size, v.len);
   const { steps, fam, L } = part, label = stdPartName(fam, v.size, L);
   const pl = planeFromFace(top, n), x = pl.x, na = n.toArray().map(q => +q.toFixed(6));
   // the plane of the turned outlines: x away from the axis, y along it
@@ -4186,6 +4336,11 @@ function buildStdPart(v, top, n) {
   const feats = [];
   let first = null;
   steps.forEach((st, i) => {
+    if (st.k === 'thread') {
+      // a point on the cylinder that carries the thread
+      if ((v.thread || 'mark') !== 'none') feats.push({ id: uid('th'), type: 'thread', name: `${label} – Gewinde`, faces: [at(st.z).map((q, j) => +(q + x[j] * st.r).toFixed(4))], size: st.size, pitch: null, full: true, length: 10, modeled: v.thread === 'model', hand: 'right', flip: false, body: first });
+      return;
+    }
     const name = i ? `${label} (${i + 1})` : label, sid = uid('sk'), fid = uid(st.k === 'prism' ? 'ex' : 'rv');
     const link = st.op === 'new' ? {} : st.op === 'cut' ? { cutOnly: first } : { target: first };
     if (st.k === 'prism') {
@@ -4202,12 +4357,7 @@ function buildStdPart(v, top, n) {
     }
     if (!first) first = fid;
   });
-  commit(p => p.features.push(...feats));
-  const err = Object.keys(getModel().errors).find(id => feats.some(f => f.id === id));
-  if (err) status(`${label}: ${getModel().errors[err]}`);
-  else status(`${label} eingefügt`);
-  select('feature', first);
-  return !err;
+  return { feats, first, label };
 }
 
 // ----- Mit Gelenken duplizieren: copies of a body that keep its joints -----
@@ -4638,11 +4788,12 @@ function propsSheet(b, f, ed) {
         const q = (f.collars || []).find(z => z.id === id) || { id, on: false, h: 4 }, kind = q.on === false ? '' : q.kind || 'collar';
         const setC = fn => ed(x => { x.collars ||= []; let z = x.collars.find(y => y.id === id); if (!z) x.collars.push(z = { id, on: false, h: 4 }); fn(z); });
         b.append(h('div', { class: 'flange-row form-row' }, h('span', null, !ci ? `Kontur ${j + 1}` : cp.has(j) ? `Bohrung ${j + 1} (Ø ${f2(2 * ci.R)} mm) – Vorbohrung Ø ${f2(2 * cp.get(j).flat)}` : `Bohrung ${j + 1} (Ø ${f2(2 * ci.R)} mm)`),
-          sel([['', 'Ausschnitt'], ...(ci ? [['collar', 'Durchzug']] : []), ['emboss', 'Prägung'], ...(ci ? [['dimple', 'Senkprägung']] : [])], kind, v => setC(z => { z.on = !!v; z.kind = v || z.kind; if (v === 'dimple' && Math.abs(+z.h) > 2 * (+f.thickness || 1)) z.h = -(+f.thickness || 1); })),
-          ...(kind ? [h('input', { type: 'text', value: q.h, title: 'Höhe über der Platte mm (+ nach oben, − nach unten)', onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) setC(z => (z.h = v)); else ev.target.value = q.h; } }), h('small', null, 'mm')] : [])));
+          sel([['', 'Ausschnitt'], ...(ci ? [['collar', 'Durchzug']] : []), ['emboss', 'Prägung'], ...(ci ? [['dimple', 'Senkprägung']] : [])], kind, v => setC(z => { z.on = !!v; z.kind = v || z.kind; if (v === 'dimple' && Math.abs(+z.h) >= 2 * (+f.thickness || 1)) z.h = -(+f.thickness || 1); })),
+          ...(kind ? [h('input', { type: 'text', value: q.h, title: 'Höhe über der Platte mm (+ nach oben, − nach unten)', onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) setC(z => (z.h = v)); else ev.target.value = q.h; } }), h('small', null, 'mm')] : []),
+          ...(kind === 'emboss' ? [h('input', { type: 'text', value: q.wall ?? 0, title: 'Wandschräge ° (0 = senkrecht, bis 60: die Wand neigt sich nach innen)', onchange: ev => { const v = parseFloat(ev.target.value.replace(',', '.')); if (Number.isFinite(v) && v >= 0 && v <= 60) setC(z => (z.wall = v)); else ev.target.value = q.wall ?? 0; } }), h('small', null, '°')] : [])));
       });
       b.append(h('p', { class: 'hint' }, 'Durchzug: der Rand einer runden Bohrung wird zu einem Kragen hochgezogen, etwa als Gewindedurchzug. Der Bohrungsdurchmesser der Skizze ist der fertige Innendurchmesser; im Zuschnitt wird die kleinere Vorbohrung geschnitten.'),
-        h('p', { class: 'hint' }, 'Prägung: die Kontur wird nicht ausgeschnitten, sondern um die Höhe aus der Platte gedrückt. Senkprägung: der Rand einer runden Bohrung wird zu einem 90°-Kegel gedrückt – für Senkschrauben in dünnem Blech (− nach unten: Schraube von oben).'));
+        h('p', { class: 'hint' }, 'Prägung: die Kontur wird nicht ausgeschnitten, sondern um die Höhe aus der Platte gedrückt; das zweite Feld ist die Wandschräge (0° = senkrecht). Senkprägung: der Rand einer runden Bohrung wird zu einem 90°-Kegel gedrückt – für Senkschrauben in dünnem Blech (− nach unten: Schraube von oben).'));
     }
     const fp = flatPattern(base.poly, base.f, base.holes);
     const smatId = bodyMeta(f.id).material || 'alu', smat = MATERIALS[smatId], srm = SHEET_RM[smatId] || 400;
@@ -4752,7 +4903,7 @@ async function nestDialog() {
     if (q < 1) continue;
     const r = sheetFlat(s);
     if (!r) continue;
-    parts.push({ id: s.id, outline: r.fp.outline, qty: q, bends: r.fp.bends });
+    parts.push({ id: s.id, outline: r.fp.outline, open: r.fp.slits || [], qty: q, bends: r.fp.bends });
     thick.push(+r.base.f.thickness || 0);
   }
   if (!parts.length) return status('Keine Teile zum Schachteln – Stückzahl eintragen.');
@@ -4772,20 +4923,31 @@ async function nestDialog() {
       { key: 'feed', label: 'Vorschub', value: lc.feed ?? 1500, unit: 'mm/min' },
       { key: 'lead', label: 'Anschnitt', value: lc.lead ?? 3, unit: 'mm' },
       { key: 'pierce', label: 'Einstechzeit', value: lc.pierce ?? 0.5, unit: 's' },
+      { key: 'tabs', label: 'Haltestege je Umriss', value: lc.tabs ?? 0 },
+      { key: 'tabW', label: 'Breite der Haltestege', value: lc.tabW ?? 0.5, unit: 'mm' },
+      { key: 'holeTabs', label: 'Haltestege auch in Ausschnitten ab Umfang (0 = keine)', value: lc.holeTabs ?? 0, unit: 'mm' },
+      { key: 'common', label: 'Gemeinsame Schnittkanten nur einmal schneiden', check: true, value: lc.common ?? true },
+      { key: 'control', label: 'Steuerung', value: lc.control ?? 'generic', options: Object.entries(CUT_CONTROLS).map(([k, c]) => [k, c.name]) },
+      { key: 'onCode', label: 'Eigener Befehl „Ein“', value: lc.onCode ?? 'M3', text: true },
+      { key: 'offCode', label: 'Eigener Befehl „Aus“', value: lc.offCode ?? 'M5', text: true },
       { key: 'power', label: 'Leistung (S-Wert, Laser)', value: lc.power ?? 1000 },
       { key: 'rpm', label: 'Drehzahl (Fräsen)', value: lc.rpm ?? 12000, unit: '1/min' },
       { key: 'step', label: 'Zustellung je Durchgang (Fräsen)', value: lc.step ?? 1, unit: 'mm' },
-      { key: 'hint', hint: 'Je Tafel eine Datei. Die Bahn läuft um die halbe Schnittfuge (beim Fräsen den halben Fräser) neben dem Umriss im Abfall; Ausschnitte kommen vor dem Umriss ihres Teils, jede Kontur beginnt mit einem Anschnitt aus dem Abfall. Einschalten mit M3 (Laser: M3 S…), Ausschalten mit M5, Einstechzeit als G4. Nullpunkt ist die linke untere Ecke der Tafel, beim Fräsen Z0 die Blechoberseite. Das Programm vor dem Einsatz an der Maschine oder in einem NC-Simulator prüfen.' }], 'Erzeugen');
+      { key: 'hint', hint: 'Je Tafel eine Datei. Die Bahn läuft um die halbe Schnittfuge (beim Fräsen den halben Fräser) neben dem Umriss im Abfall; Ausschnitte kommen vor dem Umriss ihres Teils, jede Kontur beginnt mit einem Anschnitt aus dem Abfall. Kiemenschlitze werden auf ihrer Linie geschnitten. Haltestege: so viele Stellen je Umriss bleiben stehen (Laser, Plasma, Wasserstrahl: der Strahl setzt dort aus; Fräsen: der Fräser hebt auf halbe Blechdicke), Umrisse unter 40 mm Länge bekommen keine. „Steuerung“ legt fest, womit der Strahl ein- und ausgeschaltet wird; die Einstechzeit steht als G4 im Programm, außer die Steuerung sticht selbst ein. Nullpunkt ist die linke untere Ecke der Tafel, beim Fräsen Z0 die Blechoberseite. Das Programm vor dem Einsatz an der Maschine oder in einem NC-Simulator prüfen.' },
+      { key: 'hint2', hint: 'Gemeinsame Schnittkanten: liegen zwei Zuschnitte genau eine Schnittfuge auseinander (beim Schachteln als Abstand die Schnittfuge eintragen), fällt ihre Bahn auf der gemeinsamen Kante zusammen und wird nur einmal geschnitten. Der Anschnitt liegt nie in einem Nachbarteil: ist neben einer Kontur kein freier Abfall, wird auf der Kontur eingestochen. Nach „Vorschau“ zeigt ein Bild je Tafel die Bahn, bevor die Dateien gespeichert werden.' }], 'Vorschau');
     if (!c) return;
     state.cutLast = c;
-    let len = 0, pier = 0, min = 0;
+    let len = 0, pier = 0, min = 0, tabN = 0;
+    const progs = [];
     for (let i = 0; i < n.sheets; i++) {
-      const prog = cutProgram(n.placed.filter(p => p.sheet === i).flatMap(p => p.loops), { ...c, thickness: Math.max(...thick) || 1, name: `${safeName()} Schachtelplan Tafel ${i + 1} von ${n.sheets}, ${f2(W)} x ${f2(H)} mm` });
-      download(`${safeName()}_Tafel${i + 1}.nc`, prog.text, 'text/plain');
-      len += prog.length; pier += prog.pierces; min += prog.minutes;
+      const prog = cutProgram(n.placed.filter(p => p.sheet === i).flatMap(p => p.loops), { ...c, open: n.placed.filter(p => p.sheet === i).flatMap(p => p.open || []), thickness: Math.max(...thick) || 1, name: `${safeName()} Schachtelplan Tafel ${i + 1} von ${n.sheets}, ${f2(W)} x ${f2(H)} mm` });
+      progs.push({ prog, loops: n.placed.filter(p => p.sheet === i).flatMap(p => p.loops) });
+      len += prog.length; pier += prog.pierces; min += prog.minutes; tabN += prog.tabs;
     }
+    if (!(await cutPreview(progs, W, H))) return say();
+    progs.forEach(({ prog }, i) => download(`${safeName()}_Tafel${i + 1}.nc`, prog.text, 'text/plain'));
     say();
-    return status(`Schneidprogramm: ${n.sheets} Datei(en), ${f2(len / 1000)} m Schnitt, ${pier} Einstiche, etwa ${f2(min)} min`);
+    return status(tabN ? `Schneidprogramm: ${n.sheets} Datei(en), ${f2(len / 1000)} m Schnitt, ${pier} Einstiche, ${tabN} Haltestege, etwa ${f2(min)} min` : `Schneidprogramm: ${n.sheets} Datei(en), ${f2(len / 1000)} m Schnitt, ${pier} Einstiche, etwa ${f2(min)} min`);
   }
   if (v.out === 'dxf') {
     download(`${safeName()}_Schachtelplan.dxf`, writeDXF([...loops.map((pts, i) => ({ id: 'o' + i, type: 'poly', closed: true, pts })), ...frames.map((pts, i) => ({ id: 't' + i, type: 'poly', closed: true, pts, layer: 'TAFEL' }))]), 'application/dxf');
@@ -4797,6 +4959,51 @@ async function nestDialog() {
   if (v.out === 'body') insertFeature({ id: uid('ex'), type: 'extrude', name: nextName(state.project.features, 'Zuschnitte'), sketch: id, profiles: 'all', extent: 'one', distance: t, distance2: 5, op: 'new' });
   fitView();
   say();
+}
+
+// the path of a cutting program on its sheet: cuts, lead-ins, rapid moves, tabs, the order of the contours
+function cutPreview(progs, W, H) {
+  return new Promise(resolve => {
+    const back = h('div', { class: 'modal-back' }), pic = h('div', { style: 'background:#fff;border:1px solid var(--line,#8884);border-radius:4px;overflow:hidden' }), info = h('div', { class: 'stats' });
+    const done = r => { back.remove(); resolve(r); };
+    let cur = 0;
+    const n2 = x => +x.toFixed(2);
+    const draw = () => {
+      const { prog, loops } = progs[cur], sw = Math.max(W, H) / 700;
+      const d = k => prog.trace.filter(q => q[4] === k).map(q => `M${n2(q[0])} ${n2(q[1])}L${n2(q[2])} ${n2(q[3])}`).join('');
+      const parts = loops.map(l => 'M' + l.map(p => `${n2(p[0])} ${n2(p[1])}`).join('L') + 'Z').join('');
+      const fs = Math.max(W, H) / 70;
+      const nums = prog.paths.map((q, i) => `<text x="${n2(q.lead[0])}" y="${n2(-q.lead[1])}" font-size="${n2(fs)}" fill="#222" transform="scale(1,-1)">${i + 1}</text>`).join('');
+      const dots = prog.paths.map(q => `<circle cx="${n2(q.lead[0])}" cy="${n2(q.lead[1])}" r="${n2(sw * 2)}" fill="#16a34a"/>`).join('');
+      pic.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-sw * 4} ${-sw * 4} ${W + sw * 8} ${H + sw * 8}" style="display:block;width:100%;max-height:60vh"><g transform="translate(0,${H}) scale(1,-1)" fill="none" stroke-linecap="round">`
+        + `<rect x="0" y="0" width="${W}" height="${H}" fill="#f4f4f5" stroke="#71717a" stroke-width="${sw}"/>`
+        + `<path d="${parts}" fill="#dbeafe" fill-rule="evenodd" stroke="none"/>`
+        + `<path d="${d(0)}" stroke="#a1a1aa" stroke-width="${sw * 0.7}" stroke-dasharray="${sw * 4} ${sw * 4}"/>`
+        + `<path d="${d(1)}" stroke="#1d4ed8" stroke-width="${sw * 1.4}"/>`
+        + `<path d="${d(2)}" stroke="#16a34a" stroke-width="${sw * 1.4}"/>`
+        + `<path d="${d(3)}" stroke="#ea580c" stroke-width="${sw * 5}"/>`
+        + dots + nums + '</g></svg>';
+      info.replaceChildren(
+        h('span', null, 'Schnittlänge'), h('b', null, `${f2(prog.length / 1000)} m`),
+        h('span', null, 'Einstiche'), h('b', null, String(prog.pierces)),
+        h('span', null, 'Haltestege'), h('b', null, String(prog.tabs)),
+        h('span', null, 'Durch gemeinsame Kanten gespart'), h('b', null, `${f2(prog.saved / 1000)} m`),
+        h('span', null, 'Dauer etwa'), h('b', null, `${f2(prog.minutes)} min`));
+    };
+    const key = (c, t) => h('span', { style: 'display:inline-flex;align-items:center;gap:4px;margin-right:12px' }, h('i', { style: `display:inline-block;width:18px;height:0;border-top:3px ${c}` }), t);
+    draw();
+    back.append(h('div', { class: 'modal', style: 'height:auto;width:min(900px,calc(100vw - 32px))' },
+      h('div', { class: 'modal-head' }, 'SCHNEIDPROGRAMM – VORSCHAU', h('button', { onclick: () => done(false) }, '✕')),
+      h('div', { style: 'padding:12px 16px;display:grid;gap:8px' },
+        ...(progs.length > 1 ? [row('Tafel', sel(progs.map((_, i) => [String(i), `Tafel ${i + 1} von ${progs.length}`]), '0', v => { cur = +v; draw(); }))] : []),
+        pic,
+        h('div', { class: 'hint' }, key('solid #1d4ed8', 'Schnitt'), key('solid #16a34a', 'Anschnitt (Punkt: Einstich)'), key('dashed #a1a1aa', 'Eilgang, Strahl aus'), key('solid #ea580c', 'Haltesteg')),
+        info,
+        h('p', { class: 'hint' }, 'Die Zahlen geben die Reihenfolge der Konturen an. Nullpunkt ist die linke untere Ecke der Tafel.')),
+      h('div', { class: 'modal-foot' }, h('button', { onclick: () => done(false) }, 'Abbrechen'), h('button', { class: 'primary', onclick: () => done(true) }, progs.length > 1 ? 'Programme speichern' : 'Programm speichern'))));
+    back.addEventListener('keydown', e => { if (e.key === 'Escape') done(false); });
+    document.body.append(back);
+  });
 }
 
 function flatToSketch(f, fp, z0) {
@@ -7956,6 +8163,7 @@ function viewportClick(e) {
   if (state.pick?.mode === 'decal') return placeDecal(e, meshes);
   if (state.pick?.mode === 'opbound' || state.pick?.mode === 'facegroup') return opFacePick(e, meshes, m);
   if (state.pick?.mode === 'boltHole') return placeBolt(e, meshes);
+  if (state.pick?.mode === 'boltFace') return placeBoltFace(e, meshes);
   if (state.pick?.mode === 'presspull') return pressPullPick(e, meshes, m);
   if (state.pick?.mode === 'cpoints') return pointPickClick(e);
   if (state.pick?.mode === 'axiscyl') return axisCylClick(e, meshes, m);
@@ -11529,7 +11737,7 @@ async function meshToBody(target) {
     if (err) throw new Error(err);
     state.hiddenBodies.add(mb.id);
     select('feature', id);
-    status(`„${mb.name}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich)${conv.cylinders - conv.arcs ? ` – ${conv.cylinders - conv.arcs} runde Bohrungen/Zapfen als echte Zylinder` : ''}${conv.arcs ? ` – ${conv.arcs} Verrundungen/Teilzylinder als echte Rundungen` : ''}${conv.cones + conv.spheres ? ` – ${conv.cones + conv.spheres} Kegel-/Kugelflächen als echte Flächen` : ''}. Das Netz ist ausgeblendet.`);
+    status(`„${mb.name}“ ist jetzt auch ein Körper (Verrundung, Ausschneiden, 2D-Bearbeitung möglich)${conv.cylinders - conv.arcs ? ` – ${conv.cylinders - conv.arcs} runde Bohrungen/Zapfen als echte Zylinder` : ''}${conv.arcs ? ` – ${conv.arcs} Verrundungen/Teilzylinder als echte Rundungen` : ''}${conv.cones + conv.spheres ? ` – ${conv.cones + conv.spheres} Kegel-/Kugelflächen als echte Flächen` : ''}${conv.tori ? ` – ${conv.tori} Verrundungen um runde Kanten als echte Ringflächen` : ''}. Das Netz ist ausgeblendet.`);
   } catch (err) {
     alert('Umwandeln fehlgeschlagen: ' + (err.message || err));
   } finally { if (busy) busy.hidden = true; }
@@ -12930,6 +13138,8 @@ function openPostDialog(saved = null) {
   // steps waiting for the full kernel (delete face, fillet with radius points) are computed as soon as it is there
   onFullKernel(() => { clearTimelineCache(); model.key = null; renderAll(); });
 })();
+
+
 
 
 

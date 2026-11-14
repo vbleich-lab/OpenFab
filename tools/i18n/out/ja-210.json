@@ -1,0 +1,19 @@
+{
+ "Fläche anklicken – die Bohrung entsteht mit": "面をクリック – 穴も同時に作成されます",
+ "Kopf versenken (Senkbohrung)": "頭を沈める(座ぐり穴)",
+ "Fläche anklicken: an jedem Klickpunkt entsteht die Durchgangsbohrung für die Schraube (ISO 273, Reihe mittel) durch alle Teile, die dort aufeinanderliegen – für Senkschrauben mit 90°-Senkung, für Zylinderschrauben auf Wunsch mit Senkbohrung (DIN 974-1, Reihe 1) so tief wie der Kopf. Die Schraube sitzt gleich darin. Bohrung und Schraube lassen sich danach im Verlauf ändern.": "面をクリックします。クリックした各点に、そこで重なっているすべての部品を貫通するねじ用のバカ穴(ISO 273、中級)が作成されます。皿ねじには90°の皿穴、円筒頭ねじには必要に応じて頭と同じ深さの座ぐり(DIN 974-1、1列)が付きます。ねじはそのまま穴に収まります。穴とねじは、後からタイムラインで変更できます。",
+ "Normteil: {0} eingefügt – weiteren Punkt anklicken oder beenden.": "規格部品:{0}を挿入しました。別の点をクリックするか、終了してください。",
+ "Normteil: Punkt auf einer ebenen Fläche anklicken – dort entsteht die Bohrung.": "規格部品:平面上の点をクリックしてください。そこに穴が作成されます。",
+ "Auf eine ebene Fläche klicken.": "平面をクリックしてください。",
+ "Das ist eine runde Fläche – bitte eine ebene Fläche anklicken.": "これは丸い面です。平面をクリックしてください。",
+ "Unter diesem Punkt liegt kein Material.": "この点の下には材料がありません。",
+ "Das Teil ist für die Senkung zu dünn (Senktiefe {0} mm, Dicke {1} mm).": "部品が薄すぎて座ぐりを加工できません(座ぐり深さ{0} mm、厚さ{1} mm)。",
+ "Bohrung für {0} – Skizze": "{0}用の穴 – スケッチ",
+ "Bohrung für {0}": "{0}用の穴",
+ "Bohrung Ø {0} mm mit Senkung Ø {1} × {2} mm": "穴 Ø {0} mm、座ぐり Ø {1} × {2} mm付き",
+ "Bohrung Ø {0} mm mit Senkung 90° Ø {1} mm": "穴 Ø {0} mm、90°皿穴 Ø {1} mm付き",
+ "Bohrung Ø {0} mm": "穴 Ø {0} mm",
+ "Verschraubung: {0} – {1}; die Schraube ist für die Klemmdicke {2} mm zu kurz (nötig: {3} mm)": "ねじ締結:{0} – {1}、締結厚さ{2} mmに対してねじが短すぎます(必要:{3} mm)",
+ "{0} – {1}, Dicke {2} mm": "{0} – {1}、厚さ{2} mm",
+ "Für {0} ist keine Durchgangsbohrung hinterlegt": "{0}用のバカ穴が登録されていません"
+}

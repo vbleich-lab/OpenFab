@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "Bez matice",
+ "Durchgangsbohrung durch alle Teile": "Průchozí díra skrz všechny díly",
+ "Gewindebohrung im untersten Teil": "Díra se závitem v nejspodnějším dílu",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "Díra se závitem v nejspodnějším dílu: průchozí díra končí tam, kde začíná nejspodnější díl; tam vznikne předvrtaná díra se závitem – o tři závity hlouběji, než sahá šroub, nebo skrz celý díl. Pokud je pod bodem jen jeden díl, dostane závit od plochy.",
+ "Für {0} ist kein Gewinde hinterlegt.": "Pro {0} není uložen žádný závit.",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "Šroub nedosahuje do nejspodnějšího dílu (délka {0} mm, nad ním {1} mm).",
+ "Gewindebohrung für {0} – Skizze": "Díra se závitem pro {0} – skica",
+ "Gewindebohrung für {0}": "Díra se závitem pro {0}",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "díra se závitem {0} – hloubka zašroubování pouze {1} mm",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "díra se závitem {0}, hloubka zašroubování {1} mm"
+}

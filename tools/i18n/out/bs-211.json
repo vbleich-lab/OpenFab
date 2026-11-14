@@ -1,0 +1,12 @@
+{
+ "Ohne Mutter": "Bez matice",
+ "Durchgangsbohrung durch alle Teile": "Prolazna rupa kroz sve dijelove",
+ "Gewindebohrung im untersten Teil": "Rupa s navojem u najdonjem dijelu",
+ "Gewindebohrung im untersten Teil: die Durchgangsbohrung endet, wo das unterste Teil beginnt; dort entsteht das Kernloch mit Gewinde – drei Gewindegänge tiefer, als die Schraube reicht, oder durch das ganze Teil. Liegt nur ein Teil unter dem Punkt, bekommt es das Gewinde von der Fläche an.": "Rupa s navojem u najdonjem dijelu: prolazna rupa završava gdje počinje najdonji dio; tamo nastaje rupa za navoj s navojem – tri navoja dublje nego što seže vijak ili kroz cijeli dio. Ako se ispod tačke nalazi samo jedan dio, navoj dobiva od površine nadalje.",
+ "Für {0} ist kein Gewinde hinterlegt.": "Za {0} nije pohranjen navoj.",
+ "Die Schraube reicht nicht bis in das unterste Teil (Länge {0} mm, darüber {1} mm).": "Vijak ne seže do najdonjeg dijela (dužina {0} mm, iznad njega {1} mm).",
+ "Gewindebohrung für {0} – Skizze": "Rupa s navojem za {0} – skica",
+ "Gewindebohrung für {0}": "Rupa s navojem za {0}",
+ "Gewindebohrung {0} – Einschraubtiefe nur {1} mm": "rupa s navojem {0} – dubina uvijanja samo {1} mm",
+ "Gewindebohrung {0}, Einschraubtiefe {1} mm": "rupa s navojem {0}, dubina uvijanja {1} mm"
+}
